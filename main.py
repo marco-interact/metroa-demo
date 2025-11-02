@@ -476,6 +476,68 @@ async def delete_scan(scan_id: str):
         logger.error(f"Error deleting scan: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/point-cloud/{scan_id}/stats")
+async def get_point_cloud_stats(scan_id: str):
+    """Get point cloud statistics for a scan"""
+    try:
+        # Check if scan exists
+        conn = get_db_connection()
+        scan = conn.execute("SELECT * FROM scans WHERE id = ?", (scan_id,)).fetchone()
+        conn.close()
+        
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        scan_dict = dict(scan)
+        
+        # Check if point cloud file exists
+        ply_file = scan_dict.get('ply_file')
+        if not ply_file:
+            # Return empty stats if no point cloud yet
+            return {
+                "status": "pending",
+                "message": "Point cloud not yet generated",
+                "point_count": 0,
+                "bounds": None
+            }
+        
+        # Try to get stats from COLMAP reconstruction
+        results_dir = Path(f"/workspace/data/results/{scan_id}")
+        sparse_path = results_dir / "sparse" / "0"
+        
+        if sparse_path.exists():
+            try:
+                from colmap_binary_parser import COLMAPBinaryParser
+                parser = COLMAPBinaryParser(str(sparse_path))
+                parser.load_reconstruction()
+                
+                return {
+                    "status": "completed",
+                    "point_count": len(parser.points3D),
+                    "camera_count": len(parser.cameras),
+                    "image_count": len(parser.images),
+                    "bounds": {
+                        "min": parser.points3D.min(axis=0).tolist() if len(parser.points3D) > 0 else [0, 0, 0],
+                        "max": parser.points3D.max(axis=0).tolist() if len(parser.points3D) > 0 else [0, 0, 0]
+                    }
+                }
+            except Exception as e:
+                logger.warning(f"Could not parse COLMAP reconstruction: {e}")
+        
+        # Fallback: basic stats
+        return {
+            "status": "completed",
+            "message": "Point cloud available",
+            "point_count": 0,  # Unknown
+            "bounds": None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting point cloud stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/jobs/{job_id}")
 async def get_job_status(job_id: str):
     """Get job status with detailed progress tracking"""
