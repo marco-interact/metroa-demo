@@ -46,9 +46,9 @@ class COLMAPProcessor:
         
         logger.info(f"Created COLMAP workspace at {self.job_path}")
     
-    def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = 60, quality: str = "medium") -> int:
+    def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = 24, quality: str = "medium") -> int:
         """
-        Extract frames from video using ffmpeg at native FPS (capped at 60fps)
+        Extract frames from video using ffmpeg at native FPS (capped at 24fps)
         
         Following COLMAP best practices:
         Reference: https://colmap.github.io/tutorial.html#data-structure
@@ -61,11 +61,11 @@ class COLMAPProcessor:
         
         Args:
             video_path: Path to input video
-            max_frames: Maximum number of frames to extract
-            target_fps: Target FPS (will use native FPS if lower, default 60)
+            max_frames: Maximum number of frames to extract (0 = unlimited)
+            target_fps: Target FPS (will use native FPS if lower, default 24)
             quality: Quality preset (low/medium/high)
         """
-        logger.info(f"Extracting frames from {video_path} (quality={quality}, target_fps={target_fps})")
+        logger.info(f"Extracting frames from {video_path} (quality={quality}, target_fps={target_fps}, max_frames={'unlimited' if max_frames == 0 else max_frames})")
         
         # First, get the video's native FPS
         probe_cmd = [
@@ -87,9 +87,9 @@ class COLMAPProcessor:
             else:
                 native_fps = float(fps_str)
             
-            # Use native FPS if it's lower than target, otherwise cap at target_fps
+            # Use native FPS if it's lower than target, otherwise cap at 24fps
             actual_fps = min(native_fps, target_fps)
-            logger.info(f"Video native FPS: {native_fps:.2f}, using: {actual_fps:.2f}")
+            logger.info(f"📹 Video native FPS: {native_fps:.2f}, using: {actual_fps:.2f} (capped at {target_fps}fps for optimal COLMAP performance)")
             
         except Exception as e:
             logger.warning(f"Could not detect video FPS: {e}, using target_fps={target_fps}")
