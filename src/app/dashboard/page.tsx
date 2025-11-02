@@ -155,9 +155,9 @@ export default function DashboardPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-950 flex">
+    <div className="min-h-screen bg-app-primary flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#000] border-r border-gray-700/30 flex flex-col">
+      <aside className="w-64 bg-app-primary border-r border-app-primary flex flex-col">
         <div className="p-6">
           <h1 className="text-xl font-bold text-primary-400 font-mono">Colmap App</h1>
         </div>
@@ -182,19 +182,19 @@ export default function DashboardPage() {
               </button>
             </li>
             <li>
-              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
+              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-app-elevated rounded-lg">
                 <Clock className="w-4 h-4 mr-3" />
                 Recent
               </button>
             </li>
             <li>
-              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
+              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-app-elevated rounded-lg">
                 <Settings className="w-4 h-4 mr-3" />
                 Settings
               </button>
             </li>
             <li>
-              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
+              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-app-elevated rounded-lg">
                 <HelpCircle className="w-4 h-4 mr-3" />
                 Help
               </button>
@@ -203,7 +203,7 @@ export default function DashboardPage() {
         </nav>
 
         {/* Bottom Status */}
-        <div className="p-6 border-t border-gray-800">
+        <div className="p-6 border-t border-app-primary">
           <div className="space-y-2">
             <ServiceStatus />
             <span className="text-xs text-gray-500">MVP Version</span>
@@ -214,7 +214,7 @@ export default function DashboardPage() {
       {/* Main Content */}
       <main className="flex-1">
         {/* Header */}
-        <header className="border-b border-gray-700/30 bg-[#000]">
+        <header className="border-b border-app-primary bg-app-primary">
           <div className="flex items-center justify-between px-8 py-6">
             <h1 className="text-2xl font-bold text-white font-mono">My Projects</h1>
             
@@ -225,7 +225,7 @@ export default function DashboardPage() {
                   placeholder="Search Project"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-80 bg-gray-800 border-gray-700"
+                  className="pl-10 w-80 bg-app-elevated border-app-secondary"
                 />
               </div>
               
@@ -246,11 +246,11 @@ export default function DashboardPage() {
             {filteredProjects.map((project) => (
               <Card 
                 key={project.id}
-                className="cursor-pointer hover:scale-105 transition-transform duration-200 bg-gray-900/50 border-gray-800"
+                className="cursor-pointer hover:scale-105 transition-transform duration-200 bg-app-card border-app-primary"
                 onClick={() => router.push(`/projects/${project.id}`)}
               >
                 {/* Project Thumbnail */}
-                <div className="aspect-[4/3] bg-gray-800 rounded-t-xl overflow-hidden">
+                <div className="aspect-[4/3] bg-app-elevated rounded-t-xl overflow-hidden">
                   <img 
                     src={project.thumbnail} 
                     alt={project.name}
@@ -260,14 +260,14 @@ export default function DashboardPage() {
                       e.currentTarget.style.display = 'none'
                       const parent = e.currentTarget.parentElement
                       if (parent) {
-                        parent.innerHTML = '<div class="w-full h-full bg-gray-800 flex items-center justify-center"><div class="w-20 h-20 bg-gray-700 rounded-lg flex items-center justify-center"><div class="w-10 h-10 bg-primary-400 rounded transform rotate-45"></div></div></div>'
+                        parent.innerHTML = '<div class="w-full h-full bg-app-elevated flex items-center justify-center"><div class="w-20 h-20 bg-gray-700 rounded-lg flex items-center justify-center"><div class="w-10 h-10 bg-primary-400 rounded transform rotate-45"></div></div></div>'
                       }
                     }}
                   />
                 </div>
 
                 {/* Project Info */}
-                <CardContent className="p-4 bg-gray-900">
+                <CardContent className="p-4 bg-app-card">
                   <div className="text-xs text-gray-400 mb-1">
                     Updated: <span className="font-mono">{project.updated}</span>
                   </div>
@@ -288,7 +288,7 @@ export default function DashboardPage() {
 
                   {/* Progress bar for projects with processing scans */}
                   {project.status === 'processing' && project.activeScans && project.activeScans > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-800">
+                    <div className="mt-3 pt-3 border-t border-app-primary">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs text-yellow-500">
                           {project.activeScans} scan{project.activeScans > 1 ? 's' : ''} processing
@@ -307,7 +307,7 @@ export default function DashboardPage() {
 
                   {/* Status indicator for completed projects */}
                   {project.status === 'completed' && project.totalScans && project.totalScans > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-800">
+                    <div className="mt-3 pt-3 border-t border-app-primary">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-green-500 flex items-center">
                           <div className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></div>
@@ -324,7 +324,7 @@ export default function DashboardPage() {
           {/* Empty State */}
           {filteredProjects.length === 0 && (
             <div className="text-center py-20">
-              <div className="w-16 h-16 bg-gray-800 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-app-elevated rounded-lg flex items-center justify-center mx-auto mb-4">
                 <Plus className="w-8 h-8 text-gray-500" />
               </div>
               <h3 className="text-xl font-medium text-white mb-2">
@@ -365,7 +365,7 @@ export default function DashboardPage() {
               placeholder="Project's name or title"
               value={newProject.name}
               onChange={(e) => setNewProject(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full bg-gray-800 border-gray-700"
+              className="w-full bg-app-elevated border-app-secondary"
             />
           </div>
 
@@ -377,7 +377,7 @@ export default function DashboardPage() {
               placeholder="Project's short description"
               value={newProject.description}
               onChange={(e) => setNewProject(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full h-24 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder:text-gray-400 focus:border-primary-500 focus:outline-none resize-none"
+              className="w-full h-24 px-4 py-3 bg-app-elevated border border-app-secondary rounded-lg text-white placeholder:text-gray-400 focus:border-primary-500 focus:outline-none resize-none"
             />
           </div>
 
@@ -389,7 +389,7 @@ export default function DashboardPage() {
               placeholder="Search Location"
               value={newProject.location}
               onChange={(e) => setNewProject(prev => ({ ...prev, location: e.target.value }))}
-              className="w-full bg-gray-800 border-gray-700"
+              className="w-full bg-app-elevated border-app-secondary"
             />
           </div>
 
@@ -400,7 +400,7 @@ export default function DashboardPage() {
             <select
               value={newProject.spaceType}
               onChange={(e) => setNewProject(prev => ({ ...prev, spaceType: e.target.value }))}
-              className="w-full h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-primary-500 focus:outline-none appearance-none"
+              className="w-full h-12 px-4 py-3 bg-app-elevated border border-app-secondary rounded-lg text-white focus:border-primary-500 focus:outline-none appearance-none"
             >
               <option value="" className="text-gray-400">Select the type of space you wish to scan</option>
               <option value="residential">Residential</option>
@@ -417,7 +417,7 @@ export default function DashboardPage() {
             <select
               value={newProject.projectType}
               onChange={(e) => setNewProject(prev => ({ ...prev, projectType: e.target.value }))}
-              className="w-full h-12 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-primary-500 focus:outline-none appearance-none"
+              className="w-full h-12 px-4 py-3 bg-app-elevated border border-app-secondary rounded-lg text-white focus:border-primary-500 focus:outline-none appearance-none"
             >
               <option value="" className="text-gray-400">Select the type of project you're creating</option>
               <option value="new_build">New Build</option>

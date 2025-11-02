@@ -43,14 +43,14 @@ export function Modal({ isOpen, onClose, children, className, title }: ModalProp
       
       {/* Modal */}
       <div className={cn(
-        "relative z-10 w-full max-w-lg mx-4 bg-gray-900 rounded-xl shadow-2xl border border-gray-800",
+        "relative z-10 w-full max-w-lg mx-4 bg-app-card rounded-xl shadow-2xl border border-app-primary",
         "transform transition-all duration-200 ease-out",
         "max-h-[90vh] overflow-hidden flex flex-col",
         className
       )}>
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between p-6 border-b border-gray-800">
+          <div className="flex items-center justify-between p-6 border-b border-app-primary">
             <h2 className="text-lg font-semibold text-white">{title}</h2>
             <button
               onClick={onClose}
@@ -91,7 +91,7 @@ interface ModalFooterProps {
 
 export function ModalFooter({ children, className }: ModalFooterProps) {
   return (
-    <div className={cn("flex items-center justify-end gap-3 p-6 border-t border-gray-800", className)}>
+    <div className={cn("flex items-center justify-end gap-3 p-6 border-t border-app-primary", className)}>
       {children}
     </div>
   )

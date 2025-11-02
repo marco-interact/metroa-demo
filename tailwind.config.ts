@@ -68,6 +68,18 @@ const config: Config = {
         '18': '4.5rem',
         '88': '22rem',
       },
+      backgroundColor: {
+        'app-primary': '#000000',
+        'app-secondary': '#0a0a0a',
+        'app-tertiary': '#111111',
+        'app-elevated': '#1a1a1a',
+        'app-card': 'rgba(17, 17, 17, 0.5)',
+      },
+      borderColor: {
+        'app-primary': 'rgba(255, 255, 255, 0.1)',
+        'app-secondary': 'rgba(255, 255, 255, 0.05)',
+        'app-accent': '#3E93C9',
+      },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
         'slide-up': 'slideUp 0.3s ease-out',

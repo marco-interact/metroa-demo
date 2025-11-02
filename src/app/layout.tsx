@@ -30,7 +30,7 @@ export default function RootLayout({
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body className={`${inter.variable} font-sans bg-gray-950 text-white antialiased`}>
+      <body className={`${inter.variable} font-sans bg-app-primary text-white antialiased`}>
         {children}
       </body>
     </html>

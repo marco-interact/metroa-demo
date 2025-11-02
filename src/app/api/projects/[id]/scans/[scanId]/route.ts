@@ -39,9 +39,9 @@ export async function GET(
         { name: "Dense Reconstruction", status: "completed", duration: "0.4m", points: 145892 }
       ],
       results: {
-        point_cloud_url: `/models/${params.scanId}/pointcloud.ply`,
-        mesh_url: `/models/${params.scanId}/mesh.obj`,
-        thumbnail_url: `/models/${params.scanId}/thumbnail.jpg`
+        point_cloud_url: null, // No results for fallback - will use demo resources
+        mesh_url: null,
+        thumbnail_url: null
       }
     }
     

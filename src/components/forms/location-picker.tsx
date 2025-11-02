@@ -79,7 +79,7 @@ export function LocationPicker({ value, onChange, className = "" }: LocationPick
 
   if (!mounted) {
     return (
-      <div className={`h-64 bg-gray-800 rounded-lg flex items-center justify-center ${className}`}>
+      <div className={`h-64 bg-app-elevated rounded-lg flex items-center justify-center ${className}`}>
         <MapPin className="w-8 h-8 text-gray-600" />
       </div>
     )
@@ -96,11 +96,11 @@ export function LocationPicker({ value, onChange, className = "" }: LocationPick
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           placeholder="Or type address..."
-          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="w-full px-3 py-2 bg-app-elevated border border-app-secondary rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       </div>
       
-      <div className="h-64 rounded-lg overflow-hidden border border-gray-700">
+      <div className="h-64 rounded-lg overflow-hidden border border-app-secondary">
         <MapContainer
           center={position || [25.6866, -100.3161]} // Default: Monterrey, Mexico
           zoom={13}

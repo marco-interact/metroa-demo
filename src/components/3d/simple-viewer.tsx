@@ -68,7 +68,7 @@ function PLYModel({ url }: { url: string }) {
   if (loading) {
     return (
       <Html center>
-        <div className="text-white text-sm bg-gray-800/90 px-4 py-2 rounded">
+        <div className="text-white text-sm bg-app-elevated/90 px-4 py-2 rounded">
           Loading 3D model...
         </div>
       </Html>
@@ -78,7 +78,7 @@ function PLYModel({ url }: { url: string }) {
   if (error) {
     return (
       <Html center>
-        <div className="text-red-400 text-sm bg-gray-800/90 px-4 py-2 rounded">
+        <div className="text-red-400 text-sm bg-app-elevated/90 px-4 py-2 rounded">
           {error}
         </div>
       </Html>
@@ -186,10 +186,10 @@ export function SimpleViewer({ modelUrl, className = "" }: SimpleViewerProps) {
   const [viewMode, setViewMode] = useState<'pointcloud' | 'mesh'>('pointcloud')
 
   return (
-    <div className={`relative bg-gray-900 rounded-lg overflow-hidden ${className}`}>
+    <div className={`relative bg-app-card rounded-lg overflow-hidden ${className}`}>
       <Canvas
         camera={{ position: [5, 5, 5], fov: 75 }}
-        className="bg-gray-900"
+        className="bg-app-card"
         gl={{ antialias: false, powerPreference: "low-power" }}
         dpr={[1, 1.5]}
       >
@@ -229,7 +229,7 @@ export function SimpleViewer({ modelUrl, className = "" }: SimpleViewerProps) {
       {/* Controls - only show if no model URL (demo mode) */}
       {!modelUrl && (
         <div className="absolute top-4 right-4 z-10">
-          <div className="bg-gray-800/90 backdrop-blur-sm rounded-lg p-2">
+          <div className="bg-app-elevated/90 backdrop-blur-sm rounded-lg p-2">
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => setViewMode('pointcloud')}
@@ -258,7 +258,7 @@ export function SimpleViewer({ modelUrl, className = "" }: SimpleViewerProps) {
 
       {/* Status indicator */}
       <div className="absolute bottom-4 left-4">
-        <div className="bg-gray-800/90 backdrop-blur-sm px-3 py-1 rounded-lg">
+        <div className="bg-app-elevated/90 backdrop-blur-sm px-3 py-1 rounded-lg">
           <span className="text-white text-sm">
             {modelUrl ? '3D Point Cloud' : `Demo ${viewMode}`}
           </span>

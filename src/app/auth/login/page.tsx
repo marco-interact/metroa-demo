@@ -74,7 +74,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-app-primary flex items-center justify-center px-4">
       <div className="w-full max-w-md space-y-6">
         {/* Logo/Title Area */}
         <div className="text-center space-y-2">
@@ -85,14 +85,14 @@ export default function LoginPage() {
         </div>
 
         {/* Demo Credentials Card */}
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+        <div className="bg-app-card border border-app-primary rounded-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-300">Demo Credentials</h3>
             <span className="text-xs text-primary-400 bg-primary-400/10 px-2 py-1 rounded">DEMO</span>
           </div>
           
           <div className="space-y-2">
-            <div className="flex items-center justify-between bg-gray-800 rounded p-2">
+            <div className="flex items-center justify-between bg-app-elevated rounded p-2">
               <div>
                 <p className="text-xs text-gray-400">Email</p>
                 <p className="text-sm text-white font-mono">demo@colmap.app</p>
@@ -109,7 +109,7 @@ export default function LoginPage() {
               </button>
             </div>
             
-            <div className="flex items-center justify-between bg-gray-800 rounded p-2">
+            <div className="flex items-center justify-between bg-app-elevated rounded p-2">
               <div>
                 <p className="text-xs text-gray-400">Password</p>
                 <p className="text-sm text-white font-mono">demo123</p>

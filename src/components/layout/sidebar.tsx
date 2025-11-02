@@ -42,7 +42,7 @@ export function Sidebar({ activeItem = 'projects' }: SidebarProps) {
   ]
 
   return (
-    <div className="w-64 bg-gray-800 flex flex-col h-screen">
+    <div className="w-64 bg-app-elevated flex flex-col h-screen">
       <div className="p-6">
         {/* Logo */}
         <motion.div

@@ -105,9 +105,9 @@ function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan 
   const isShowingDemo = !scan.results?.pointCloudUrl && !(scan as any).technical_details?.results?.point_cloud_url
 
   return (
-    <div id="3d-viewer" className={`relative bg-[#000] rounded-lg overflow-hidden ${className}`}>
+    <div id="3d-viewer" className={`relative bg-app-primary rounded-lg overflow-hidden ${className}`}>
       {/* 3D Canvas Area */}
-      <div className="w-full h-full bg-[#000] flex items-center justify-center">
+      <div className="w-full h-full bg-app-primary flex items-center justify-center">
         {scan.status === 'completed' ? (
           <div className="relative w-full h-full">
             {/* Show demo fallback warning */}
@@ -125,7 +125,7 @@ function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan 
         ) : scan.status === 'processing' ? (
           // Show processing indicator with progress bar
           <div className="text-center space-y-4">
-            <div className="w-32 h-32 mx-auto bg-gray-800 rounded-lg flex items-center justify-center relative">
+            <div className="w-32 h-32 mx-auto bg-app-elevated rounded-lg flex items-center justify-center relative">
               <div className="w-16 h-16 bg-white/20 rounded-lg animate-spin"></div>
               <div className="absolute inset-0 border-2 border-yellow-300/50 rounded-lg animate-pulse"></div>
             </div>
@@ -145,7 +145,7 @@ function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan 
         ) : scan.status === 'failed' ? (
           // Show error state
           <div className="text-center space-y-4">
-            <div className="w-32 h-32 mx-auto bg-gray-800 rounded-lg flex items-center justify-center">
+            <div className="w-32 h-32 mx-auto bg-app-elevated rounded-lg flex items-center justify-center">
               <div className="w-16 h-16 bg-white/20 rounded-lg"></div>
             </div>
             <p className="text-red-400 font-medium">Processing Failed</p>
@@ -157,7 +157,7 @@ function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan 
         ) : (
           // Show queued state
           <div className="text-center space-y-4">
-            <div className="w-32 h-32 mx-auto bg-gray-800 rounded-lg flex items-center justify-center">
+            <div className="w-32 h-32 mx-auto bg-app-elevated rounded-lg flex items-center justify-center">
               <div className="w-16 h-16 bg-white/20 rounded-lg"></div>
             </div>
             <p className="text-gray-400 font-medium">Pending Processing</p>
@@ -172,7 +172,7 @@ function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan 
           variant="secondary"
           size="sm"
           onClick={() => setViewMode(viewMode === 'pointcloud' ? 'mesh' : 'pointcloud')}
-          className="bg-gray-800/80 hover:bg-gray-700"
+          className="bg-app-elevated/80 hover:bg-gray-700"
           disabled={scan.status !== 'completed'}
         >
           {viewMode === 'pointcloud' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
@@ -182,7 +182,7 @@ function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan 
           variant="secondary"
           size="sm"
           onClick={resetCamera}
-          className="bg-gray-800/80 hover:bg-gray-700"
+          className="bg-app-elevated/80 hover:bg-gray-700"
           disabled={scan.status !== 'completed'}
         >
           <RotateCcw className="w-4 h-4" />
@@ -192,7 +192,7 @@ function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan 
           variant="secondary"
           size="sm"
           onClick={toggleFullscreen}
-          className="bg-gray-800/80 hover:bg-gray-700"
+          className="bg-app-elevated/80 hover:bg-gray-700"
         >
           <Maximize2 className="w-4 h-4" />
         </Button>
@@ -200,7 +200,7 @@ function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan 
 
       {/* View Mode Indicator */}
       <div className="absolute bottom-4 left-4">
-        <div className="bg-gray-800/80 px-3 py-1 rounded-lg">
+        <div className="bg-app-elevated/80 px-3 py-1 rounded-lg">
           <span className="text-white text-sm capitalize">
             {scan.status === 'completed' ? `${viewMode} View` : `Status: ${scan.status}`}
           </span>
@@ -322,7 +322,7 @@ export default function ScanDetailPage() {
 
   if (!scan) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-app-primary flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400">Loading scan...</p>
@@ -332,9 +332,9 @@ export default function ScanDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex">
+    <div className="min-h-screen bg-app-primary flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#000] border-r border-gray-700/30 flex flex-col">
+      <aside className="w-64 bg-app-primary border-r border-app-secondary/30 flex flex-col">
         <div className="p-6">
           <h1 className="text-xl font-bold text-primary-400 font-mono">Colmap App</h1>
         </div>
@@ -362,19 +362,19 @@ export default function ScanDetailPage() {
               </button>
             </li>
             <li>
-              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
+              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-app-elevated rounded-lg">
                 <Clock className="w-4 h-4 mr-3" />
                 Recent
               </button>
             </li>
             <li>
-              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
+              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-app-elevated rounded-lg">
                 <Settings className="w-4 h-4 mr-3" />
                 Settings
               </button>
             </li>
             <li>
-              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
+              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-app-elevated rounded-lg">
                 <HelpCircle className="w-4 h-4 mr-3" />
                 Help
               </button>
@@ -391,7 +391,7 @@ export default function ScanDetailPage() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="border-b border-gray-700/30 bg-[#000]">
+        <header className="border-b border-app-secondary/30 bg-app-primary">
           <div className="flex items-center justify-between px-8 py-6">
             <div className="flex items-center space-x-4">
               <Button
@@ -436,10 +436,10 @@ export default function ScanDetailPage() {
           </div>
 
           {/* Sidebar Info Panel */}
-          <aside className="w-80 border-l border-gray-700/30 bg-[#111] p-6">
+          <aside className="w-80 border-l border-app-secondary/30 bg-app-tertiary p-6">
             <div className="space-y-6">
               {/* Scan Information */}
-              <Card className="bg-gray-900/50 border-gray-800">
+              <Card className="bg-app-card/50 border-app-primary">
                 <CardContent className="p-4">
                   <h3 className="text-lg font-semibold text-white mb-4 font-mono">Scan Information</h3>
                   <div className="space-y-3">
@@ -470,7 +470,7 @@ export default function ScanDetailPage() {
               </Card>
 
               {/* Technical Details */}
-              <Card className="bg-gray-900/50 border-gray-800">
+              <Card className="bg-app-card/50 border-app-primary">
                 <CardContent className="p-4">
                   <h3 className="text-lg font-semibold text-white mb-4 font-mono">Technical Details</h3>
                   <div className="space-y-3">
@@ -528,7 +528,7 @@ export default function ScanDetailPage() {
 
               {/* Processing Stages */}
               {scan.processingStages && scan.processingStages.length > 0 && (
-                <Card className="bg-gray-900/50 border-gray-800">
+                <Card className="bg-app-card/50 border-app-primary">
                   <CardContent className="p-4">
                     <h3 className="text-lg font-semibold text-white mb-4 font-mono">Processing Stages</h3>
                     <div className="space-y-3">
@@ -551,7 +551,7 @@ export default function ScanDetailPage() {
               )}
 
               {/* Download Options */}
-              <Card className="bg-gray-900/50 border-gray-800">
+              <Card className="bg-app-card/50 border-app-primary">
                 <CardContent className="p-4">
                   <h3 className="text-lg font-semibold text-white mb-4 font-mono">Downloads</h3>
                   <div className="space-y-2">

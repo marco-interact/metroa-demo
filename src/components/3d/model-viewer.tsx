@@ -137,7 +137,7 @@ function ViewerControls({
 }: ViewerControlsProps) {
   return (
     <div className="absolute top-4 right-4 z-10">
-      <Card className="p-2 bg-gray-900/90 backdrop-blur-sm border-gray-700">
+      <Card className="p-2 bg-app-card/90 backdrop-blur-sm border-app-secondary">
         <div className="flex items-center space-x-2">
           <Button
             variant="ghost"
@@ -317,7 +317,7 @@ function MeasurementTool({
           <sphereGeometry args={[0.02]} />
           <meshBasicMaterial color="#ff4444" />
           <Html distanceFactor={10}>
-            <div className="bg-gray-900 text-white px-2 py-1 rounded text-xs">
+            <div className="bg-app-card text-white px-2 py-1 rounded text-xs">
               P{index + 1}
             </div>
           </Html>
@@ -432,7 +432,7 @@ export function ModelViewer({
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       {loading && (
-        <div className="absolute inset-0 bg-gray-950 flex items-center justify-center z-20">
+        <div className="absolute inset-0 bg-app-primary flex items-center justify-center z-20">
           <div className="text-center">
             <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-gray-400">Cargando modelo 3D...</p>
@@ -441,7 +441,7 @@ export function ModelViewer({
       )}
 
       {error && (
-        <div className="absolute inset-0 bg-gray-950 flex items-center justify-center z-20">
+        <div className="absolute inset-0 bg-app-primary flex items-center justify-center z-20">
           <div className="text-center">
             <h3 className="text-lg font-medium text-white mb-2">Error al cargar el modelo</h3>
             <p className="text-gray-400">{error}</p>
@@ -451,7 +451,7 @@ export function ModelViewer({
 
       <Canvas
         camera={{ position: [5, 5, 5], fov: 75 }}
-        className="bg-gray-950"
+        className="bg-app-primary"
         gl={{ antialias: false, powerPreference: "low-power" }}
         dpr={[1, 1.5]}
       >
@@ -518,7 +518,7 @@ export function ModelViewer({
       {/* Measurement info */}
       {measurementMode && (
         <div className="absolute bottom-4 left-4 z-10">
-          <Card className="p-3 bg-gray-900/90 backdrop-blur-sm border-gray-700">
+          <Card className="p-3 bg-app-card/90 backdrop-blur-sm border-app-secondary">
             <div className="text-sm text-white">
               <p className="font-medium mb-1">Herramienta de Medición</p>
               <p className="text-gray-400 text-xs">

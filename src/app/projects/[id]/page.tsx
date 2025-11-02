@@ -381,7 +381,7 @@ export default function ProjectDetailPage() {
 
   if (!project) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-app-primary flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400">Loading project...</p>
@@ -391,9 +391,9 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex">
+    <div className="min-h-screen bg-app-primary flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#000] border-r border-gray-700/30 flex flex-col">
+      <aside className="w-64 bg-app-primary border-r border-app-secondary/30 flex flex-col">
         <div className="p-6">
           <h1 className="text-xl font-bold text-primary-400 font-mono">Colmap App</h1>
         </div>
@@ -421,19 +421,19 @@ export default function ProjectDetailPage() {
               </button>
             </li>
             <li>
-              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
+              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-app-elevated rounded-lg">
                 <Clock className="w-4 h-4 mr-3" />
                 Recent
               </button>
             </li>
             <li>
-              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
+              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-app-elevated rounded-lg">
                 <Settings className="w-4 h-4 mr-3" />
                 Settings
               </button>
             </li>
             <li>
-              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg">
+              <button className="w-full flex items-center px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-app-elevated rounded-lg">
                 <HelpCircle className="w-4 h-4 mr-3" />
                 Help
               </button>
@@ -450,7 +450,7 @@ export default function ProjectDetailPage() {
       {/* Main Content */}
       <main className="flex-1">
         {/* Header */}
-        <header className="border-b border-gray-700/30 bg-[#000]">
+        <header className="border-b border-app-secondary/30 bg-app-primary">
           <div className="flex items-center justify-between px-8 py-6">
             <h1 className="text-2xl font-bold text-white font-mono">
               {project.name} &gt; Scans
@@ -483,11 +483,11 @@ export default function ProjectDetailPage() {
             {scans.map((scan) => (
               <Card 
                 key={scan.id}
-                className="cursor-pointer hover:scale-105 transition-transform duration-200 bg-gray-900/50 border-gray-800"
+                className="cursor-pointer hover:scale-105 transition-transform duration-200 bg-app-card/50 border-app-primary"
                 onClick={() => router.push(`/projects/${projectId}/scans/${scan.id}`)}
               >
                 {/* Scan Thumbnail */}
-                <div className="aspect-[4/3] bg-gray-800 rounded-t-xl overflow-hidden">
+                <div className="aspect-[4/3] bg-app-elevated rounded-t-xl overflow-hidden">
                   {scan.thumbnail ? (
                     <img 
                       src={scan.thumbnail} 
@@ -498,12 +498,12 @@ export default function ProjectDetailPage() {
                         e.currentTarget.style.display = 'none'
                         const parent = e.currentTarget.parentElement
                         if (parent) {
-                          parent.innerHTML = '<div class="w-full h-full bg-gray-800 flex items-center justify-center"><div class="w-20 h-20 bg-gray-700 rounded-lg flex items-center justify-center"><svg class="w-10 h-10 text-primary-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></div></div>'
+                          parent.innerHTML = '<div class="w-full h-full bg-app-elevated flex items-center justify-center"><div class="w-20 h-20 bg-gray-700 rounded-lg flex items-center justify-center"><svg class="w-10 h-10 text-primary-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></div></div>'
                         }
                       }}
                     />
                   ) : (
-                    <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                    <div className="w-full h-full bg-app-elevated flex items-center justify-center">
                       {/* 3D Model Preview */}
                       <div className="w-20 h-20 bg-gray-700 rounded-lg flex items-center justify-center">
                         <Camera className="w-10 h-10 text-primary-400" />
@@ -513,7 +513,7 @@ export default function ProjectDetailPage() {
                   </div>
 
                   {/* Scan Info */}
-                <CardContent className="p-4 bg-gray-900">
+                <CardContent className="p-4 bg-app-card">
                   <div className="text-xs text-gray-400 mb-1">
                     {project.name}
                   </div>
@@ -560,7 +560,7 @@ export default function ProjectDetailPage() {
                   
                   {/* Retry button for failed scans */}
                   {scan.status === 'failed' && (
-                    <div className="mt-3 pt-3 border-t border-gray-800">
+                    <div className="mt-3 pt-3 border-t border-app-primary">
                       <p className="text-xs text-red-400 mb-2">
                         Processing failed. Please re-upload your video.
                       </p>
@@ -586,7 +586,7 @@ export default function ProjectDetailPage() {
           {/* Empty State */}
           {scans.length === 0 && (
             <div className="text-center py-20">
-              <div className="w-16 h-16 bg-gray-800 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-app-elevated rounded-lg flex items-center justify-center mx-auto mb-4">
                 <Camera className="w-8 h-8 text-gray-500" />
               </div>
               <h3 className="text-xl font-medium text-white mb-2">
@@ -623,7 +623,7 @@ export default function ProjectDetailPage() {
               placeholder="Scan 2"
               value={newScan.name}
               onChange={(e) => setNewScan(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full bg-gray-800 border-gray-700"
+              className="w-full bg-app-elevated border-app-secondary"
             />
           </div>
 

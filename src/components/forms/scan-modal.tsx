@@ -105,7 +105,7 @@ export function ScanModal({ isOpen, onClose, onSubmit, projectId }: ScanModalPro
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="bg-gray-800 rounded-lg shadow-2xl max-w-md w-full"
+            className="bg-app-elevated rounded-lg shadow-2xl max-w-md w-full"
             onClick={(e) => e.stopPropagation()}
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}

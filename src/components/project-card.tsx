@@ -12,7 +12,7 @@ interface ProjectCardProps {
 export function ProjectCard({ project, onClick }: ProjectCardProps) {
   return (
     <motion.div
-      className="bg-gray-800 rounded-lg p-6 cursor-pointer hover:bg-gray-750 transition-colors duration-200"
+      className="bg-app-elevated rounded-lg p-6 cursor-pointer hover:bg-gray-750 transition-colors duration-200"
       onClick={onClick}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}

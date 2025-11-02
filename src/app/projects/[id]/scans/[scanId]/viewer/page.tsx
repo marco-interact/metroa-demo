@@ -54,7 +54,7 @@ export default function ViewerPage({ params }: ViewerPageProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-app-card flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto"></div>
           <p className="mt-4 text-gray-400 font-mono">Loading 3D viewer...</p>
@@ -65,7 +65,7 @@ export default function ViewerPage({ params }: ViewerPageProps) {
 
   if (!scan) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-app-card flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-mono font-bold text-white mb-4">Scan not found</h1>
           <Button onClick={() => router.push(`/projects/${params.id}`)}>
@@ -77,7 +77,7 @@ export default function ViewerPage({ params }: ViewerPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex">
+    <div className="min-h-screen bg-app-card flex">
       {/* Sidebar */}
       <Sidebar activeItem="projects" />
 
@@ -86,7 +86,7 @@ export default function ViewerPage({ params }: ViewerPageProps) {
         <div className="h-screen flex flex-col">
           {/* Header */}
           <motion.div 
-            className="flex justify-between items-center p-6 bg-gray-800 border-b border-gray-600"
+            className="flex justify-between items-center p-6 bg-app-elevated border-b border-gray-600"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -139,7 +139,7 @@ export default function ViewerPage({ params }: ViewerPageProps) {
           {/* 3D Viewer */}
           <div className="flex-1 p-6">
             <motion.div
-              className="w-full h-full bg-gray-800 rounded-lg overflow-hidden"
+              className="w-full h-full bg-app-elevated rounded-lg overflow-hidden"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
@@ -153,7 +153,7 @@ export default function ViewerPage({ params }: ViewerPageProps) {
 
           {/* Viewer Controls */}
           <motion.div 
-            className="p-6 bg-gray-800 border-t border-gray-600"
+            className="p-6 bg-app-elevated border-t border-gray-600"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}

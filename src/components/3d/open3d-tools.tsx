@@ -179,7 +179,7 @@ export function Open3DTools({
       )}
 
       {/* Tab Navigation */}
-      <div className="flex space-x-1 bg-gray-800 rounded-lg p-1">
+      <div className="flex space-x-1 bg-app-elevated rounded-lg p-1">
         <Button
           variant={activeTab === 'stats' ? 'default' : 'ghost'}
           size="sm"

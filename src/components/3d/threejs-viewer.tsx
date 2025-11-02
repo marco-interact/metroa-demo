@@ -423,7 +423,7 @@ export function ThreeJSViewer({
       {/* Controls Overlay */}
       <div className="absolute top-4 left-4 z-10 space-y-2">
         {/* View Mode Toggle */}
-        <div className="flex space-x-1 bg-gray-800/80 rounded-lg p-1">
+        <div className="flex space-x-1 bg-app-elevated/80 rounded-lg p-1">
           <Button
             variant={viewMode === 'pointcloud' ? 'default' : 'ghost'}
             size="sm"
@@ -444,7 +444,7 @@ export function ThreeJSViewer({
 
         {/* Colormap Controls */}
         {viewMode === 'pointcloud' && (
-          <div className="flex space-x-1 bg-gray-800/80 rounded-lg p-1">
+          <div className="flex space-x-1 bg-app-elevated/80 rounded-lg p-1">
             {['jet', 'viridis', 'plasma', 'inferno'].map((type) => (
               <Button
                 key={type}
@@ -460,7 +460,7 @@ export function ThreeJSViewer({
         )}
 
         {/* View Controls */}
-        <div className="flex space-x-1 bg-gray-800/80 rounded-lg p-1">
+        <div className="flex space-x-1 bg-app-elevated/80 rounded-lg p-1">
           <Button
             variant="ghost"
             size="sm"
@@ -491,7 +491,7 @@ export function ThreeJSViewer({
 
       {/* Stats Overlay */}
       {stats && (
-        <div className="absolute bottom-4 left-4 bg-gray-800/80 text-white p-3 rounded-lg z-10">
+        <div className="absolute bottom-4 left-4 bg-app-elevated/80 text-white p-3 rounded-lg z-10">
           <div className="text-sm space-y-1">
             <div>Points: {stats.pointCount.toLocaleString()}</div>
             <div>Density: {stats.density.toFixed(2)} pts/m³</div>
