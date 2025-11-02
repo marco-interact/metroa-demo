@@ -18,17 +18,20 @@ export function ServiceStatus() {
       }
 
       try {
+        console.log('🔍 Checking backend health...')
         const health = await apiClient.healthCheck()
-        setIsConnected(health.status === 'healthy')
+        console.log('✅ Health check response:', health)
+        setIsConnected(health.status === 'healthy' || health.status === 'running')
       } catch (error) {
+        console.error('❌ Health check failed:', error)
         setIsConnected(false)
       }
     }
 
     checkConnection()
     
-    // Check every 30 seconds
-    const interval = setInterval(checkConnection, 30000)
+    // Check every 10 seconds (more frequent for faster feedback)
+    const interval = setInterval(checkConnection, 10000)
     return () => clearInterval(interval)
   }, [])
 
