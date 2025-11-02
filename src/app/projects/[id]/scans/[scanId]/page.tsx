@@ -55,7 +55,17 @@ interface Scan {
 }
 
 // Enhanced 3D Viewer Component with Three.js
-function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan }) {
+function Enhanced3DViewer({ 
+  className, 
+  scan, 
+  isSelectingPoints = false,
+  onPointClick
+}: { 
+  className?: string
+  scan: Scan
+  isSelectingPoints?: boolean
+  onPointClick?: (pointIndex: number, position: [number, number, number]) => void
+}) {
   const [viewMode, setViewMode] = useState<'pointcloud' | 'mesh'>('pointcloud')
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -122,12 +132,7 @@ function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan 
               modelUrl={getModelUrl()}
               className="w-full h-full"
               enablePointSelection={isSelectingPoints}
-              onPointClick={(pointIndex, position) => {
-                console.log('Point selected:', { pointIndex, position })
-                if (selectedPoints.length < 2) {
-                  setSelectedPoints([...selectedPoints, pointIndex])
-                }
-              }}
+              onPointClick={onPointClick}
             />
           </div>
         ) : scan.status === 'processing' ? (
@@ -474,7 +479,17 @@ export default function ScanDetailPage() {
         <div className="flex-1 flex overflow-hidden">
           {/* 3D Viewer - Full viewport height */}
           <div className="flex-1 flex flex-col">
-            <Enhanced3DViewer scan={scan} className="w-full h-full" />
+            <Enhanced3DViewer 
+              scan={scan} 
+              className="w-full h-full"
+              isSelectingPoints={isSelectingPoints}
+              onPointClick={(pointIndex, position) => {
+                console.log('Point selected:', { pointIndex, position })
+                if (selectedPoints.length < 2) {
+                  setSelectedPoints([...selectedPoints, pointIndex])
+                }
+              }}
+            />
           </div>
 
           {/* Sidebar Info Panel */}
