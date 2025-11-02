@@ -379,9 +379,9 @@ export default function ScanDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-app-primary flex">
+    <div className="h-screen bg-app-primary flex overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 bg-app-primary border-r border-app-secondary/30 flex flex-col">
+      <aside className="w-64 bg-app-primary border-r border-app-secondary/30 flex flex-col overflow-y-auto">
         <div className="p-6">
           <h1 className="text-xl font-bold text-primary-400 font-mono">Colmap App</h1>
         </div>
@@ -436,9 +436,9 @@ export default function ScanDetailPage() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="border-b border-app-secondary/30 bg-app-primary">
+        <header className="border-b border-app-secondary/30 bg-app-primary flex-shrink-0">
           <div className="flex items-center justify-between px-8 py-6">
             <div className="flex items-center space-x-4">
               <Button
@@ -493,8 +493,8 @@ export default function ScanDetailPage() {
           </div>
 
           {/* Sidebar Info Panel */}
-          <aside className="w-80 border-l border-app-secondary/30 bg-app-tertiary p-6">
-            <div className="space-y-6">
+          <aside className="w-80 border-l border-app-secondary/30 bg-app-tertiary overflow-y-auto">
+            <div className="space-y-6 p-6">
               {/* Scan Information */}
               <Card className="bg-app-card/50 border-app-primary">
                 <CardContent className="p-4">
