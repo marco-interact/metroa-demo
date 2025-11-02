@@ -393,6 +393,7 @@ async def upload_video_for_reconstruction(
     project_id: str = Form(...),
     scan_name: str = Form(...),
     quality: str = Form("medium"),
+    user_email: str = Form("demo@colmap.app"),
     video: UploadFile = File(...)
 ):
     """
@@ -402,28 +403,41 @@ async def upload_video_for_reconstruction(
     try:
         logger.info(f"📹 Received video upload for project {project_id}")
         
-        # Generate job ID
-        job_id = str(uuid.uuid4())
+        # Generate scan ID (used as job ID too)
+        scan_id = str(uuid.uuid4())
+        job_id = scan_id
         
-        # Create job directory
-        job_path = Path(f"/workspace/{job_id}")
-        job_path.mkdir(parents=True, exist_ok=True)
+        # Create job directory in data/uploads for persistence
+        upload_dir = Path(f"/workspace/data/uploads/{scan_id}")
+        upload_dir.mkdir(parents=True, exist_ok=True)
         
         # Save uploaded video
-        video_path = job_path / video.filename
+        video_path = upload_dir / video.filename
         with open(video_path, "wb") as f:
             content = await video.read()
             f.write(content)
         
         logger.info(f"💾 Saved video to {video_path} ({len(content)} bytes)")
         
+        # Create scan record in database for persistence
+        conn = get_db_connection()
+        conn.execute(
+            """INSERT INTO scans (id, project_id, name, video_filename, video_size, processing_quality, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (scan_id, project_id, scan_name, video.filename, len(content), quality, 'processing')
+        )
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"✅ Created scan record in database: {scan_id}")
+        
         # Start reconstruction in background (async)
-        # For now, just return job ID
-        # TODO: Implement async processing
+        # TODO: Implement async COLMAP processing
         
         return {
             "status": "accepted",
             "job_id": job_id,
+            "scan_id": scan_id,
             "message": "Video uploaded, reconstruction queued"
         }
         

@@ -10,8 +10,9 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Grayscale + Blue Accent Color Palette
+        // Contextual Color System
         primary: {
+          DEFAULT: '#000000', // bg-primary = pure black
           50: '#e6f4f9',
           100: '#cce9f3',
           200: '#99d3e7',
@@ -22,6 +23,17 @@ const config: Config = {
           700: '#23547e',
           800: '#1a3f65',
           900: '#112a4c',
+        },
+        surface: {
+          primary: '#000000',    // Main background
+          secondary: '#0a0a0a',  // Elevated surfaces
+          tertiary: '#111111',   // Cards, panels
+          elevated: '#1a1a1a',   // Modals, dropdowns
+        },
+        border: {
+          primary: 'rgba(255, 255, 255, 0.1)',   // border-primary
+          secondary: 'rgba(255, 255, 255, 0.05)', // border-secondary
+          accent: '#3E93C9',                       // border-accent
         },
         secondary: {
           50: '#f8fafc',
