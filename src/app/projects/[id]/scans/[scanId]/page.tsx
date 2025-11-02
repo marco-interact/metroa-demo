@@ -295,6 +295,10 @@ export default function ScanDetailPage() {
         alert(`Scan "${scan?.name}" deleted successfully`)
         // Redirect back to project page
         router.push(`/projects/${projectId}`)
+      } else if (response.status === 403) {
+        // Demo scan protection
+        console.warn('⚠️ Cannot delete demo scan')
+        alert('Cannot delete demo scans. Demo scans are protected to ensure the platform always has example data.')
       } else {
         const errorText = await response.text()
         console.error('❌ Delete failed:', response.status, errorText)
@@ -461,7 +465,9 @@ export default function ScanDetailPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
                   console.log('Back to scans clicked, navigating to:', `/projects/${projectId}`)
                   router.push(`/projects/${projectId}`)
                 }}
