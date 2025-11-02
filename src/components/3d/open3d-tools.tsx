@@ -235,7 +235,7 @@ export function Open3DTools({
                   </div>
                   <div>
                     <span className="text-gray-400">Density:</span>
-                    <div className="font-mono">{stats.density.toFixed(2)} pts/m³</div>
+                    <div className="font-mono">{stats.density?.toFixed(2) || 'N/A'} pts/m³</div>
                   </div>
                   <div>
                     <span className="text-gray-400">Dimensions:</span>
