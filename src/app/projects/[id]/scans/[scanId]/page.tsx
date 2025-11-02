@@ -588,12 +588,13 @@ export default function ScanDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* Measurement Tools */}
+              {/* Measurement Tools - Always Visible for Completed Scans */}
               {scan.status === 'completed' && (
-                <MeasurementTools 
-                  scanId={scanId}
-                  className="mt-6"
-                />
+                <div className="mt-6">
+                  <MeasurementTools 
+                    scanId={scanId}
+                  />
+                </div>
               )}
 
               {/* Open3D Tools */}

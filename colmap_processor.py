@@ -46,7 +46,7 @@ class COLMAPProcessor:
         
         logger.info(f"Created COLMAP workspace at {self.job_path}")
     
-    def extract_frames(self, video_path: str, max_frames: int = 200, frame_interval: int = 1, quality: str = "medium") -> int:
+    def extract_frames(self, video_path: str, max_frames: int = 500, frame_interval: int = 1, quality: str = "medium") -> int:
         """
         Extract frames from video using ffmpeg
         
@@ -104,30 +104,32 @@ class COLMAPProcessor:
         """
         logger.info(f"Extracting features with quality={quality}")
         
-        # Quality-based parameters
+        # Quality-based parameters - SIGNIFICANTLY INCREASED for high resolution
         quality_params = {
             "low": {
-                "max_num_features": "8192",
-                "max_image_size": "1600"
+                "max_num_features": "16384",
+                "max_image_size": "2048"
             },
             "medium": {
-                "max_num_features": "16384",
-                "max_image_size": "3200"
+                "max_num_features": "32768",   # Doubled from 16384
+                "max_image_size": "4096"       # Increased from 3200
             },
             "high": {
-                "max_num_features": "32768",
-                "max_image_size": "6400"
+                "max_num_features": "65536",   # Doubled from 32768
+                "max_image_size": "8192"       # Increased from 6400
             }
         }
         
         params = quality_params.get(quality, quality_params["medium"])
         
-        # Build command with COLMAP 3.13+ compatible parameters
+        # Build command with enhanced COLMAP parameters for maximum quality
         cmd = [
             "colmap", "feature_extractor",
             "--database_path", str(self.database_path),
             "--image_path", str(self.images_path),
             "--ImageReader.single_camera", "1",  # All frames from same camera
+            "--SiftExtraction.max_num_features", params["max_num_features"],
+            "--SiftExtraction.max_image_size", params["max_image_size"],
         ]
         
         try:
