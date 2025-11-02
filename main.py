@@ -30,6 +30,9 @@ app = FastAPI(title="COLMAP Backend", version="1.0.0")
 # Mount static files for demo resources
 app.mount("/demo-resources", StaticFiles(directory="demo-resources"), name="demo-resources")
 
+# Mount results directory for user-uploaded reconstructions
+app.mount("/results", StaticFiles(directory="/workspace/data/results"), name="results")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -411,10 +414,23 @@ async def get_scan_details(scan_id: str):
         
         # Add results URLs based on scan files
         if scan_dict.get('ply_file'):
+            ply_path = scan_dict['ply_file']
+            
+            # Check if it's a demo scan (relative path) or user scan (absolute path)
+            if ply_path.startswith('/workspace/'):
+                # User-uploaded scan - serve from results directory
+                # Convert: /workspace/data/results/{scan_id}/point_cloud.ply
+                # To: /api/backend/results/{scan_id}/point_cloud.ply
+                relative_path = ply_path.replace('/workspace/data/results/', '')
+                point_cloud_url = f"/results/{relative_path}"
+            else:
+                # Demo scan - serve from demo-resources
+                point_cloud_url = f"/demo-resources/{ply_path}"
+            
             scan_dict['results'] = {
-                'point_cloud_url': f"/demo-resources/{scan_dict['ply_file']}",
-                'mesh_url': f"/demo-resources/{scan_dict['glb_file']}" if scan_dict.get('glb_file') else None,
-                'thumbnail_url': f"/demo-resources/{scan_dict['thumbnail']}" if scan_dict.get('thumbnail') else None
+                'point_cloud_url': point_cloud_url,
+                'mesh_url': f"/demo-resources/{scan_dict['glb_file']}" if scan_dict.get('glb_file') and not scan_dict['glb_file'].startswith('/') else None,
+                'thumbnail_url': f"/demo-resources/{scan_dict['thumbnail']}" if scan_dict.get('thumbnail') and not scan_dict['thumbnail'].startswith('/') else None
             }
         
         return scan_dict
