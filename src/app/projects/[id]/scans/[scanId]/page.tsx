@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ProcessingStatus } from "@/components/processing-status"
 import { SimpleViewer } from "@/components/3d/simple-viewer"
 import { Open3DTools } from "@/components/3d/open3d-tools"
+import { MeasurementTools } from "@/components/3d/measurement-tools"
 import { apiClient } from "@/lib/api"
 
 interface Scan {
@@ -586,6 +587,14 @@ export default function ScanDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Measurement Tools */}
+              {scan.status === 'completed' && (
+                <MeasurementTools 
+                  scanId={scanId}
+                  className="mt-6"
+                />
+              )}
 
               {/* Open3D Tools */}
               {scan.status === 'completed' && (
