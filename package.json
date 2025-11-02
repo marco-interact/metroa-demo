@@ -52,7 +52,6 @@
     "prettier-plugin-tailwindcss": "^0.5.9"
   },
   "engines": {
-    "node": "22.x",
-    "npm": "10.x"
+    "node": ">=18.x"
   }
 }
