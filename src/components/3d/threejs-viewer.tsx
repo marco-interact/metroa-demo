@@ -493,9 +493,9 @@ export function ThreeJSViewer({
       {stats && (
         <div className="absolute bottom-4 left-4 bg-app-elevated/80 text-white p-3 rounded-lg z-10">
           <div className="text-sm space-y-1">
-            <div>Points: {stats.pointCount.toLocaleString()}</div>
-            <div>Density: {stats.density.toFixed(2)} pts/m³</div>
-            <div>Dimensions: {stats.dimensions.map(d => d.toFixed(2)).join(' × ')}m</div>
+            <div>Points: {stats.pointCount?.toLocaleString() || 'N/A'}</div>
+            <div>Density: {stats.density?.toFixed(2) || 'N/A'} pts/m³</div>
+            <div>Dimensions: {stats.dimensions?.map(d => d.toFixed(2)).join(' × ') || 'N/A'}m</div>
           </div>
         </div>
       )}

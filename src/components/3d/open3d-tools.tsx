@@ -231,7 +231,7 @@ export function Open3DTools({
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-gray-400">Points:</span>
-                    <div className="font-mono">{stats.pointCount.toLocaleString()}</div>
+                    <div className="font-mono">{stats.pointCount?.toLocaleString() || 'N/A'}</div>
                   </div>
                   <div>
                     <span className="text-gray-400">Density:</span>
