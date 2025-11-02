@@ -4,7 +4,7 @@ ULTRA SIMPLE COLMAP Backend - ABSOLUTELY MINIMAL
 Just FastAPI + basic endpoints - NO COMPLEX DEPENDENCIES
 """
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +16,7 @@ from datetime import datetime
 import uuid
 import subprocess
 from pathlib import Path
+import asyncio
 from colmap_processor import COLMAPProcessor, process_video_to_pointcloud
 from colmap_binary_parser import MeasurementSystem, COLMAPBinaryParser
 
@@ -40,6 +41,97 @@ app.add_middleware(
 
 # Database path - RunPod volume mount (50GB volume at /workspace)
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/workspace/database.db")
+
+def update_scan_status(scan_id: str, status: str, error: str = None):
+    """Update scan status in database"""
+    conn = get_db_connection()
+    try:
+        if error:
+            conn.execute(
+                "UPDATE scans SET status = ? WHERE id = ?",
+                (f"failed: {error}", scan_id)
+            )
+        else:
+            conn.execute(
+                "UPDATE scans SET status = ? WHERE id = ?",
+                (status, scan_id)
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
+    """
+    Background task to process COLMAP reconstruction
+    This runs asynchronously after video upload
+    """
+    try:
+        logger.info(f"🚀 Starting COLMAP reconstruction for scan {scan_id}")
+        update_scan_status(scan_id, "extracting_frames")
+        
+        # Create results directory
+        results_dir = Path(f"/workspace/data/results/{scan_id}")
+        results_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Initialize COLMAP processor
+        processor = COLMAPProcessor(str(results_dir))
+        
+        # Step 1: Extract frames from video
+        logger.info(f"📹 Extracting frames from {video_path}")
+        frame_count = processor.extract_frames(
+            video_path=str(video_path),
+            quality=quality
+        )
+        logger.info(f"✅ Extracted {frame_count} frames")
+        
+        if frame_count < 3:
+            raise Exception(f"Not enough frames extracted: {frame_count}. Need at least 3.")
+        
+        # Step 2: Extract SIFT features
+        update_scan_status(scan_id, "extracting_features")
+        logger.info(f"🔍 Extracting SIFT features")
+        feature_stats = processor.extract_features(quality=quality)
+        logger.info(f"✅ Feature extraction: {feature_stats}")
+        
+        # Step 3: Match features
+        update_scan_status(scan_id, "matching_features")
+        logger.info(f"🔗 Matching features")
+        match_stats = processor.match_features(quality=quality)
+        logger.info(f"✅ Feature matching: {match_stats}")
+        
+        # Step 4: Sparse reconstruction
+        update_scan_status(scan_id, "reconstructing")
+        logger.info(f"🏗️ Running sparse reconstruction")
+        reconstruction_stats = processor.sparse_reconstruction(quality=quality)
+        logger.info(f"✅ Sparse reconstruction: {reconstruction_stats}")
+        
+        # Step 5: Export to PLY
+        update_scan_status(scan_id, "exporting")
+        logger.info(f"💾 Exporting to PLY")
+        export_result = processor.export_model(output_format="PLY")
+        
+        if not export_result.get("success"):
+            raise Exception(f"Export failed: {export_result.get('error')}")
+        
+        ply_path = export_result.get("output_path")
+        logger.info(f"✅ Exported PLY to {ply_path}")
+        
+        # Step 6: Update database with PLY file path
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                "UPDATE scans SET status = ?, ply_file = ? WHERE id = ?",
+                ("completed", str(ply_path), scan_id)
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        
+        logger.info(f"✅ COLMAP reconstruction complete for scan {scan_id}")
+        
+    except Exception as e:
+        logger.error(f"❌ COLMAP reconstruction failed for scan {scan_id}: {e}")
+        update_scan_status(scan_id, "failed", str(e))
 
 def get_db_connection():
     """Get database connection"""
@@ -339,7 +431,7 @@ async def get_scan_details(scan_id: str):
 
 @app.get("/api/jobs/{job_id}")
 async def get_job_status(job_id: str):
-    """Get job status - checks if job_id is a scan in database"""
+    """Get job status with detailed progress tracking"""
     try:
         conn = get_db_connection()
         scan = conn.execute("SELECT * FROM scans WHERE id = ?", (job_id,)).fetchone()
@@ -349,14 +441,38 @@ async def get_job_status(job_id: str):
             scan_dict = dict(scan)
             status = scan_dict.get("status", "pending")
             
-            # Map scan status to job status
+            # Map status to progress percentage and stage
+            status_map = {
+                "pending": (0, "Queued"),
+                "processing": (10, "Starting"),
+                "extracting_frames": (20, "Extracting frames from video"),
+                "extracting_features": (40, "Detecting SIFT features"),
+                "matching_features": (60, "Matching features"),
+                "reconstructing": (80, "Building 3D model"),
+                "exporting": (90, "Exporting point cloud"),
+                "completed": (100, "Complete"),
+            }
+            
+            # Handle failed status
+            if status.startswith("failed"):
+                return {
+                    "job_id": job_id,
+                    "scan_id": job_id,
+                    "status": "failed",
+                    "progress": 0,
+                    "message": status.replace("failed: ", ""),
+                    "current_stage": "Failed"
+                }
+            
+            progress, stage = status_map.get(status, (0, "Unknown"))
+            
             return {
                 "job_id": job_id,
                 "scan_id": job_id,
                 "status": status,
-                "progress": 100 if status == "completed" else (75 if status == "processing" else 0),
-                "message": f"Scan {status}",
-                "current_stage": "Reconstruction" if status == "processing" else ("Complete" if status == "completed" else "Pending")
+                "progress": progress,
+                "message": f"Processing: {stage}",
+                "current_stage": stage
             }
         
         # Job not found
@@ -555,6 +671,7 @@ async def setup_demo_data():
 
 @app.post("/api/reconstruction/upload")
 async def upload_video_for_reconstruction(
+    background_tasks: BackgroundTasks,
     project_id: str = Form(...),
     scan_name: str = Form(...),
     quality: str = Form("medium"),
@@ -596,14 +713,21 @@ async def upload_video_for_reconstruction(
         
         logger.info(f"✅ Created scan record in database: {scan_id}")
         
-        # Start reconstruction in background (async)
-        # TODO: Implement async COLMAP processing
+        # Start COLMAP reconstruction in background
+        background_tasks.add_task(
+            process_colmap_reconstruction,
+            scan_id=scan_id,
+            video_path=str(video_path),
+            quality=quality
+        )
+        
+        logger.info(f"🚀 Queued COLMAP reconstruction task for scan {scan_id}")
         
         return {
             "status": "accepted",
             "job_id": job_id,
             "scan_id": scan_id,
-            "message": "Video uploaded, reconstruction queued"
+            "message": "Video uploaded, COLMAP reconstruction started"
         }
         
     except Exception as e:
