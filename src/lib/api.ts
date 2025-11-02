@@ -172,6 +172,24 @@ class APIClient {
     }
   }
 
+  async deleteScan(scanId: string): Promise<{ status: string; message: string }> {
+    if (!this.baseUrl) {
+      throw new Error('Cannot delete scans in demo mode')
+    }
+
+    try {
+      const response = await this.request<{ status: string; message: string; scan_id: string }>(
+        `/scans/${scanId}`,
+        { method: 'DELETE' }
+      )
+      console.log(`🗑️ Deleted scan ${scanId}`)
+      return response
+    } catch (error) {
+      console.error('Error deleting scan:', error)
+      throw error
+    }
+  }
+
   // Upload video for processing 
   async uploadVideo(file: File, projectId: string, scanName: string, userEmail: string = 'demo@colmap.app'): Promise<{ jobId: string; scanId: string }> {
     if (!this.baseUrl) {

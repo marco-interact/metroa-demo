@@ -108,12 +108,7 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         # Step 5: Export to PLY
         update_scan_status(scan_id, "exporting")
         logger.info(f"💾 Exporting to PLY")
-        export_result = processor.export_model(output_format="PLY")
-        
-        if not export_result.get("success"):
-            raise Exception(f"Export failed: {export_result.get('error')}")
-        
-        ply_path = export_result.get("output_path")
+        ply_path = processor.export_model(output_format="PLY")
         logger.info(f"✅ Exported PLY to {ply_path}")
         
         # Step 6: Update database with PLY file path
@@ -427,6 +422,58 @@ async def get_scan_details(scan_id: str):
         raise
     except Exception as e:
         logger.error(f"Error getting scan details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/scans/{scan_id}")
+async def delete_scan(scan_id: str):
+    """Delete a scan and its associated files"""
+    try:
+        conn = get_db_connection()
+        
+        # Get scan info before deleting
+        scan = conn.execute("SELECT * FROM scans WHERE id = ?", (scan_id,)).fetchone()
+        
+        if not scan:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        scan_dict = dict(scan)
+        
+        # Don't allow deleting demo scans
+        if scan_dict.get('name') in ['demoscan-dollhouse', 'demoscan-fachada']:
+            conn.close()
+            raise HTTPException(status_code=403, detail="Cannot delete demo scans")
+        
+        # Delete scan from database
+        conn.execute("DELETE FROM scans WHERE id = ?", (scan_id,))
+        conn.commit()
+        conn.close()
+        
+        # Delete associated files
+        import shutil
+        scan_upload_dir = Path(f"/workspace/data/uploads/{scan_id}")
+        scan_results_dir = Path(f"/workspace/data/results/{scan_id}")
+        
+        if scan_upload_dir.exists():
+            shutil.rmtree(scan_upload_dir)
+            logger.info(f"Deleted upload directory: {scan_upload_dir}")
+        
+        if scan_results_dir.exists():
+            shutil.rmtree(scan_results_dir)
+            logger.info(f"Deleted results directory: {scan_results_dir}")
+        
+        logger.info(f"✅ Deleted scan {scan_id}")
+        
+        return {
+            "status": "success",
+            "message": f"Scan {scan_dict.get('name')} deleted successfully",
+            "scan_id": scan_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting scan: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/jobs/{job_id}")

@@ -175,6 +175,16 @@ export function ProcessingStatus({
             )}
           </div>
 
+          {/* Error Console for Failed Status */}
+          {status === 'failed' && message && (
+            <div className="mt-3">
+              <div className="text-xs font-medium text-red-600 mb-2">Error Details:</div>
+              <div className="bg-red-950/50 border border-red-500/30 rounded-lg p-3 font-mono text-xs text-red-200 max-h-48 overflow-y-auto">
+                <pre className="whitespace-pre-wrap break-words">{message}</pre>
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex space-x-2">
             {status === 'processing' && onCancel && (
