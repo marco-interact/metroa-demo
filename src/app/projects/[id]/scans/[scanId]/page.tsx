@@ -247,6 +247,24 @@ export default function ScanDetailPage() {
 
     loadScanData()
   }, [router])
+  
+  // Poll for scan updates when status is processing
+  useEffect(() => {
+    if (!scan || scan.status !== 'processing') {
+      return // Only poll if scan is processing
+    }
+    
+    console.log('⏱️ Starting polling for scan updates...')
+    const pollInterval = setInterval(() => {
+      console.log('🔄 Polling scan status...')
+      loadScanData()
+    }, 3000) // Poll every 3 seconds
+    
+    return () => {
+      console.log('⏹️ Stopping scan polling')
+      clearInterval(pollInterval)
+    }
+  }, [scan?.status])
 
   const handleDeleteScan = async () => {
     if (!confirm(`Are you sure you want to delete "${scan?.name}"? This action cannot be undone.`)) {
@@ -275,12 +293,16 @@ export default function ScanDetailPage() {
 
   const loadScanData = async () => {
     try {
+      console.log('🔄 Loading scan data for:', scanId)
+      
       // Get project details first
       const projectData = await apiClient.getProject(projectId)
       const projectName = projectData?.name || "Unknown Project"
       
       // Try to get real scan details from API
       const scanDetails = await apiClient.getScanDetails(scanId)
+      
+      console.log('📊 Scan details loaded:', scanDetails)
       
       // Transform API response to our Scan interface
       const scan: Scan = {
@@ -309,23 +331,29 @@ export default function ScanDetailPage() {
       console.log('Loaded scan with results:', scan.results)
       setScan(scan)
     } catch (error) {
-      console.error('Failed to load scan data:', error)
+      console.error('⚠️ Failed to load scan data:', error)
       
-      // Fallback to demo scan data
-      const demoScan: Scan = {
-        id: scanId,
-        name: `Demo Scan ${scanId}`,
-        projectId,
-        projectName: `Demo Project ${projectId}`,
-        status: "completed",
-        location: "Monterrey",
-        updated: "26-08-2025",
-        fileSize: "245 MB",
-        processingTime: "18 minutes",
-        pointCount: 2850000
+      // Don't crash the page - show a graceful fallback
+      // Only set demo data if we don't already have scan data
+      if (!scan) {
+        console.log('📋 Using fallback demo scan data')
+        const demoScan: Scan = {
+          id: scanId,
+          name: `Scan ${scanId.slice(0, 8)}`,
+          projectId,
+          projectName: `Project`,
+          status: "pending",
+          location: "Unknown",
+          updated: new Date().toLocaleDateString('en-GB'),
+          fileSize: "Unknown",
+          processingTime: "Unknown",
+          pointCount: 0
+        }
+        
+        setScan(demoScan)
+      } else {
+        console.log('📋 Keeping existing scan data, API call failed')
       }
-      
-      setScan(demoScan)
     }
   }
 
