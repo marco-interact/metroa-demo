@@ -38,12 +38,14 @@ function PLYModel({ url, onPointClick, enableSelection }: {
     const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
     const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
     
-    // Create raycaster
+    // Create raycaster with threshold for point clouds
+    // Reference: https://threejs.org/docs/#api/en/core/Raycaster
     const raycaster = new THREE.Raycaster()
+    raycaster.params.Points = { threshold: 0.1 } // Increase picking tolerance for points
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
     
     // Find intersected points
-    const intersects = raycaster.intersectObject(pointsRef.current)
+    const intersects = raycaster.intersectObject(pointsRef.current, false)
     
     if (intersects.length > 0) {
       const intersection = intersects[0]
@@ -325,14 +327,21 @@ export function SimpleViewer({
           <PointMarkers positions={selectedPointPositions} />
         )}
         
-        {/* Camera controls */}
+        {/* Camera controls - Three.js OrbitControls with optimal settings */}
         <OrbitControls
+          makeDefault
           enableDamping={true}
           dampingFactor={0.05}
-          screenSpacePanning={false}
-          minDistance={1}
+          enablePan={true}
+          enableZoom={true}
+          enableRotate={true}
+          screenSpacePanning={true}
+          minDistance={0.5}
           maxDistance={100}
           maxPolarAngle={Math.PI}
+          rotateSpeed={0.6}
+          panSpeed={1.0}
+          zoomSpeed={1.2}
         />
         
         <CameraController />
