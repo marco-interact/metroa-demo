@@ -46,7 +46,7 @@ class COLMAPProcessor:
         
         logger.info(f"Created COLMAP workspace at {self.job_path}")
     
-    def extract_frames(self, video_path: str, max_frames: int = 50, frame_interval: int = 2, quality: str = "medium") -> int:
+    def extract_frames(self, video_path: str, max_frames: int = 200, frame_interval: int = 1, quality: str = "medium") -> int:
         """
         Extract frames from video using ffmpeg
         
