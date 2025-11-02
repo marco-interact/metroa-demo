@@ -303,6 +303,34 @@ async def get_scans(project_id: str):
         logger.error(f"Error getting scans: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/scans/{scan_id}/details")
+async def get_scan_details(scan_id: str):
+    """Get detailed information for a specific scan"""
+    try:
+        conn = get_db_connection()
+        scan = conn.execute("SELECT * FROM scans WHERE id = ?", (scan_id,)).fetchone()
+        conn.close()
+        
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        scan_dict = dict(scan)
+        
+        # Add results URLs based on scan files
+        if scan_dict.get('ply_file'):
+            scan_dict['results'] = {
+                'point_cloud_url': f"/demo-resources/{scan_dict['ply_file']}",
+                'mesh_url': f"/demo-resources/{scan_dict['glb_file']}" if scan_dict.get('glb_file') else None,
+                'thumbnail_url': f"/demo-resources/{scan_dict['thumbnail']}" if scan_dict.get('thumbnail') else None
+            }
+        
+        return scan_dict
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting scan details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/projects")
 async def create_project(user_email: str, name: str, description: str = "", location: str = "", space_type: str = "", project_type: str = ""):
     """Create a new project"""
