@@ -336,6 +336,44 @@ async def get_scan_details(scan_id: str):
         logger.error(f"Error getting scan details: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/jobs/{job_id}")
+async def get_job_status(job_id: str):
+    """Get job status - checks if job_id is a scan in database"""
+    try:
+        conn = get_db_connection()
+        scan = conn.execute("SELECT * FROM scans WHERE id = ?", (job_id,)).fetchone()
+        conn.close()
+        
+        if scan:
+            scan_dict = dict(scan)
+            status = scan_dict.get("status", "pending")
+            
+            # Map scan status to job status
+            return {
+                "job_id": job_id,
+                "scan_id": job_id,
+                "status": status,
+                "progress": 100 if status == "completed" else (75 if status == "processing" else 0),
+                "message": f"Scan {status}",
+                "current_stage": "Reconstruction" if status == "processing" else ("Complete" if status == "completed" else "Pending")
+            }
+        
+        # Job not found
+        return {
+            "job_id": job_id,
+            "status": "not_found",
+            "progress": 0,
+            "message": "Job not found in system"
+        }
+    except Exception as e:
+        logger.error(f"Error getting job status: {e}")
+        return {
+            "job_id": job_id,
+            "status": "error",
+            "progress": 0,
+            "message": str(e)
+        }
+
 @app.post("/projects")
 async def create_project(user_email: str, name: str, description: str = "", location: str = "", space_type: str = "", project_type: str = ""):
     """Create a new project"""
