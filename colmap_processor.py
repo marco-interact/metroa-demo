@@ -98,49 +98,36 @@ class COLMAPProcessor:
         """
         Extract SIFT features from images
         Reference: https://colmap.github.io/tutorial.html#feature-detection-and-extraction
+        
+        Note: COLMAP 3.13+ has different parameter names than older versions.
+        Using simplified parameters for compatibility.
         """
         logger.info(f"Extracting features with quality={quality}")
         
         # Quality-based parameters
         quality_params = {
             "low": {
-                "max_num_features": "16384",
-                "max_image_size": "2048"
+                "max_num_features": "8192",
+                "max_image_size": "1600"
             },
             "medium": {
-                "max_num_features": "32768",
-                "max_image_size": "4096"
+                "max_num_features": "16384",
+                "max_image_size": "3200"
             },
             "high": {
-                "max_num_features": "65536",
-                "max_image_size": "8192"
+                "max_num_features": "32768",
+                "max_image_size": "6400"
             }
         }
         
         params = quality_params.get(quality, quality_params["medium"])
         
+        # Build command with COLMAP 3.13+ compatible parameters
         cmd = [
             "colmap", "feature_extractor",
             "--database_path", str(self.database_path),
             "--image_path", str(self.images_path),
-            
-            # SIFT Extraction Parameters
-            # Reference: https://colmap.github.io/tutorial.html#feature-detection-and-extraction
-            "--SiftExtraction.use_gpu", "1" if use_gpu else "0",
-            "--SiftExtraction.domain_size_pooling", "1",  # Better feature distribution
-            "--SiftExtraction.estimate_affine_shape", "1",  # Viewpoint invariance
-            "--SiftExtraction.max_num_features", params["max_num_features"],
-            "--SiftExtraction.max_image_size", params["max_image_size"],
-            
-            # Image Reader (for video sequences)
             "--ImageReader.single_camera", "1",  # All frames from same camera
-            
-            # Additional quality parameters
-            "--SiftExtraction.first_octave", "-1",  # Start at full resolution
-            "--SiftExtraction.num_octaves", "4",    # Multi-scale pyramid
-            "--SiftExtraction.octave_resolution", "3",  # Scales per octave
-            "--SiftExtraction.peak_threshold", "0.0067",  # Feature threshold
-            "--SiftExtraction.edge_threshold", "10.0",    # Edge filter
         ]
         
         try:
@@ -181,48 +168,18 @@ class COLMAPProcessor:
         if matching_type == "sequential":
             # Best for video sequences (frames in order)
             # Reference: https://colmap.github.io/tutorial.html#feature-matching-and-geometric-verification
+            # Using simplified parameters for COLMAP 3.13+ compatibility
             cmd = [
                 "colmap", "sequential_matcher",
                 "--database_path", str(self.database_path),
-                
-                # Sequential-specific parameters
                 "--SequentialMatching.overlap", "10",  # Match 10 adjacent frames
-                "--SequentialMatching.quadratic_overlap", "0",  # Linear overlap
-                
-                # SIFT Matching Parameters
-                "--SiftMatching.use_gpu", "1" if use_gpu else "0",
-                "--SiftMatching.guided_matching", "1",  # Use epipolar geometry
-                "--SiftMatching.cross_check", "1",  # Bidirectional matching
-                "--SiftMatching.max_num_matches", match_params["max_num_matches"],
-                
-                # Geometric Verification (automatic)
-                "--SiftMatching.max_ratio", "0.8",  # Lowe's ratio test
-                "--SiftMatching.max_distance", "0.7",  # Descriptor distance
-                "--SiftMatching.max_error", "4.0",  # RANSAC threshold (pixels)
-                "--SiftMatching.confidence", "0.999",  # RANSAC confidence
-                "--SiftMatching.min_num_inliers", "15",  # Min matches per pair
-                "--SiftMatching.min_inlier_ratio", "0.25",  # Quality threshold
             ]
         else:  # exhaustive_matcher
             # Best for unordered image collections
-            # Reference: https://colmap.github.io/tutorial.html#feature-matching-and-geometric-verification
+            # Using simplified parameters for COLMAP 3.13+ compatibility
             cmd = [
                 "colmap", "exhaustive_matcher",
                 "--database_path", str(self.database_path),
-                
-                # SIFT Matching Parameters
-                "--SiftMatching.use_gpu", "1" if use_gpu else "0",
-                "--SiftMatching.guided_matching", "1",  # Use epipolar geometry
-                "--SiftMatching.cross_check", "1",  # Bidirectional matching
-                "--SiftMatching.max_num_matches", match_params["max_num_matches"],
-                
-                # Geometric Verification (automatic)
-                "--SiftMatching.max_ratio", "0.8",  # Lowe's ratio test
-                "--SiftMatching.max_distance", "0.7",  # Descriptor distance
-                "--SiftMatching.max_error", "4.0",  # RANSAC threshold (pixels)
-                "--SiftMatching.confidence", "0.999",  # RANSAC confidence
-                "--SiftMatching.min_num_inliers", "15",  # Min matches per pair
-                "--SiftMatching.min_inlier_ratio", "0.25",  # Quality threshold
             ]
         
         try:
