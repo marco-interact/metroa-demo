@@ -46,7 +46,7 @@ class COLMAPProcessor:
         
         logger.info(f"Created COLMAP workspace at {self.job_path}")
     
-    def extract_frames(self, video_path: str, max_frames: int = 500, target_fps: int = 60, quality: str = "medium") -> int:
+    def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = 60, quality: str = "medium") -> int:
         """
         Extract frames from video using ffmpeg at native FPS (capped at 60fps)
         
@@ -111,11 +111,15 @@ class COLMAPProcessor:
         cmd = [
             "ffmpeg", "-i", video_path,
             "-vf", f"fps={actual_fps},scale={scale}",
-            "-frames:v", str(max_frames),
             "-q:v", "2",  # High quality JPEG (1-31, lower = better)
             "-y",  # Overwrite existing files
             str(output_pattern)
         ]
+        
+        # Add frame limit only if specified (max_frames > 0)
+        if max_frames > 0:
+            cmd.insert(-2, "-frames:v")
+            cmd.insert(-2, str(max_frames))
         
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)

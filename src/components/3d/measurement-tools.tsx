@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,16 +20,22 @@ interface Measurement {
 interface MeasurementToolsProps {
   scanId: string
   onPointSelect?: (pointId: number) => void
+  onSelectionModeChange?: (enabled: boolean) => void
   className?: string
 }
 
-export function MeasurementTools({ scanId, onPointSelect, className = "" }: MeasurementToolsProps) {
+export function MeasurementTools({ scanId, onPointSelect, onSelectionModeChange, className = "" }: MeasurementToolsProps) {
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [selectedPoints, setSelectedPoints] = useState<number[]>([])
   const [isCalibrating, setIsCalibrating] = useState(false)
   const [knownDistance, setKnownDistance] = useState("")
   const [measurementLabel, setMeasurementLabel] = useState("")
   const [isScaled, setIsScaled] = useState(false)
+  
+  // Notify parent when selection mode changes
+  useEffect(() => {
+    onSelectionModeChange?.(isCalibrating || (isScaled && selectedPoints.length < 2))
+  }, [isCalibrating, isScaled, selectedPoints.length, onSelectionModeChange])
 
   const handlePointClick = (pointId: number) => {
     if (selectedPoints.length < 2) {
@@ -137,13 +143,22 @@ export function MeasurementTools({ scanId, onPointSelect, className = "" }: Meas
       <CardContent className="space-y-4">
         {/* Scale Calibration Section */}
         {!isScaled && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h3 className="text-sm font-semibold text-yellow-400">
               ⚠️ Calibrate Scale First
             </h3>
-            <p className="text-xs text-gray-400">
-              Select 2 points with known distance to calibrate measurements
-            </p>
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-3 space-y-2">
+              <p className="text-xs text-yellow-200 font-medium">How to calibrate:</p>
+              <ol className="text-xs text-gray-300 space-y-1 list-decimal list-inside">
+                <li>Click "Start Calibration" below</li>
+                <li>Click 2 points in the 3D model that you know the distance between</li>
+                <li>Enter the known distance in meters</li>
+                <li>Click "Calibrate"</li>
+              </ol>
+              <p className="text-xs text-gray-400 italic">
+                Example: Click two corners of a door (typically 0.9m or 2.1m apart)
+              </p>
+            </div>
             
             {!isCalibrating ? (
               <Button

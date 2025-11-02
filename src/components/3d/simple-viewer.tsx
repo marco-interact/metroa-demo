@@ -9,14 +9,44 @@ import { PLYLoader } from "three-stdlib"
 interface SimpleViewerProps {
   modelUrl?: string
   className?: string
+  onPointClick?: (pointIndex: number, position: [number, number, number]) => void
+  enablePointSelection?: boolean
 }
 
-// PLY Model Loader Component
-function PLYModel({ url }: { url: string }) {
+// PLY Model Loader Component with Point Selection
+function PLYModel({ url, onPointClick, enableSelection }: { 
+  url: string
+  onPointClick?: (pointIndex: number, position: [number, number, number]) => void
+  enableSelection?: boolean
+}) {
   const pointsRef = useRef<THREE.Points>(null)
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { camera, raycaster, mouse } = useThree()
+  
+  // Handle point cloud clicks for measurement
+  const handleClick = (event: any) => {
+    if (!enableSelection || !geometry || !onPointClick) return
+    
+    // Get mouse position in normalized device coordinates
+    const rect = event.target.getBoundingClientRect()
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+    
+    // Raycast to find intersected points
+    raycaster.setFromCamera(mouse, camera)
+    const intersects = raycaster.intersectObject(pointsRef.current!)
+    
+    if (intersects.length > 0) {
+      const intersection = intersects[0]
+      const pointIndex = intersection.index || 0
+      const position = intersection.point.toArray() as [number, number, number]
+      
+      console.log('Point clicked:', { pointIndex, position })
+      onPointClick(pointIndex, position)
+    }
+  }
 
   useEffect(() => {
     if (!url) return
@@ -88,7 +118,11 @@ function PLYModel({ url }: { url: string }) {
   if (!geometry) return null
 
   return (
-    <points ref={pointsRef} geometry={geometry}>
+    <points 
+      ref={pointsRef} 
+      geometry={geometry}
+      onClick={enableSelection ? handleClick : undefined}
+    >
       <pointsMaterial
         size={0.015}
         vertexColors
@@ -182,11 +216,22 @@ function CameraController() {
   return null
 }
 
-export function SimpleViewer({ modelUrl, className = "" }: SimpleViewerProps) {
+export function SimpleViewer({ 
+  modelUrl, 
+  className = "", 
+  onPointClick, 
+  enablePointSelection = false 
+}: SimpleViewerProps) {
   const [viewMode, setViewMode] = useState<'pointcloud' | 'mesh'>('pointcloud')
 
   return (
     <div className={`relative bg-app-card rounded-lg overflow-hidden ${className}`}>
+      {enablePointSelection && (
+        <div className="absolute top-2 left-2 z-10 bg-blue-500/90 text-white px-3 py-1 rounded text-xs font-medium">
+          🎯 Click points on the model to select
+        </div>
+      )}
+      
       <Canvas
         camera={{ position: [5, 5, 5], fov: 75 }}
         className="bg-app-card"
@@ -202,7 +247,11 @@ export function SimpleViewer({ modelUrl, className = "" }: SimpleViewerProps) {
         
         {/* Model content - Load actual PLY if URL provided, otherwise show demo */}
         {modelUrl ? (
-          <PLYModel url={modelUrl} />
+          <PLYModel 
+            url={modelUrl} 
+            onPointClick={onPointClick}
+            enableSelection={enablePointSelection}
+          />
         ) : (
           <>
             {viewMode === 'pointcloud' ? (

@@ -120,7 +120,14 @@ function Enhanced3DViewer({ className, scan }: { className?: string, scan: Scan 
             {/* Show actual 3D viewer when completed */}
             <SimpleViewer 
               modelUrl={getModelUrl()}
-              className="w-full h-full" 
+              className="w-full h-full"
+              enablePointSelection={isSelectingPoints}
+              onPointClick={(pointIndex, position) => {
+                console.log('Point selected:', { pointIndex, position })
+                if (selectedPoints.length < 2) {
+                  setSelectedPoints([...selectedPoints, pointIndex])
+                }
+              }}
             />
           </div>
         ) : scan.status === 'processing' ? (
@@ -220,6 +227,8 @@ export default function ScanDetailPage() {
   const [scan, setScan] = useState<Scan | null>(null)
   const [userName, setUserName] = useState("")
   const [deleting, setDeleting] = useState(false)
+  const [selectedPoints, setSelectedPoints] = useState<number[]>([])
+  const [isSelectingPoints, setIsSelectingPoints] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token')
@@ -434,10 +443,10 @@ export default function ScanDetailPage() {
         </header>
 
         {/* Main Viewer Area */}
-        <div className="flex-1 flex">
-          {/* 3D Viewer */}
-          <div className="flex-1 p-6">
-            <Enhanced3DViewer scan={scan} className="w-full h-full min-h-[600px]" />
+        <div className="flex-1 flex overflow-hidden">
+          {/* 3D Viewer - Full viewport height */}
+          <div className="flex-1 flex flex-col">
+            <Enhanced3DViewer scan={scan} className="w-full h-full" />
           </div>
 
           {/* Sidebar Info Panel */}
@@ -590,11 +599,22 @@ export default function ScanDetailPage() {
 
               {/* Measurement Tools - Always Visible for Completed Scans */}
               {scan.status === 'completed' && (
-                <div className="mt-6">
-                  <MeasurementTools 
-                    scanId={scanId}
-                  />
-                </div>
+                <MeasurementTools 
+                  scanId={scanId}
+                  onPointSelect={(pointId) => {
+                    console.log('Point selected from measurement tools:', pointId)
+                    if (selectedPoints.length < 2) {
+                      setSelectedPoints([...selectedPoints, pointId])
+                    }
+                  }}
+                  onSelectionModeChange={(enabled) => {
+                    console.log('Selection mode:', enabled)
+                    setIsSelectingPoints(enabled)
+                    if (!enabled) {
+                      setSelectedPoints([]) // Clear selection when mode disabled
+                    }
+                  }}
+                />
               )}
 
               {/* Open3D Tools */}
