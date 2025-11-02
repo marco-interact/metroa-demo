@@ -59,11 +59,13 @@ function Enhanced3DViewer({
   className, 
   scan, 
   isSelectingPoints = false,
+  selectedPointPositions = [],
   onPointClick
 }: { 
   className?: string
   scan: Scan
   isSelectingPoints?: boolean
+  selectedPointPositions?: Array<[number, number, number]>
   onPointClick?: (pointIndex: number, position: [number, number, number]) => void
 }) {
   const [viewMode, setViewMode] = useState<'pointcloud' | 'mesh'>('pointcloud')
@@ -132,6 +134,7 @@ function Enhanced3DViewer({
               modelUrl={getModelUrl()}
               className="w-full h-full"
               enablePointSelection={isSelectingPoints}
+              selectedPointPositions={selectedPointPositions}
               onPointClick={onPointClick}
             />
           </div>
@@ -233,6 +236,7 @@ export default function ScanDetailPage() {
   const [userName, setUserName] = useState("")
   const [deleting, setDeleting] = useState(false)
   const [selectedPoints, setSelectedPoints] = useState<number[]>([])
+  const [selectedPointPositions, setSelectedPointPositions] = useState<Array<[number, number, number]>>([])
   const [isSelectingPoints, setIsSelectingPoints] = useState(false)
 
   useEffect(() => {
@@ -278,19 +282,27 @@ export default function ScanDetailPage() {
 
     setDeleting(true)
     try {
+      console.log('🗑️ Deleting scan:', scanId)
       const response = await fetch(`/api/backend/scans/${scanId}`, {
         method: 'DELETE',
       })
 
+      console.log('Delete response status:', response.status)
+      
       if (response.ok) {
+        const result = await response.json()
+        console.log('✅ Delete successful:', result)
+        alert(`Scan "${scan?.name}" deleted successfully`)
         // Redirect back to project page
         router.push(`/projects/${projectId}`)
       } else {
-        alert('Failed to delete scan')
+        const errorText = await response.text()
+        console.error('❌ Delete failed:', response.status, errorText)
+        alert(`Failed to delete scan: ${response.status} - ${errorText}`)
       }
     } catch (error) {
-      console.error('Delete error:', error)
-      alert('Failed to delete scan')
+      console.error('❌ Delete error:', error)
+      alert('Failed to delete scan: ' + (error as Error).message)
     } finally {
       setDeleting(false)
     }
@@ -491,10 +503,12 @@ export default function ScanDetailPage() {
               scan={scan} 
               className="w-full h-full"
               isSelectingPoints={isSelectingPoints}
+              selectedPointPositions={selectedPointPositions}
               onPointClick={(pointIndex, position) => {
-                console.log('Point selected:', { pointIndex, position })
+                console.log('✅ Point selected:', { pointIndex, position })
                 if (selectedPoints.length < 2) {
                   setSelectedPoints([...selectedPoints, pointIndex])
+                  setSelectedPointPositions([...selectedPointPositions, position])
                 }
               }}
             />
@@ -661,11 +675,13 @@ export default function ScanDetailPage() {
                     setIsSelectingPoints(enabled)
                     if (!enabled) {
                       setSelectedPoints([])
+                      setSelectedPointPositions([])
                     }
                   }}
                   onClearPoints={() => {
                     console.log('🗑️ Clearing selected points')
                     setSelectedPoints([])
+                    setSelectedPointPositions([])
                   }}
                 />
               )}

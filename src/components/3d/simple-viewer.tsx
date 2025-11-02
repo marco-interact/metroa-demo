@@ -11,6 +11,7 @@ interface SimpleViewerProps {
   className?: string
   onPointClick?: (pointIndex: number, position: [number, number, number]) => void
   enablePointSelection?: boolean
+  selectedPointPositions?: Array<[number, number, number]>
 }
 
 // PLY Model Loader Component with Point Selection
@@ -148,6 +149,45 @@ function PLYModel({ url, onPointClick, enableSelection }: {
   )
 }
 
+// Visual markers for selected points
+function PointMarkers({ positions }: { positions: Array<[number, number, number]> }) {
+  return (
+    <>
+      {positions.map((pos, index) => (
+        <group key={index} position={pos}>
+          {/* Outer pulsing ring */}
+          <mesh>
+            <sphereGeometry args={[0.15, 16, 16]} />
+            <meshBasicMaterial 
+              color={index === 0 ? "#00ff00" : "#ff0000"} 
+              transparent 
+              opacity={0.3}
+            />
+          </mesh>
+          
+          {/* Inner solid sphere */}
+          <mesh>
+            <sphereGeometry args={[0.08, 16, 16]} />
+            <meshBasicMaterial 
+              color={index === 0 ? "#00ff00" : "#ff0000"}
+            />
+          </mesh>
+          
+          {/* Label */}
+          <Html distanceFactor={10}>
+            <div className="bg-black/80 text-white px-2 py-1 rounded text-xs font-mono whitespace-nowrap pointer-events-none">
+              Point {index + 1}
+              <div className="text-[10px] text-gray-400">
+                [{pos[0].toFixed(2)}, {pos[1].toFixed(2)}, {pos[2].toFixed(2)}]
+              </div>
+            </div>
+          </Html>
+        </group>
+      ))}
+    </>
+  )
+}
+
 // Fallback point cloud component for demo
 function DemoPointCloud({ visible = true }: { visible?: boolean }) {
   const pointsRef = useRef<THREE.Points>(null)
@@ -234,15 +274,19 @@ export function SimpleViewer({
   modelUrl, 
   className = "", 
   onPointClick, 
-  enablePointSelection = false 
+  enablePointSelection = false,
+  selectedPointPositions = []
 }: SimpleViewerProps) {
   const [viewMode, setViewMode] = useState<'pointcloud' | 'mesh'>('pointcloud')
 
   return (
     <div className={`relative bg-app-card rounded-lg overflow-hidden ${className}`}>
       {enablePointSelection && (
-        <div className="absolute top-2 left-2 z-10 bg-blue-500/90 text-white px-3 py-1 rounded text-xs font-medium">
+        <div className="absolute top-2 left-2 z-10 bg-blue-500/90 text-white px-3 py-1 rounded text-xs font-medium flex items-center gap-2">
           🎯 Click points on the model to select
+          <span className="bg-white/20 px-2 py-0.5 rounded">
+            {selectedPointPositions.length}/2 points
+          </span>
         </div>
       )}
       
@@ -274,6 +318,11 @@ export function SimpleViewer({
               <SimpleMesh visible={true} />
             )}
           </>
+        )}
+        
+        {/* Visual markers for selected points */}
+        {selectedPointPositions.length > 0 && (
+          <PointMarkers positions={selectedPointPositions} />
         )}
         
         {/* Camera controls */}
