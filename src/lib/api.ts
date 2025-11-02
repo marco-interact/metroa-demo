@@ -192,7 +192,7 @@ class APIClient {
     formData.append('user_email', userEmail)
 
     try {
-      const response = await fetch(`${this.baseUrl}/api/reconstruction/upload`, {
+      const response = await fetch(`${this.baseUrl}/reconstruction/upload`, {
         method: 'POST',
         body: formData,
       })
@@ -357,9 +357,9 @@ class APIClient {
           { name: "Dense Reconstruction", status: "completed", duration: "0.4m", points: 145892 }
         ],
         results: {
-          point_cloud_url: `/models/${scanId}/pointcloud.ply`,
-          mesh_url: `/models/${scanId}/mesh.obj`,
-          thumbnail_url: `/models/${scanId}/thumbnail.jpg`
+          point_cloud_url: null, // Will fallback to demo-resources
+          mesh_url: null,
+          thumbnail_url: null
         }
       }
     }
@@ -391,9 +391,9 @@ class APIClient {
           { name: "Dense Reconstruction", status: "completed", duration: "0.4m", points: 145892 }
         ],
         results: {
-          point_cloud_url: `/models/${scanId}/pointcloud.ply`,
-          mesh_url: `/models/${scanId}/mesh.obj`,
-          thumbnail_url: `/models/${scanId}/thumbnail.jpg`
+          point_cloud_url: null, // Will fallback to demo-resources
+          mesh_url: null,
+          thumbnail_url: null
         }
       }
     }
