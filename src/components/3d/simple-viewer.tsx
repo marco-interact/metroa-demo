@@ -23,28 +23,39 @@ function PLYModel({ url, onPointClick, enableSelection }: {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { camera, raycaster, mouse } = useThree()
+  const { camera, gl } = useThree()
   
   // Handle point cloud clicks for measurement
   const handleClick = (event: any) => {
-    if (!enableSelection || !geometry || !onPointClick) return
+    if (!enableSelection || !geometry || !onPointClick || !pointsRef.current) return
     
-    // Get mouse position in normalized device coordinates
-    const rect = event.target.getBoundingClientRect()
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+    event.stopPropagation()
     
-    // Raycast to find intersected points
-    raycaster.setFromCamera(mouse, camera)
-    const intersects = raycaster.intersectObject(pointsRef.current!)
+    // Calculate mouse position in normalized device coordinates
+    const canvas = gl.domElement
+    const rect = canvas.getBoundingClientRect()
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+    
+    // Create raycaster
+    const raycaster = new THREE.Raycaster()
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
+    
+    // Find intersected points
+    const intersects = raycaster.intersectObject(pointsRef.current)
     
     if (intersects.length > 0) {
       const intersection = intersects[0]
       const pointIndex = intersection.index || 0
       const position = intersection.point.toArray() as [number, number, number]
       
-      console.log('Point clicked:', { pointIndex, position })
+      console.log('✅ Point clicked:', { pointIndex, position })
       onPointClick(pointIndex, position)
+      
+      // Visual feedback - flash the selected point
+      alert(`Point ${pointIndex} selected at [${position.map(p => p.toFixed(2)).join(', ')}]`)
+    } else {
+      console.log('❌ No point intersected')
     }
   }
 
@@ -89,11 +100,12 @@ function PLYModel({ url, onPointClick, enableSelection }: {
     )
   }, [url])
 
-  useFrame(() => {
-    if (pointsRef.current) {
-      pointsRef.current.rotation.y += 0.001
-    }
-  })
+  // Auto-rotation removed - only manual interaction now
+  // useFrame(() => {
+  //   if (pointsRef.current) {
+  //     pointsRef.current.rotation.y += 0.001
+  //   }
+  // })
 
   if (loading) {
     return (
@@ -122,9 +134,11 @@ function PLYModel({ url, onPointClick, enableSelection }: {
       ref={pointsRef} 
       geometry={geometry}
       onClick={enableSelection ? handleClick : undefined}
+      onPointerOver={enableSelection ? (e) => { e.stopPropagation(); document.body.style.cursor = 'crosshair' } : undefined}
+      onPointerOut={enableSelection ? (e) => { e.stopPropagation(); document.body.style.cursor = 'default' } : undefined}
     >
       <pointsMaterial
-        size={0.015}
+        size={enableSelection ? 0.025 : 0.015}
         vertexColors
         sizeAttenuation
         transparent
