@@ -487,6 +487,81 @@ class APIClient {
       return { status: 'demo' }
     }
   }
+
+  // Measurement System Methods
+  
+  async calibrateScale(scanId: string, point1Id: number, point2Id: number, knownDistance: number) {
+    if (!this.baseUrl) {
+      throw new Error('Measurement system not available in demo mode')
+    }
+
+    const formData = new FormData()
+    formData.append('scan_id', scanId)
+    formData.append('point1_id', point1Id.toString())
+    formData.append('point2_id', point2Id.toString())
+    formData.append('known_distance', knownDistance.toString())
+
+    const response = await fetch(`${this.baseUrl}/measurements/calibrate`, {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!response.ok) {
+      throw new Error(`Calibration failed: ${response.status}`)
+    }
+
+    return await response.json()
+  }
+
+  async addMeasurement(scanId: string, point1Id: number, point2Id: number, label: string = "") {
+    if (!this.baseUrl) {
+      throw new Error('Measurement system not available in demo mode')
+    }
+
+    const formData = new FormData()
+    formData.append('scan_id', scanId)
+    formData.append('point1_id', point1Id.toString())
+    formData.append('point2_id', point2Id.toString())
+    formData.append('label', label)
+
+    const response = await fetch(`${this.baseUrl}/measurements/add`, {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!response.ok) {
+      throw new Error(`Add measurement failed: ${response.status}`)
+    }
+
+    return await response.json()
+  }
+
+  async exportMeasurements(scanId: string, format: 'json' | 'csv' = 'json') {
+    if (!this.baseUrl) {
+      throw new Error('Measurement system not available in demo mode')
+    }
+
+    const response = await fetch(`${this.baseUrl}/measurements/${scanId}/export?format=${format}`)
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.status}`)
+    }
+
+    return await response.blob()
+  }
+
+  async getReconstructionStats(scanId: string) {
+    if (!this.baseUrl) {
+      throw new Error('Measurement system not available in demo mode')
+    }
+
+    try {
+      return await this.request<any>(`/measurements/${scanId}/stats`)
+    } catch (error) {
+      console.error('Failed to get reconstruction stats:', error)
+      throw error
+    }
+  }
 }
 
 // Export singleton instance

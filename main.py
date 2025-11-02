@@ -17,6 +17,7 @@ import uuid
 import subprocess
 from pathlib import Path
 from colmap_processor import COLMAPProcessor, process_video_to_pointcloud
+from colmap_binary_parser import MeasurementSystem, COLMAPBinaryParser
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -373,6 +374,127 @@ async def get_job_status(job_id: str):
             "progress": 0,
             "message": str(e)
         }
+
+# Measurement System Endpoints
+
+@app.post("/api/measurements/calibrate")
+async def calibrate_scale(
+    scan_id: str = Form(...),
+    point1_id: int = Form(...),
+    point2_id: int = Form(...),
+    known_distance: float = Form(...)
+):
+    """Calibrate scale using two points with known distance"""
+    try:
+        # Find sparse reconstruction path
+        scan_path = Path(f"/workspace/data/results/{scan_id}")
+        sparse_path = scan_path / "sparse" / "0"
+        
+        if not sparse_path.exists():
+            raise HTTPException(status_code=404, detail="Reconstruction not found")
+        
+        # Load and calibrate
+        measurement_system = MeasurementSystem(str(sparse_path))
+        measurement_system.load_reconstruction()
+        
+        result = measurement_system.calibrate_scale(point1_id, point2_id, known_distance)
+        
+        # Save scale factor to scan metadata
+        conn = get_db_connection()
+        # TODO: Add scale_factor column to scans table
+        conn.close()
+        
+        return {
+            "status": "success",
+            "scan_id": scan_id,
+            **result
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Scale calibration failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/measurements/add")
+async def add_measurement(
+    scan_id: str = Form(...),
+    point1_id: int = Form(...),
+    point2_id: int = Form(...),
+    label: str = Form("")
+):
+    """Add a measurement between two points"""
+    try:
+        scan_path = Path(f"/workspace/data/results/{scan_id}")
+        sparse_path = scan_path / "sparse" / "0"
+        
+        if not sparse_path.exists():
+            raise HTTPException(status_code=404, detail="Reconstruction not found")
+        
+        measurement_system = MeasurementSystem(str(sparse_path))
+        measurement_system.load_reconstruction()
+        
+        # TODO: Load previously saved scale factor
+        
+        measurement = measurement_system.add_measurement(point1_id, point2_id, label)
+        
+        return {
+            "status": "success",
+            "measurement": measurement
+        }
+    except Exception as e:
+        logger.error(f"Add measurement failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/measurements/{scan_id}/export")
+async def export_measurements(scan_id: str, format: str = "json"):
+    """Export measurements for a scan"""
+    try:
+        scan_path = Path(f"/workspace/data/results/{scan_id}")
+        sparse_path = scan_path / "sparse" / "0"
+        
+        if not sparse_path.exists():
+            raise HTTPException(status_code=404, detail="Reconstruction not found")
+        
+        measurement_system = MeasurementSystem(str(sparse_path))
+        measurement_system.load_reconstruction()
+        
+        # TODO: Load saved measurements from database
+        
+        export_data = measurement_system.export_measurements(format)
+        
+        if format == "csv":
+            from fastapi.responses import Response
+            return Response(content=export_data, media_type="text/csv")
+        else:
+            return JSONResponse(content=json.loads(export_data))
+            
+    except Exception as e:
+        logger.error(f"Export measurements failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/measurements/{scan_id}/stats")
+async def get_reconstruction_stats(scan_id: str):
+    """Get reconstruction statistics for measurement system"""
+    try:
+        scan_path = Path(f"/workspace/data/results/{scan_id}")
+        sparse_path = scan_path / "sparse" / "0"
+        
+        if not sparse_path.exists():
+            raise HTTPException(status_code=404, detail="Reconstruction not found")
+        
+        measurement_system = MeasurementSystem(str(sparse_path))
+        measurement_system.load_reconstruction()
+        
+        stats = measurement_system.get_reconstruction_stats()
+        
+        return {
+            "status": "success",
+            "scan_id": scan_id,
+            "stats": stats
+        }
+    except Exception as e:
+        logger.error(f"Get stats failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/projects")
 async def create_project(user_email: str, name: str, description: str = "", location: str = "", space_type: str = "", project_type: str = ""):
