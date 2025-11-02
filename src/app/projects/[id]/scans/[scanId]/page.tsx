@@ -265,6 +265,10 @@ export default function ScanDetailPage() {
 
   const loadScanData = async () => {
     try {
+      // Get project details first
+      const projectData = await apiClient.getProject(projectId)
+      const projectName = projectData?.name || "Unknown Project"
+      
       // Try to get real scan details from API
       const scanDetails = await apiClient.getScanDetails(scanId)
       
@@ -273,9 +277,9 @@ export default function ScanDetailPage() {
         id: scanDetails.id,
         name: scanDetails.name,
         projectId,
-        projectName: `Project ${projectId}`,
+        projectName: projectName,
         status: scanDetails.status,
-        location: "Monterrey", // Default location
+        location: projectData?.location || "Monterrey",
         updated: new Date(scanDetails.created_at || Date.now()).toLocaleDateString('en-GB'),
         fileSize: scanDetails.technical_details?.file_size || "245 MB",
         processingTime: scanDetails.technical_details?.processing_time || "18 minutes",
