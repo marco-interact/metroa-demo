@@ -133,16 +133,18 @@ def create_demo_data():
         
         if len(demo_projects) > 0:
             demo_project_id = demo_projects[0][0]
-            # Check if it has the 2 required scans
-            scan_count = conn.execute(
-                "SELECT COUNT(*) FROM scans WHERE project_id = ?", (demo_project_id,)
+            # Check if it has at least the 2 required demo scans
+            demo_scan_count = conn.execute(
+                "SELECT COUNT(*) FROM scans WHERE project_id = ? AND name IN ('demoscan-dollhouse', 'demoscan-fachada')",
+                (demo_project_id,)
             ).fetchone()[0]
             
-            if scan_count == 2:
-                # Demo data exists and is complete
-                logger.info("✅ Demo data already exists and is complete")
+            if demo_scan_count >= 2:
+                # Demo data exists and is complete (may have additional user uploads)
+                logger.info(f"✅ Demo data already exists ({demo_scan_count} demo scans + user uploads)")
                 scan_ids = [row[0] for row in conn.execute(
-                    "SELECT id FROM scans WHERE project_id = ?", (demo_project_id,)
+                    "SELECT id FROM scans WHERE project_id = ? AND name IN ('demoscan-dollhouse', 'demoscan-fachada')",
+                    (demo_project_id,)
                 ).fetchall()]
                 return {
                     "status": "success",
@@ -150,32 +152,30 @@ def create_demo_data():
                     "scan_ids": scan_ids
                 }
             else:
-                logger.warning(f"⚠️  Demo project exists but has {scan_count} scans (expected 2), recreating...")
-                # Delete incomplete demo data and recreate
-        
-        # CLEAN SLATE: Delete all existing data
-        conn.execute("DELETE FROM scans")
-        conn.execute("DELETE FROM projects")
-        conn.execute("DELETE FROM users")
-        conn.commit()
-        logger.info("🗑️  Cleared all existing data")
-        
-        # Create demo user
-        demo_user_id = str(uuid.uuid4())
-        
-        conn.execute('''
-            INSERT INTO users (id, email, name) 
-            VALUES (?, ?, ?)
-        ''', (demo_user_id, "demo@colmap.app", "Demo User"))
-        
-        # Create demo project
-        demo_project_id = str(uuid.uuid4())
-        conn.execute('''
-            INSERT INTO projects (id, user_id, name, description, location, space_type, project_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (demo_project_id, demo_user_id, "Reconstruction Test Project 1", 
-              "Demo COLMAP 3D reconstructions from demo-resources",
-              "Demo Location", "indoor", "architecture"))
+                logger.warning(f"⚠️  Demo scans missing ({demo_scan_count}/2), recreating demo data only...")
+                # Delete only demo scans, not user uploads
+                conn.execute("DELETE FROM scans WHERE project_id = ? AND name IN ('demoscan-dollhouse', 'demoscan-fachada')", (demo_project_id,))
+                conn.commit()
+        else:
+            # No demo project exists, create everything
+            logger.info("🔄 Creating demo data for first time...")
+            
+            # Create demo user
+            demo_user_id = str(uuid.uuid4())
+            
+            conn.execute('''
+                INSERT INTO users (id, email, name) 
+                VALUES (?, ?, ?)
+            ''', (demo_user_id, "demo@colmap.app", "Demo User"))
+            
+            # Create demo project
+            demo_project_id = str(uuid.uuid4())
+            conn.execute('''
+                INSERT INTO projects (id, user_id, name, description, location, space_type, project_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (demo_project_id, demo_user_id, "Reconstruction Test Project 1", 
+                  "Demo COLMAP 3D reconstructions from demo-resources",
+                  "Demo Location", "indoor", "architecture"))
         
         # Create demo scans using actual files from demo-resources
         demo_scans = [
