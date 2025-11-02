@@ -46,9 +46,9 @@ class COLMAPProcessor:
         
         logger.info(f"Created COLMAP workspace at {self.job_path}")
     
-    def extract_frames(self, video_path: str, max_frames: int = 500, frame_interval: int = 1, quality: str = "medium") -> int:
+    def extract_frames(self, video_path: str, max_frames: int = 500, target_fps: int = 60, quality: str = "medium") -> int:
         """
-        Extract frames from video using ffmpeg
+        Extract frames from video using ffmpeg at native FPS (capped at 60fps)
         
         Following COLMAP best practices:
         Reference: https://colmap.github.io/tutorial.html#data-structure
@@ -58,8 +58,42 @@ class COLMAPProcessor:
         - Preserve folder structure for later processing
         - Consider down-sampling frame rate for video input
         - Different viewpoints (not just camera rotation)
+        
+        Args:
+            video_path: Path to input video
+            max_frames: Maximum number of frames to extract
+            target_fps: Target FPS (will use native FPS if lower, default 60)
+            quality: Quality preset (low/medium/high)
         """
-        logger.info(f"Extracting frames from {video_path} (quality={quality})")
+        logger.info(f"Extracting frames from {video_path} (quality={quality}, target_fps={target_fps})")
+        
+        # First, get the video's native FPS
+        probe_cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=r_frame_rate",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(video_path)
+        ]
+        
+        try:
+            probe_result = subprocess.run(probe_cmd, check=True, capture_output=True, text=True)
+            fps_str = probe_result.stdout.strip()
+            
+            # Parse fractional FPS (e.g., "30000/1001" or "30")
+            if '/' in fps_str:
+                num, den = fps_str.split('/')
+                native_fps = float(num) / float(den)
+            else:
+                native_fps = float(fps_str)
+            
+            # Use native FPS if it's lower than target, otherwise cap at target_fps
+            actual_fps = min(native_fps, target_fps)
+            logger.info(f"Video native FPS: {native_fps:.2f}, using: {actual_fps:.2f}")
+            
+        except Exception as e:
+            logger.warning(f"Could not detect video FPS: {e}, using target_fps={target_fps}")
+            actual_fps = target_fps
         
         # Quality-based scaling
         scale_map = {
@@ -73,9 +107,10 @@ class COLMAPProcessor:
         # Format: %06d for frame numbering
         output_pattern = self.images_path / "frame_%06d.jpg"
         
+        # Use fps filter to extract at specified FPS
         cmd = [
             "ffmpeg", "-i", video_path,
-            "-vf", f"fps=1/{frame_interval},scale={scale}",
+            "-vf", f"fps={actual_fps},scale={scale}",
             "-frames:v", str(max_frames),
             "-q:v", "2",  # High quality JPEG (1-31, lower = better)
             "-y",  # Overwrite existing files
