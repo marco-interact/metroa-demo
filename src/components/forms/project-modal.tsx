@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectItem } from "@/components/ui/select"
 import { Modal, ModalContent, ModalFooter } from "@/components/ui/modal"
+import { LocationPicker } from "@/components/forms/location-picker"
 import { MapPin } from "lucide-react"
 
 interface ProjectModalProps {
@@ -48,6 +49,7 @@ export function ProjectModal({ isOpen, onClose, onSubmit }: ProjectModalProps) {
   
   const [errors, setErrors] = useState<{[key: string]: string}>({})
   const [loading, setLoading] = useState(false)
+  const [showMap, setShowMap] = useState(false)
 
   const handleInputChange = (field: keyof ProjectFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -173,17 +175,48 @@ export function ProjectModal({ isOpen, onClose, onSubmit }: ProjectModalProps) {
             <label htmlFor="project-location" className="block text-sm font-medium text-gray-300 mb-2">
               Location *
             </label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                id="project-location"
-                placeholder="Search Location"
-                value={formData.location}
-                onChange={(e) => handleInputChange("location", e.target.value)}
-                error={errors.location}
-                className="pl-10"
-              />
-            </div>
+            
+            {!showMap ? (
+              <div className="space-y-2">
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="project-location"
+                    placeholder="Type location or select from map"
+                    value={formData.location}
+                    onChange={(e) => handleInputChange("location", e.target.value)}
+                    error={errors.location}
+                    className="pl-10"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMap(true)}
+                  className="w-full"
+                >
+                  <MapPin className="w-4 h-4 mr-2" />
+                  Select from Map
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <LocationPicker
+                  value={formData.location}
+                  onChange={(location) => handleInputChange("location", location)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMap(false)}
+                  className="w-full"
+                >
+                  Close Map
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Space Type and Project Type in a grid */}
