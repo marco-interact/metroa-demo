@@ -240,13 +240,13 @@ export function Open3DTools({
                   <div>
                     <span className="text-gray-400">Dimensions:</span>
                     <div className="font-mono text-xs">
-                      {stats.dimensions.map(d => d.toFixed(2)).join(' × ')}m
+                      {stats.dimensions?.map(d => d.toFixed(2)).join(' × ') || 'N/A'}m
                     </div>
                   </div>
                   <div>
                     <span className="text-gray-400">Centroid:</span>
                     <div className="font-mono text-xs">
-                      {stats.centroid.map(c => c.toFixed(2)).join(', ')}
+                      {stats.centroid?.map(c => c.toFixed(2)).join(', ') || 'N/A'}
                     </div>
                   </div>
                 </div>
