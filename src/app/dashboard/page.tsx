@@ -87,9 +87,9 @@ export default function DashboardPage() {
               const progress = totalScans > 0 ? Math.round((completedScans / totalScans) * 100) : 100
               
               // Use project thumbnail API (shows first scan's first frame)
-              // Next.js rewrites /api/backend/* to http://localhost:8000/*
+              // Next.js rewrites /api/backend/* to backend /api/*
               // Backend route: /api/projects/{id}/thumbnail.jpg
-              const thumbnailUrl = `/api/backend/api/projects/${project.id}/thumbnail.jpg`
+              const thumbnailUrl = `/api/backend/projects/${project.id}/thumbnail.jpg`
               
               return {
                 id: project.id,
