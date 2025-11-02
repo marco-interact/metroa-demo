@@ -152,21 +152,25 @@ def create_demo_data():
                     "scan_ids": scan_ids
                 }
             else:
-                logger.warning(f"⚠️  Demo scans missing ({demo_scan_count}/2), recreating demo data only...")
+                logger.warning(f"⚠️  Demo scans missing ({demo_scan_count}/2), recreating demo scans only...")
                 # Delete only demo scans, not user uploads
                 conn.execute("DELETE FROM scans WHERE project_id = ? AND name IN ('demoscan-dollhouse', 'demoscan-fachada')", (demo_project_id,))
                 conn.commit()
+                # demo_project_id is already set, will add scans below
         else:
-            # No demo project exists, create everything
-            logger.info("🔄 Creating demo data for first time...")
+            # No demo project exists, create user and project
+            logger.info("🔄 Creating demo project for first time...")
             
-            # Create demo user
-            demo_user_id = str(uuid.uuid4())
-            
-            conn.execute('''
-                INSERT INTO users (id, email, name) 
-                VALUES (?, ?, ?)
-            ''', (demo_user_id, "demo@colmap.app", "Demo User"))
+            # Get or create demo user
+            demo_user = conn.execute("SELECT id FROM users WHERE email = 'demo@colmap.app'").fetchone()
+            if demo_user:
+                demo_user_id = demo_user[0]
+            else:
+                demo_user_id = str(uuid.uuid4())
+                conn.execute('''
+                    INSERT INTO users (id, email, name) 
+                    VALUES (?, ?, ?)
+                ''', (demo_user_id, "demo@colmap.app", "Demo User"))
             
             # Create demo project
             demo_project_id = str(uuid.uuid4())
@@ -176,6 +180,7 @@ def create_demo_data():
             ''', (demo_project_id, demo_user_id, "Reconstruction Test Project 1", 
                   "Demo COLMAP 3D reconstructions from demo-resources",
                   "Demo Location", "indoor", "architecture"))
+            conn.commit()
         
         # Create demo scans using actual files from demo-resources
         demo_scans = [
