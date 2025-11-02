@@ -19,30 +19,42 @@ interface Measurement {
 
 interface MeasurementToolsProps {
   scanId: string
+  selectedPoints?: number[]
   onPointSelect?: (pointId: number) => void
   onSelectionModeChange?: (enabled: boolean) => void
+  onClearPoints?: () => void
   className?: string
 }
 
-export function MeasurementTools({ scanId, onPointSelect, onSelectionModeChange, className = "" }: MeasurementToolsProps) {
+export function MeasurementTools({ 
+  scanId, 
+  selectedPoints: externalSelectedPoints = [],
+  onPointSelect, 
+  onSelectionModeChange,
+  onClearPoints,
+  className = "" 
+}: MeasurementToolsProps) {
   const [measurements, setMeasurements] = useState<Measurement[]>([])
-  const [selectedPoints, setSelectedPoints] = useState<number[]>([])
   const [isCalibrating, setIsCalibrating] = useState(false)
   const [knownDistance, setKnownDistance] = useState("")
   const [measurementLabel, setMeasurementLabel] = useState("")
   const [isScaled, setIsScaled] = useState(false)
   
+  // Use external selected points from parent
+  const selectedPoints = externalSelectedPoints
+  
   // Notify parent when selection mode changes
   useEffect(() => {
-    onSelectionModeChange?.(isCalibrating || (isScaled && selectedPoints.length < 2))
+    const needsSelection = isCalibrating || (isScaled && selectedPoints.length < 2)
+    onSelectionModeChange?.(needsSelection)
   }, [isCalibrating, isScaled, selectedPoints.length, onSelectionModeChange])
 
-  const handlePointClick = (pointId: number) => {
-    if (selectedPoints.length < 2) {
-      setSelectedPoints([...selectedPoints, pointId])
-      onPointSelect?.(pointId)
-    }
-  }
+  // Point selection is now handled by parent component
+  // const handlePointClick = (pointId: number) => {
+  //   if (selectedPoints.length < 2) {
+  //     onPointSelect?.(pointId)
+  //   }
+  // }
 
   const handleCalibrateScale = async () => {
     if (selectedPoints.length !== 2 || !knownDistance) {
@@ -195,7 +207,7 @@ export function MeasurementTools({ scanId, onPointSelect, onSelectionModeChange,
                   <Button
                     onClick={() => {
                       setIsCalibrating(false)
-                      setSelectedPoints([])
+                      onClearPoints?.()
                       setKnownDistance("")
                     }}
                     variant="outline"

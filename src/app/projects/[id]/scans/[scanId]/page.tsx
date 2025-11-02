@@ -382,8 +382,10 @@ export default function ScanDetailPage() {
     <div className="h-screen bg-app-primary flex overflow-hidden">
       {/* Sidebar */}
       <aside className="w-64 bg-app-primary border-r border-app-secondary/30 flex flex-col overflow-y-auto">
-        <div className="p-6">
-          <h1 className="text-xl font-bold text-primary-400 font-mono">Colmap App</h1>
+        <div className="p-6 cursor-pointer" onClick={() => router.push('/dashboard')}>
+          <h1 className="text-xl font-bold text-primary-400 font-mono hover:text-primary-300 transition-colors">
+            Colmap App
+          </h1>
         </div>
 
         {/* User Profile */}
@@ -401,8 +403,11 @@ export default function ScanDetailPage() {
           <ul className="space-y-2">
             <li>
               <button 
-                onClick={() => router.push('/dashboard')}
-                className="w-full flex items-center px-4 py-2 text-sm text-white bg-primary-500 rounded-lg"
+                onClick={() => {
+                  console.log('Navigating to dashboard...')
+                  router.push('/dashboard')
+                }}
+                className="w-full flex items-center px-4 py-2 text-sm text-white bg-primary-500 rounded-lg hover:bg-primary-600 transition-colors cursor-pointer"
               >
                 <div className="w-4 h-4 mr-3 bg-white rounded-sm"></div>
                 My Projects
@@ -444,7 +449,10 @@ export default function ScanDetailPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => router.push(`/projects/${projectId}`)}
+                onClick={() => {
+                  console.log('Back to scans clicked, navigating to:', `/projects/${projectId}`)
+                  router.push(`/projects/${projectId}`)
+                }}
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Scans
@@ -644,18 +652,20 @@ export default function ScanDetailPage() {
               {scan.status === 'completed' && (
                 <MeasurementTools 
                   scanId={scanId}
+                  selectedPoints={selectedPoints}
                   onPointSelect={(pointId) => {
                     console.log('Point selected from measurement tools:', pointId)
-                    if (selectedPoints.length < 2) {
-                      setSelectedPoints([...selectedPoints, pointId])
-                    }
                   }}
                   onSelectionModeChange={(enabled) => {
-                    console.log('Selection mode:', enabled)
+                    console.log('🎯 Selection mode changed:', enabled)
                     setIsSelectingPoints(enabled)
                     if (!enabled) {
-                      setSelectedPoints([]) // Clear selection when mode disabled
+                      setSelectedPoints([])
                     }
+                  }}
+                  onClearPoints={() => {
+                    console.log('🗑️ Clearing selected points')
+                    setSelectedPoints([])
                   }}
                 />
               )}
