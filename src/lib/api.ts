@@ -477,8 +477,12 @@ class APIClient {
     }
 
     try {
-      return await this.request<{ status: string }>('/status')
+      // baseUrl is /api/backend, endpoint is /status
+      // Results in: /api/backend/status which rewrites to backend /api/status
+      const response = await this.request<any>('/status')
+      return { status: response.backend || 'healthy' }
     } catch (error) {
+      console.error('Health check failed:', error)
       // If health check fails, we're now in demo mode
       return { status: 'demo' }
     }
