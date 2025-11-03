@@ -1,0 +1,68 @@
+# Cursor Ignore File
+# Files and directories to exclude from Cursor's indexing
+
+# Dependencies
+node_modules/
+venv/
+venv-local/
+.venv/
+env/
+ENV/
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+
+# Data directories
+data/results/
+data/cache/
+data/uploads/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Database files
+*.db
+*.db-journal
+
+# Environment files
+.env
+.env.local
+.env*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large demo files
+demo-resources/demoscan-dollhouse/*.ply
+demo-resources/demoscan-fachada/*.ply
+demo-resources/demoscan-dollhouse/*.glb
+demo-resources/demoscan-fachada/*.glb
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+temp/
+
+# Vercel
+.vercel/
+
+# TypeScript
+*.tsbuildinfo
+

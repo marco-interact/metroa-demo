@@ -54,6 +54,7 @@ __pycache__/
 *.so
 .Python
 venv/
+venv-local/
 env/
 ENV/
 
