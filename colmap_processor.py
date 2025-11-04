@@ -34,6 +34,12 @@ class COLMAPProcessor:
         
         # Create directories
         self._create_directories()
+        
+        # Setup environment for headless COLMAP execution
+        self.env = os.environ.copy()
+        self.env['DISPLAY'] = os.getenv('DISPLAY', ':99')
+        self.env['QT_QPA_PLATFORM'] = 'offscreen'
+        self.env['MESA_GL_VERSION_OVERRIDE'] = '3.3'
     
     def _create_directories(self):
         """
@@ -173,7 +179,7 @@ class COLMAPProcessor:
         ]
         
         try:
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=self.env)
             
             # Parse statistics
             stats = self._parse_feature_stats(result.stdout)
@@ -227,7 +233,7 @@ class COLMAPProcessor:
             ]
         
         try:
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=self.env)
             
             # Parse match statistics
             stats = self._parse_match_stats(result.stdout)
@@ -322,7 +328,7 @@ class COLMAPProcessor:
         ]
         
         try:
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=self.env)
             
             # Parse reconstruction statistics
             stats = self._parse_reconstruction_stats(result.stdout)
