@@ -169,6 +169,7 @@ class COLMAPProcessor:
             "--ImageReader.single_camera", "1",  # All frames from same camera
             "--SiftExtraction.max_num_features", params["max_num_features"],
             "--SiftExtraction.max_image_size", params["max_image_size"],
+            "--SiftExtraction.use_gpu", "1" if use_gpu else "0",  # GPU control
         ]
         
         try:
@@ -214,6 +215,7 @@ class COLMAPProcessor:
                 "colmap", "sequential_matcher",
                 "--database_path", str(self.database_path),
                 "--SequentialMatching.overlap", "10",  # Match 10 adjacent frames
+                "--SiftMatching.use_gpu", "1" if use_gpu else "0",  # GPU control
             ]
         else:  # exhaustive_matcher
             # Best for unordered image collections
@@ -221,6 +223,7 @@ class COLMAPProcessor:
             cmd = [
                 "colmap", "exhaustive_matcher",
                 "--database_path", str(self.database_path),
+                "--SiftMatching.use_gpu", "1" if use_gpu else "0",  # GPU control
             ]
         
         try:
@@ -916,10 +919,10 @@ def process_video_to_pointcloud(
     # Step 1: Extract frames
     frame_count = processor.extract_frames(video_path, max_frames=max_frames)
     
-    # Step 2: Extract features
+    # Step 2: Extract features (GPU accelerated)
     feature_stats = processor.extract_features(quality=quality, use_gpu=True)
     
-    # Step 3: Match features
+    # Step 3: Match features (GPU accelerated)
     match_stats = processor.match_features(matching_type="sequential", use_gpu=True)
     
     # Step 4: Sparse reconstruction
