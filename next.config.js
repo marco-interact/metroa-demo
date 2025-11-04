@@ -10,12 +10,7 @@ const nextConfig = {
   
   // Proxy backend API calls through Next.js
   async rewrites() {
-    const backendUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
-    if (!backendUrl) {
-      // Don't error during build - just skip rewrites if URL not set
-      console.warn('WARNING: No backend URL configured. Set NEXT_PUBLIC_API_URL for API rewrites.');
-      return [];
-    }
+    const backendUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     console.log('Backend URL for rewrites:', backendUrl);
     return [
       {
@@ -30,7 +25,7 @@ const nextConfig = {
         source: '/api/backend/:path*',
         destination: `${backendUrl}/api/:path*`,
       },
-    ]
+    ];
   },
   
   // Enable webpack 5 polyfills for Node.js modules
