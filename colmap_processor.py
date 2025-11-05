@@ -78,54 +78,121 @@ class COLMAPProcessor:
             logger.warning(f"⚠️  GPU check failed: {e}, falling back to CPU")
             return False
     
-    def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = 24, quality: str = "medium") -> int:
+    def _auto_detect_optimal_fps(self, video_path: str, quality: str = "medium") -> Tuple[float, float, int]:
         """
-        Extract frames from video using ffmpeg at native FPS (capped at 24fps)
+        Auto-detect optimal FPS based on video duration and quality target
+        
+        Returns: (optimal_fps, video_duration, total_frames)
+        
+        Strategy:
+        - Short videos (<30s): Use higher FPS (more frames for stability)
+        - Medium videos (30s-2min): Use medium FPS (balanced)
+        - Long videos (>2min): Use lower FPS (avoid too many frames)
+        
+        Target frame count for good reconstruction:
+        - Low quality: 30-50 frames
+        - Medium quality: 50-100 frames  
+        - High quality: 100-200 frames
+        """
+        try:
+            # Get video duration and native FPS
+            probe_cmd = [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration:stream=r_frame_rate",
+                "-of", "default=noprint_wrappers=1",
+                str(video_path)
+            ]
+            
+            probe_result = subprocess.run(probe_cmd, check=True, capture_output=True, text=True)
+            output_lines = probe_result.stdout.strip().split('\n')
+            
+            # Parse output
+            duration = 0.0
+            native_fps = 30.0  # default fallback
+            
+            for line in output_lines:
+                if 'r_frame_rate' in line or '/' in line:
+                    fps_str = line.split('=')[-1]
+                    if '/' in fps_str:
+                        num, den = fps_str.split('/')
+                        native_fps = float(num) / float(den)
+                elif 'duration' in line:
+                    duration = float(line.split('=')[-1])
+            
+            logger.info(f"📹 Video analysis: duration={duration:.1f}s, native_fps={native_fps:.1f}")
+            
+            # Define target frame counts based on quality
+            target_frames = {
+                "low": 40,      # Fast processing
+                "medium": 70,   # Balanced
+                "high": 120     # Best quality
+            }
+            
+            target_frame_count = target_frames.get(quality, 70)
+            
+            # Calculate optimal FPS to reach target frame count
+            if duration > 0:
+                optimal_fps = target_frame_count / duration
+                # Cap at reasonable limits
+                optimal_fps = max(3, min(optimal_fps, 15))  # Between 3-15 fps
+                # Don't exceed native FPS
+                optimal_fps = min(optimal_fps, native_fps)
+            else:
+                # Fallback if duration detection fails
+                optimal_fps = 10
+            
+            estimated_frames = int(duration * optimal_fps)
+            
+            logger.info(f"🎯 Auto-detected optimal FPS: {optimal_fps:.1f} fps → ~{estimated_frames} frames (target: {target_frame_count})")
+            
+            return optimal_fps, duration, estimated_frames
+            
+        except Exception as e:
+            logger.warning(f"⚠️  Auto-detection failed: {e}, using defaults")
+            return 10.0, 20.0, 200  # Safe defaults
+    
+    def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = None, quality: str = "medium") -> int:
+        """
+        Extract frames from video using ffmpeg with AUTO FPS DETECTION
         
         Following COLMAP best practices:
         Reference: https://colmap.github.io/tutorial.html#data-structure
         
-        Recommendations from tutorial:
-        - Images identified by relative path (preserved in nested folders)
-        - Preserve folder structure for later processing
-        - Consider down-sampling frame rate for video input
-        - Different viewpoints (not just camera rotation)
+        Smart FPS selection:
+        - Automatically analyzes video duration
+        - Calculates optimal FPS for quality target
+        - Balances frame count vs processing speed
         
         Args:
             video_path: Path to input video
-            max_frames: Maximum number of frames to extract (0 = unlimited)
-            target_fps: Target FPS (will use native FPS if lower, default 24)
-            quality: Quality preset (low/medium/high)
+            max_frames: Maximum number of frames to extract (0 = auto)
+            target_fps: Manual FPS override (None = auto-detect)
+            quality: Quality preset (low/medium/high) - affects target frame count
         """
-        logger.info(f"Extracting frames from {video_path} (quality={quality}, target_fps={target_fps}, max_frames={'unlimited' if max_frames == 0 else max_frames})")
+        logger.info(f"Extracting frames from {video_path} (quality={quality}, auto_fps={'enabled' if target_fps is None else 'manual'})")
         
-        # First, get the video's native FPS
-        probe_cmd = [
-            "ffprobe", "-v", "error",
-            "-select_streams", "v:0",
-            "-show_entries", "stream=r_frame_rate",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            str(video_path)
-        ]
-        
-        try:
-            probe_result = subprocess.run(probe_cmd, check=True, capture_output=True, text=True)
-            fps_str = probe_result.stdout.strip()
-            
-            # Parse fractional FPS (e.g., "30000/1001" or "30")
-            if '/' in fps_str:
-                num, den = fps_str.split('/')
-                native_fps = float(num) / float(den)
-            else:
-                native_fps = float(fps_str)
-            
-            # Use native FPS if it's lower than target, otherwise cap at 24fps
-            actual_fps = min(native_fps, target_fps)
-            logger.info(f"📹 Video native FPS: {native_fps:.2f}, using: {actual_fps:.2f} (capped at {target_fps}fps for optimal COLMAP performance)")
-            
-        except Exception as e:
-            logger.warning(f"Could not detect video FPS: {e}, using target_fps={target_fps}")
-            actual_fps = target_fps
+        # Auto-detect optimal FPS if not specified
+        if target_fps is None:
+            actual_fps, duration, estimated_frames = self._auto_detect_optimal_fps(video_path, quality)
+        else:
+            # Manual FPS specified - get video info for logging
+            try:
+                probe_cmd = [
+                    "ffprobe", "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    str(video_path)
+                ]
+                probe_result = subprocess.run(probe_cmd, check=True, capture_output=True, text=True)
+                duration = float(probe_result.stdout.strip())
+                actual_fps = target_fps
+                estimated_frames = int(duration * actual_fps)
+                logger.info(f"📹 Manual FPS: {actual_fps} fps → ~{estimated_frames} frames")
+            except Exception as e:
+                logger.warning(f"Could not detect video duration: {e}")
+                actual_fps = target_fps
+                duration = 20.0
+                estimated_frames = 200
         
         # Quality-based scaling
         scale_map = {
@@ -178,19 +245,20 @@ class COLMAPProcessor:
         gpu_mode = "GPU" if actual_use_gpu else "CPU"
         logger.info(f"Extracting features with quality={quality} using {gpu_mode}")
         
-        # Quality-based parameters - SIGNIFICANTLY INCREASED for high resolution
+        # Quality-based parameters - OPTIMIZED FOR SPEED
+        # Lower values = faster processing, still good quality
         quality_params = {
             "low": {
-                "max_num_features": "16384",
-                "max_image_size": "2048"
+                "max_num_features": "8192",    # Fast
+                "max_image_size": "1920"       # HD resolution
             },
             "medium": {
-                "max_num_features": "32768",   # Doubled from 16384
-                "max_image_size": "4096"       # Increased from 3200
+                "max_num_features": "16384",   # Balanced speed/quality
+                "max_image_size": "2560"       # 2.5K resolution
             },
             "high": {
-                "max_num_features": "65536",   # Doubled from 32768
-                "max_image_size": "8192"       # Increased from 6400
+                "max_num_features": "32768",   # Best quality
+                "max_image_size": "3840"       # 4K resolution
             }
         }
         
@@ -258,7 +326,7 @@ class COLMAPProcessor:
             cmd = [
                 "colmap", "sequential_matcher",
                 "--database_path", str(self.database_path),
-                "--SequentialMatching.overlap", "10",  # Match 10 adjacent frames
+                "--SequentialMatching.overlap", "5",  # Match 5 adjacent frames (faster)
                 "--SiftMatching.use_gpu", "1" if actual_use_gpu else "0",  # GPU control
             ]
         else:  # exhaustive_matcher
