@@ -117,17 +117,22 @@ export PYTHONUNBUFFERED=1
 # Create directories
 mkdir -p data/results data/cache data/uploads
 
-# Initialize database
+# Initialize database and setup demo data
 python3 << 'PYEOF'
-import asyncio
 from database import Database
 
-async def init_db():
-    db = Database()
-    await db.initialize()
-    print('✅ Database initialized successfully!')
+# Create database instance (auto-initializes tables)
+db = Database()
+print('✅ Database tables initialized!')
 
-asyncio.run(init_db())
+# Setup demo data
+result = db.setup_demo_data()
+if result['status'] == 'success':
+    print(f"✅ Demo data setup: {result['message']}")
+    print(f"   Project ID: {result['project_id']}")
+    print(f"   Scan IDs: {', '.join(result['scan_ids'])}")
+else:
+    print(f"⚠️  Demo data setup: {result.get('message', 'Unknown error')}")
 PYEOF
 
 print_info "✅ Database initialized"
