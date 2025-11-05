@@ -40,6 +40,9 @@ class COLMAPProcessor:
         self.env['DISPLAY'] = os.getenv('DISPLAY', ':99')
         self.env['QT_QPA_PLATFORM'] = 'offscreen'
         self.env['MESA_GL_VERSION_OVERRIDE'] = '3.3'
+        
+        # Detect GPU availability
+        self.gpu_available = self._check_gpu_available()
     
     def _create_directories(self):
         """
@@ -51,6 +54,29 @@ class COLMAPProcessor:
         self.dense_path.mkdir(parents=True, exist_ok=True)
         
         logger.info(f"Created COLMAP workspace at {self.job_path}")
+    
+    def _check_gpu_available(self) -> bool:
+        """
+        Check if GPU is available for COLMAP processing
+        Tests both nvidia-smi and CUDA availability
+        """
+        try:
+            # Check if nvidia-smi works
+            result = subprocess.run(
+                ["nvidia-smi"], 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
+            if result.returncode == 0:
+                logger.info("✅ GPU detected via nvidia-smi")
+                return True
+            else:
+                logger.warning("⚠️  nvidia-smi failed, falling back to CPU")
+                return False
+        except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as e:
+            logger.warning(f"⚠️  GPU check failed: {e}, falling back to CPU")
+            return False
     
     def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = 24, quality: str = "medium") -> int:
         """
@@ -147,7 +173,10 @@ class COLMAPProcessor:
         Note: COLMAP 3.13+ has different parameter names than older versions.
         Using simplified parameters for compatibility.
         """
-        logger.info(f"Extracting features with quality={quality}")
+        # Override GPU flag if GPU not available
+        actual_use_gpu = use_gpu and self.gpu_available
+        gpu_mode = "GPU" if actual_use_gpu else "CPU"
+        logger.info(f"Extracting features with quality={quality} using {gpu_mode}")
         
         # Quality-based parameters - SIGNIFICANTLY INCREASED for high resolution
         quality_params = {
@@ -175,7 +204,7 @@ class COLMAPProcessor:
             "--ImageReader.single_camera", "1",  # All frames from same camera
             "--SiftExtraction.max_num_features", params["max_num_features"],
             "--SiftExtraction.max_image_size", params["max_image_size"],
-            "--SiftExtraction.use_gpu", "1" if use_gpu else "0",  # GPU control
+            "--SiftExtraction.use_gpu", "1" if actual_use_gpu else "0",  # GPU control
         ]
         
         try:
@@ -187,6 +216,12 @@ class COLMAPProcessor:
             return stats
             
         except subprocess.CalledProcessError as e:
+            # If GPU was attempted and failed, try CPU fallback
+            if actual_use_gpu and "GPU" in str(e.stderr):
+                logger.warning(f"⚠️  GPU feature extraction failed, retrying with CPU...")
+                self.gpu_available = False  # Disable GPU for future calls
+                return self.extract_features(quality=quality, use_gpu=False)
+            
             logger.error(f"Feature extraction failed: {e.stderr}")
             raise
     
@@ -203,7 +238,10 @@ class COLMAPProcessor:
         
         Geometric verification is automatic via RANSAC and stored in two_view_geometries table.
         """
-        logger.info(f"Matching features with {matching_type} matcher (quality={quality})")
+        # Override GPU flag if GPU not available
+        actual_use_gpu = use_gpu and self.gpu_available
+        gpu_mode = "GPU" if actual_use_gpu else "CPU"
+        logger.info(f"Matching features with {matching_type} matcher (quality={quality}) using {gpu_mode}")
         
         # Quality-based match limits
         quality_params = {
@@ -221,7 +259,7 @@ class COLMAPProcessor:
                 "colmap", "sequential_matcher",
                 "--database_path", str(self.database_path),
                 "--SequentialMatching.overlap", "10",  # Match 10 adjacent frames
-                "--SiftMatching.use_gpu", "1" if use_gpu else "0",  # GPU control
+                "--SiftMatching.use_gpu", "1" if actual_use_gpu else "0",  # GPU control
             ]
         else:  # exhaustive_matcher
             # Best for unordered image collections
@@ -229,7 +267,7 @@ class COLMAPProcessor:
             cmd = [
                 "colmap", "exhaustive_matcher",
                 "--database_path", str(self.database_path),
-                "--SiftMatching.use_gpu", "1" if use_gpu else "0",  # GPU control
+                "--SiftMatching.use_gpu", "1" if actual_use_gpu else "0",  # GPU control
             ]
         
         try:
@@ -241,6 +279,12 @@ class COLMAPProcessor:
             return stats
             
         except subprocess.CalledProcessError as e:
+            # If GPU was attempted and failed, try CPU fallback
+            if actual_use_gpu and "GPU" in str(e.stderr):
+                logger.warning(f"⚠️  GPU feature matching failed, retrying with CPU...")
+                self.gpu_available = False  # Disable GPU for future calls
+                return self.match_features(matching_type=matching_type, use_gpu=False, quality=quality)
+            
             logger.error(f"Feature matching failed: {e.stderr}")
             raise
     
