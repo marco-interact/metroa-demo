@@ -212,111 +212,6 @@ def init_database():
     finally:
         conn.close()
 
-def create_demo_data():
-    """Create demo data - ALWAYS ensure demo data exists"""
-    try:
-        conn = get_db_connection()
-        
-        # Check if demo data already exists
-        demo_projects = conn.execute(
-            "SELECT id FROM projects WHERE name = 'Reconstruction Test Project 1'"
-        ).fetchall()
-        
-        if len(demo_projects) > 0:
-            demo_project_id = demo_projects[0][0]
-            # Check if it has at least the 2 required demo scans
-            demo_scan_count = conn.execute(
-                "SELECT COUNT(*) FROM scans WHERE project_id = ? AND name IN ('demoscan-dollhouse', 'demoscan-fachada')",
-                (demo_project_id,)
-            ).fetchone()[0]
-            
-            if demo_scan_count >= 2:
-                # Demo data exists and is complete (may have additional user uploads)
-                logger.info(f"✅ Demo data already exists ({demo_scan_count} demo scans + user uploads)")
-                scan_ids = [row[0] for row in conn.execute(
-                    "SELECT id FROM scans WHERE project_id = ? AND name IN ('demoscan-dollhouse', 'demoscan-fachada')",
-                    (demo_project_id,)
-                ).fetchall()]
-                return {
-                    "status": "success",
-                    "project_id": demo_project_id,
-                    "scan_ids": scan_ids
-                }
-            else:
-                logger.warning(f"⚠️  Demo scans missing ({demo_scan_count}/2), recreating demo scans only...")
-                # Delete only demo scans, not user uploads
-                conn.execute("DELETE FROM scans WHERE project_id = ? AND name IN ('demoscan-dollhouse', 'demoscan-fachada')", (demo_project_id,))
-                conn.commit()
-                # demo_project_id is already set, will add scans below
-        else:
-            # No demo project exists, create user and project
-            logger.info("🔄 Creating demo project for first time...")
-            
-            # Get or create demo user
-            demo_user = conn.execute("SELECT id FROM users WHERE email = 'demo@colmap.app'").fetchone()
-            if demo_user:
-                demo_user_id = demo_user[0]
-            else:
-                demo_user_id = str(uuid.uuid4())
-                conn.execute('''
-                    INSERT INTO users (id, email, name) 
-                    VALUES (?, ?, ?)
-                ''', (demo_user_id, "demo@colmap.app", "Demo User"))
-            
-            # Create demo project
-            demo_project_id = str(uuid.uuid4())
-            conn.execute('''
-                INSERT INTO projects (id, user_id, name, description, location, space_type, project_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (demo_project_id, demo_user_id, "Reconstruction Test Project 1", 
-                  "Demo COLMAP 3D reconstructions from demo-resources",
-                  "Demo Location", "indoor", "architecture"))
-            conn.commit()
-        
-        # Create demo scans using actual files from demo-resources
-        demo_scans = [
-            {
-                "id": str(uuid.uuid4()),
-                "name": "demoscan-dollhouse",
-                "video_filename": "demoscan-dollhouse.mp4",
-                "video_size": 18432000,
-                "processing_quality": "high",
-                "status": "completed",
-                "ply_file": "demoscan-dollhouse/fvtc_firstfloor_processed.ply",
-                "glb_file": "demoscan-dollhouse/single_family_home_-_first_floor.glb",
-                "thumbnail": "thumbnails/demoscan-dollhouse-thumb.jpg"
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "demoscan-fachada", 
-                "video_filename": "demoscan-fachada.mp4",
-                "video_size": 24576000,
-                "processing_quality": "high",
-                "status": "completed",
-                "ply_file": "demoscan-fachada/1mill.ply",
-                "glb_file": "demoscan-fachada/aleppo_destroyed_building_front.glb",
-                "thumbnail": "thumbnails/demoscan-fachada-thumb.jpg"
-            }
-        ]
-        
-        for scan in demo_scans:
-            conn.execute('''
-                INSERT INTO scans (id, project_id, name, video_filename, video_size, processing_quality, status, ply_file, glb_file, thumbnail)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (scan["id"], demo_project_id, scan["name"], scan["video_filename"], 
-                  scan["video_size"], scan["processing_quality"], scan["status"],
-                  scan["ply_file"], scan["glb_file"], scan["thumbnail"]))
-        
-        conn.commit()
-        logger.info("✅ Demo data created successfully")
-        return {"status": "success", "project_id": demo_project_id, "scan_ids": [s["id"] for s in demo_scans]}
-        
-    except Exception as e:
-        logger.error(f"❌ Demo data creation failed: {e}")
-        return {"status": "error", "error": str(e)}
-    finally:
-        conn.close()
-
 @app.get("/")
 async def root():
     return {"message": "COLMAP Backend is running!", "database_path": DATABASE_PATH}
@@ -769,10 +664,11 @@ async def create_project(user_email: str, name: str, description: str = "", loca
 
 @app.post("/database/setup-demo")
 async def setup_demo_data():
-    """FORCE setup demo data - ALWAYS WORKS"""
+    """Setup demo data using database class"""
     try:
-        logger.info("🔄 FORCING demo data creation...")
-        result = create_demo_data()
+        logger.info("🔄 Setting up demo data...")
+        from database import db
+        result = db.setup_demo_data()
         
         # Verify demo data was created
         conn = get_db_connection()
@@ -780,7 +676,7 @@ async def setup_demo_data():
         scans_count = conn.execute("SELECT COUNT(*) as count FROM scans").fetchone()["count"]
         conn.close()
         
-        logger.info(f"📊 Demo data created: {projects_count} projects, {scans_count} scans")
+        logger.info(f"📊 Demo data ready: {projects_count} projects, {scans_count} scans")
         
         return {
             "status": "success", 
@@ -1008,14 +904,16 @@ async def startup_event():
         # Initialize database
         init_database()
         
-        # FORCE DEMO DATA INITIALIZATION
-        logger.info("🔄 FORCING demo data initialization...")
-        result = create_demo_data()
+        # Initialize demo data using database class
+        logger.info("🔄 Initializing demo data...")
+        from database import db
+        result = db.setup_demo_data()
         
         if result.get("status") == "success":
             logger.info("✅ Demo data initialized successfully")
             logger.info(f"   Project ID: {result.get('project_id')}")
-            logger.info(f"   Scan IDs: {result.get('scan_ids')}")
+            if not result.get('skipped'):
+                logger.info(f"   Scan IDs: {result.get('scan_ids')}")
         else:
             logger.error(f"❌ Demo data initialization failed: {result.get('error')}")
         

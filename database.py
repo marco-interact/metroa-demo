@@ -472,7 +472,7 @@ class Database:
             try:
                 existing_project = conn.execute(
                     'SELECT id FROM projects WHERE user_id = ? AND name = ?',
-                    (user_id, "Demo Showcase Project")
+                    (user_id, "Reconstruction Test Project 1")
                 ).fetchone()
                 
                 if existing_project:
@@ -498,8 +498,8 @@ class Database:
             # Create demo project
             project_id = self.create_project(
                 user_id=user_id,
-                name="Demo Showcase Project",
-                description="Sample 3D reconstructions demonstrating COLMAP capabilities",
+                name="Reconstruction Test Project 1",
+                description="Demo COLMAP 3D reconstructions from demo-resources",
                 location="Demo Location",
                 space_type="indoor",
                 project_type="architecture"
