@@ -114,6 +114,11 @@ export UPLOADS_DIR=/workspace/colmap-demo/data/uploads
 export COLMAP_PATH=$(which colmap)
 export PYTHONUNBUFFERED=1
 
+# CRITICAL: Set Qt to headless mode for COLMAP GPU processing
+export QT_QPA_PLATFORM=offscreen
+export DISPLAY=:99
+export MESA_GL_VERSION_OVERRIDE=3.3
+
 # Create directories
 mkdir -p data/results data/cache data/uploads
 
@@ -155,7 +160,8 @@ print_info "📡 Starting backend server..."
 print_info "   Local: http://0.0.0.0:8000"
 print_info "   Public: $PUBLIC_URL"
 
-# Start server in background with nohup
+# Start server in background with nohup (with Qt headless environment)
+QT_QPA_PLATFORM=offscreen DISPLAY=:99 MESA_GL_VERSION_OVERRIDE=3.3 \
 nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload > /workspace/colmap-demo/backend.log 2>&1 &
 
 # Save PID
