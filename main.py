@@ -79,10 +79,11 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         # Initialize COLMAP processor
         processor = COLMAPProcessor(str(results_dir))
         
-        # Step 1: Extract frames from video
+        # Step 1: Extract frames from video with AUTO FPS DETECTION
         logger.info(f"📹 Extracting frames from {video_path}")
         frame_count = processor.extract_frames(
             video_path=str(video_path),
+            target_fps=None,  # Enable auto FPS detection
             quality=quality
         )
         logger.info(f"✅ Extracted {frame_count} frames")

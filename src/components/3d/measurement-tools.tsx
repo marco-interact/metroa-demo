@@ -78,7 +78,7 @@ export function MeasurementTools({
         const result = await response.json()
         setIsScaled(true)
         setIsCalibrating(false)
-        setSelectedPoints([])
+        onClearPoints?.()  // Clear points via parent callback
         setKnownDistance("")
         alert(`Scale calibrated! Factor: ${result.scale_factor.toFixed(6)}`)
       } else {
@@ -111,7 +111,7 @@ export function MeasurementTools({
       if (response.ok) {
         const result = await response.json()
         setMeasurements([...measurements, result.measurement])
-        setSelectedPoints([])
+        onClearPoints?.()  // Clear points via parent callback
         setMeasurementLabel("")
       } else {
         alert('Failed to add measurement')
