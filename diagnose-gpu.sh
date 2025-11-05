@@ -126,10 +126,15 @@ convert -size 640x480 xc:white "$TEST_DIR/images/test.jpg" 2>/dev/null || {
     dd if=/dev/urandom of="$TEST_DIR/images/test.jpg" bs=1024 count=100 2>/dev/null
 }
 
-echo "Testing GPU feature extraction..."
+echo "Testing GPU feature extraction (with headless Qt)..."
+
+# Set headless environment for COLMAP
+export QT_QPA_PLATFORM=offscreen
+export DISPLAY=:99
+export MESA_GL_VERSION_OVERRIDE=3.3
 
 # Try GPU feature extraction
-if colmap feature_extractor \
+if QT_QPA_PLATFORM=offscreen DISPLAY=:99 colmap feature_extractor \
     --database_path "$TEST_DIR/database.db" \
     --image_path "$TEST_DIR/images" \
     --SiftExtraction.use_gpu 1 \
@@ -147,7 +152,7 @@ echo ""
 
 # Try CPU feature extraction for comparison
 echo "Testing CPU feature extraction..."
-if colmap feature_extractor \
+if QT_QPA_PLATFORM=offscreen DISPLAY=:99 colmap feature_extractor \
     --database_path "$TEST_DIR/database_cpu.db" \
     --image_path "$TEST_DIR/images" \
     --SiftExtraction.use_gpu 0 \
