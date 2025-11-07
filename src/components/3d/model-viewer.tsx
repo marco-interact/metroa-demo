@@ -312,17 +312,35 @@ function MeasurementTool({
 
   return (
     <>
-      {points.map((point, index) => (
-        <mesh key={point.id} position={point.position}>
-          <sphereGeometry args={[0.02]} />
-          <meshBasicMaterial color="#ff4444" />
-          <Html distanceFactor={10}>
-            <div className="bg-app-card text-white px-2 py-1 rounded text-xs">
-              P{index + 1}
-            </div>
-          </Html>
-        </mesh>
-      ))}
+      {points.map((point, index) => {
+        // Color code points: Blue for point 1, Green for point 2
+        const pointColor = index === 0 ? "#3b82f6" : "#10b981"  // blue-500 : green-500
+        const bgColor = index === 0 ? "bg-blue-500" : "bg-green-500"
+        const ringColor = index === 0 ? "ring-blue-400" : "ring-green-400"
+        
+        return (
+          <group key={point.id}>
+            {/* Point sphere */}
+            <mesh position={point.position}>
+              <sphereGeometry args={[0.03]} />
+              <meshBasicMaterial color={pointColor} />
+            </mesh>
+            
+            {/* Outer ring for visibility */}
+            <mesh position={point.position}>
+              <ringGeometry args={[0.04, 0.05, 32]} />
+              <meshBasicMaterial color={pointColor} transparent opacity={0.5} />
+            </mesh>
+            
+            {/* Label with color coding */}
+            <Html position={[point.position.x, point.position.y + 0.1, point.position.z]} distanceFactor={10}>
+              <div className={`${bgColor} text-white px-3 py-1.5 rounded-full text-sm font-bold shadow-lg ring-2 ${ringColor} animate-pulse`}>
+                Point {index + 1}/2
+              </div>
+            </Html>
+          </group>
+        )
+      })}
       
       {points.length === 2 && (
         <>
@@ -515,25 +533,39 @@ export function ModelViewer({
         />
       )}
 
-      {/* Measurement info */}
+      {/* Measurement info with colored indicators */}
       {measurementMode && (
         <div className="absolute bottom-4 left-4 z-10">
-          <Card className="p-3 bg-app-card/90 backdrop-blur-sm border-app-secondary">
-            <div className="text-sm text-white">
-              <p className="font-medium mb-1">Herramienta de Medición</p>
+          <Card className="p-4 bg-app-card/90 backdrop-blur-sm border-app-secondary">
+            <div className="text-sm text-white space-y-2">
+              <p className="font-medium mb-2">🎯 Herramienta de Medición</p>
+              
+              {/* Point selection status */}
+              <div className="flex items-center gap-2 text-xs">
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded ${measurementPoints.length >= 1 ? 'bg-blue-500/20 border border-blue-500' : 'bg-gray-700 border border-gray-600'}`}>
+                  <div className={`w-2 h-2 rounded-full ${measurementPoints.length >= 1 ? 'bg-blue-500' : 'bg-gray-500'}`}></div>
+                  <span>Point 1</span>
+                </div>
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded ${measurementPoints.length >= 2 ? 'bg-green-500/20 border border-green-500' : 'bg-gray-700 border border-gray-600'}`}>
+                  <div className={`w-2 h-2 rounded-full ${measurementPoints.length >= 2 ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                  <span>Point 2</span>
+                </div>
+              </div>
+              
               <p className="text-gray-400 text-xs">
-                {measurementPoints.length === 0 && "Haz clic en dos puntos para medir la distancia"}
-                {measurementPoints.length === 1 && "Selecciona el segundo punto"}
-                {measurementPoints.length === 2 && "Medición completada"}
+                {measurementPoints.length === 0 && "Click on first point (blue)"}
+                {measurementPoints.length === 1 && "Click on second point (green)"}
+                {measurementPoints.length === 2 && "✅ Measurement complete"}
               </p>
+              
               {measurementPoints.length === 2 && (
                 <Button 
                   size="sm" 
                   variant="outline" 
-                  className="mt-2"
+                  className="mt-2 w-full"
                   onClick={() => setMeasurementPoints([])}
                 >
-                  Nueva Medición
+                  🔄 New Measurement
                 </Button>
               )}
             </div>

@@ -356,6 +356,120 @@ class COLMAPProcessor:
             logger.error(f"Feature matching failed: {e.stderr}")
             raise
     
+    def dense_reconstruction(self, quality: str = "medium") -> Dict:
+        """
+        Dense Stereo Reconstruction
+        Reference: https://colmap.github.io/tutorial.html#dense-reconstruction
+        
+        Process:
+        1. Image undistortion - Prepare images for stereo
+        2. Patch match stereo - Dense depth map estimation
+        3. Stereo fusion - Fuse depth maps into dense point cloud
+        
+        Result: Much denser point cloud (10-100x more points than sparse)
+        """
+        logger.info(f"Starting dense reconstruction (quality={quality})")
+        
+        # Step 1: Image Undistortion
+        # Undistort images using sparse reconstruction camera parameters
+        logger.info("📸 Undistorting images...")
+        undistorted_path = self.dense_path / "undistorted"
+        
+        undistort_cmd = [
+            "colmap", "image_undistorter",
+            "--image_path", str(self.images_path),
+            "--input_path", str(self.sparse_path / "0"),  # Use model 0
+            "--output_path", str(undistorted_path),
+            "--output_type", "COLMAP"  # Keep COLMAP format
+        ]
+        
+        try:
+            subprocess.run(undistort_cmd, check=True, capture_output=True, text=True, env=self.env)
+            logger.info("✅ Image undistortion complete")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Image undistortion failed: {e.stderr}")
+            raise
+        
+        # Step 2: Patch Match Stereo (Dense depth estimation)
+        logger.info("🔍 Running patch match stereo...")
+        
+        # Quality-based stereo parameters
+        quality_params = {
+            "low": {
+                "window_radius": "3",      # Smaller window = faster
+                "window_step": "2",        # Larger step = faster
+                "num_samples": "5",        # Fewer samples = faster
+                "num_iterations": "3"      # Fewer iterations = faster
+            },
+            "medium": {
+                "window_radius": "5",
+                "window_step": "1",
+                "num_samples": "15",
+                "num_iterations": "5"
+            },
+            "high": {
+                "window_radius": "7",
+                "window_step": "1",
+                "num_samples": "25",
+                "num_iterations": "7"
+            }
+        }
+        stereo_params = quality_params.get(quality, quality_params["medium"])
+        
+        stereo_cmd = [
+            "colmap", "patch_match_stereo",
+            "--workspace_path", str(undistorted_path),
+            "--workspace_format", "COLMAP",
+            "--PatchMatchStereo.window_radius", stereo_params["window_radius"],
+            "--PatchMatchStereo.window_step", stereo_params["window_step"],
+            "--PatchMatchStereo.num_samples", stereo_params["num_samples"],
+            "--PatchMatchStereo.num_iterations", stereo_params["num_iterations"],
+            "--PatchMatchStereo.geom_consistency", "true",
+            "--PatchMatchStereo.gpu_index", "-1" if not self.gpu_available else "0"
+        ]
+        
+        try:
+            subprocess.run(stereo_cmd, check=True, capture_output=True, text=True, env=self.env)
+            logger.info("✅ Patch match stereo complete")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"⚠️  Patch match stereo failed: {e.stderr}")
+            logger.warning("Skipping dense reconstruction, using sparse only")
+            return {"status": "skipped", "reason": "stereo_failed"}
+        
+        # Step 3: Stereo Fusion (Create dense point cloud)
+        logger.info("🔗 Fusing depth maps...")
+        
+        fusion_cmd = [
+            "colmap", "stereo_fusion",
+            "--workspace_path", str(undistorted_path),
+            "--workspace_format", "COLMAP",
+            "--input_type", "geometric",
+            "--output_path", str(self.dense_path / "fused.ply"),
+            "--StereoFusion.min_num_pixels", "4",      # Minimum observations
+            "--StereoFusion.max_reproj_error", "2.0",  # Stricter for quality
+            "--StereoFusion.max_depth_error", "0.01",  # Depth consistency
+            "--StereoFusion.max_normal_error", "10"    # Normal consistency
+        ]
+        
+        try:
+            subprocess.run(fusion_cmd, check=True, capture_output=True, text=True, env=self.env)
+            logger.info("✅ Stereo fusion complete - Dense point cloud created")
+            
+            # Check if dense point cloud exists
+            dense_ply = self.dense_path / "fused.ply"
+            if dense_ply.exists():
+                return {
+                    "status": "success",
+                    "dense_ply": str(dense_ply),
+                    "type": "dense"
+                }
+            else:
+                return {"status": "no_output"}
+                
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"⚠️  Stereo fusion failed: {e.stderr}")
+            return {"status": "failed", "error": str(e)}
+    
     def sparse_reconstruction(self, quality: str = "medium") -> Dict:
         """
         Incremental Structure-from-Motion reconstruction

@@ -109,11 +109,24 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         reconstruction_stats = processor.sparse_reconstruction(quality=quality)
         logger.info(f"✅ Sparse reconstruction: {reconstruction_stats}")
         
-        # Step 5: Export to PLY
+        # Step 5: Dense reconstruction (MUCH higher resolution!)
+        update_scan_status(scan_id, "dense_reconstruction")
+        logger.info(f"🔬 Running dense reconstruction for higher resolution...")
+        dense_stats = processor.dense_reconstruction(quality=quality)
+        logger.info(f"✅ Dense reconstruction: {dense_stats}")
+        
+        # Step 6: Export to PLY (prefer dense if available)
         update_scan_status(scan_id, "exporting")
         logger.info(f"💾 Exporting to PLY")
-        ply_path = processor.export_model(output_format="PLY")
-        logger.info(f"✅ Exported PLY to {ply_path}")
+        
+        # Use dense point cloud if available, otherwise sparse
+        if dense_stats.get("status") == "success" and dense_stats.get("dense_ply"):
+            ply_path = Path(dense_stats["dense_ply"])
+            logger.info(f"✅ Using DENSE point cloud: {ply_path}")
+        else:
+            logger.info(f"⚠️  Dense reconstruction unavailable, using sparse")
+            ply_path = processor.export_model(output_format="PLY")
+            logger.info(f"✅ Exported sparse PLY to {ply_path}")
         
         # Step 6: Update database with PLY file path
         conn = get_db_connection()
