@@ -464,12 +464,14 @@ export default function ScanDetailPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  console.log('Back to scans clicked, navigating to:', `/projects/${projectId}`)
-                  router.push(`/projects/${projectId}`)
+                onClick={() => {
+                  // Immediate navigation without preventDefault
+                  const targetUrl = `/projects/${projectId}`
+                  console.log('Back to scans clicked, navigating to:', targetUrl)
+                  // Use window.location for reliable navigation when JS is blocked
+                  window.location.href = targetUrl
                 }}
+                className="hover:bg-gray-700/50"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Scans

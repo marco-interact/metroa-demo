@@ -31,7 +31,7 @@ interface MeasurementPoint {
   id: string
 }
 
-// PLY Point Cloud Loader Component
+// PLY Point Cloud Loader Component with Performance Optimization
 function PLYModel({ url }: { url: string }) {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
   const [loading, setLoading] = useState(true)
@@ -46,37 +46,81 @@ function PLYModel({ url }: { url: string }) {
     setLoading(true)
     setError(null)
 
-    try {
-      const loader = new PLYLoader()
-      loader.load(
-        url,
-        (geometry) => {
-          if (geometry) {
-            geometry.computeVertexNormals()
-            setGeometry(geometry)
-            console.log('✅ PLY file loaded successfully:', {
-              vertices: geometry.attributes.position?.count,
-              hasColors: !!geometry.attributes.color
-            })
+    // Use requestIdleCallback to load in background without blocking UI
+    const loadInBackground = () => {
+      try {
+        const loader = new PLYLoader()
+        loader.load(
+          url,
+          (geometry) => {
+            if (geometry) {
+              // Optimize geometry for rendering
+              geometry.computeVertexNormals()
+              
+              // Downsample if too many points (prevents UI freeze)
+              const vertexCount = geometry.attributes.position?.count || 0
+              if (vertexCount > 500000) {
+                console.log(`⚠️  Large point cloud (${vertexCount.toLocaleString()} points), downsampling for performance...`)
+                // Downsample to max 500K points
+                const step = Math.ceil(vertexCount / 500000)
+                const positions = geometry.attributes.position.array
+                const colors = geometry.attributes.color?.array
+                
+                const newPositions = []
+                const newColors = []
+                
+                for (let i = 0; i < vertexCount; i += step) {
+                  newPositions.push(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2])
+                  if (colors) {
+                    newColors.push(colors[i * 3], colors[i * 3 + 1], colors[i * 3 + 2])
+                  }
+                }
+                
+                const newGeometry = new THREE.BufferGeometry()
+                newGeometry.setAttribute('position', new THREE.Float32BufferAttribute(newPositions, 3))
+                if (newColors.length > 0) {
+                  newGeometry.setAttribute('color', new THREE.Float32BufferAttribute(newColors, 3))
+                }
+                newGeometry.computeVertexNormals()
+                
+                setGeometry(newGeometry)
+                console.log(`✅ Point cloud loaded and downsampled: ${newPositions.length / 3} points (from ${vertexCount})`)
+              } else {
+                setGeometry(geometry)
+                console.log('✅ PLY file loaded successfully:', {
+                  vertices: vertexCount,
+                  hasColors: !!geometry.attributes.color
+                })
+              }
+            }
+            setLoading(false)
+          },
+          (progress) => {
+            if (progress.total > 0) {
+              const percent = (progress.loaded / progress.total) * 100
+              if (percent % 10 < 1) { // Log every 10%
+                console.log(`Loading PLY: ${percent.toFixed(0)}%`)
+              }
+            }
+          },
+          (error) => {
+            console.error('❌ Error loading PLY file:', error)
+            setError('Failed to load 3D model')
+            setLoading(false)
           }
-          setLoading(false)
-        },
-        (progress) => {
-          if (progress.total > 0) {
-            const percent = (progress.loaded / progress.total) * 100
-            console.log(`Loading PLY: ${percent.toFixed(1)}%`)
-          }
-        },
-        (error) => {
-          console.error('❌ Error loading PLY file:', error)
-          setError('Failed to load 3D model')
-          setLoading(false)
-        }
-      )
-    } catch (err) {
-      console.error('❌ Error initializing PLY loader:', err)
-      setError('Failed to initialize 3D model loader')
-      setLoading(false)
+        )
+      } catch (err) {
+        console.error('❌ Error initializing PLY loader:', err)
+        setError('Failed to initialize 3D model loader')
+        setLoading(false)
+      }
+    }
+    
+    // Load in background to prevent UI blocking
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(loadInBackground, { timeout: 2000 })
+    } else {
+      setTimeout(loadInBackground, 0)
     }
   }, [url])
 
