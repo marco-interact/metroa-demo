@@ -287,7 +287,7 @@ function PointCloud({ points, visible }: { points: Float32Array; visible: boolea
   ) : null
 }
 
-function CameraController({ onReset }: { onReset: boolean }) {
+function CameraController({ onReset, measurementMode }: { onReset: boolean; measurementMode?: boolean }) {
   const { camera, gl } = useThree()
   const controlsRef = useRef<any>()
 
@@ -307,6 +307,7 @@ function CameraController({ onReset }: { onReset: boolean }) {
       minDistance={1}
       maxDistance={100}
       maxPolarAngle={Math.PI}
+      enabled={!measurementMode}
     />
   )
 }
@@ -320,93 +321,94 @@ function MeasurementTool({
   points: MeasurementPoint[]
   onAddPoint: (point: THREE.Vector3) => void 
 }) {
-  const { camera, raycaster, scene } = useThree()
+  const { camera, raycaster, scene, gl } = useThree()
+  const [hoverPoint, setHoverPoint] = useState<THREE.Vector3 | null>(null)
   
-  const handleClick = useCallback((event: MouseEvent) => {
+  const handleClick = useCallback((event: THREE.Event) => {
     if (!enabled) return
     
-    const canvas = event.target as HTMLCanvasElement
-    const rect = canvas.getBoundingClientRect()
-    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
-    
-    const mouse = new THREE.Vector2(x, y)
-    raycaster.setFromCamera(mouse, camera)
-    const intersects = raycaster.intersectObjects(scene.children, true)
-    
-    if (intersects.length > 0) {
-      onAddPoint(intersects[0].point)
+    try {
+      // Get mouse position in normalized device coordinates
+      const canvas = gl.domElement
+      const rect = canvas.getBoundingClientRect()
+      const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      
+      // Update raycaster
+      raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
+      
+      // Only intersect with meshes (not Html elements or other objects)
+      const meshes: THREE.Object3D[] = []
+      scene.traverse((object) => {
+        if ((object as THREE.Mesh).isMesh && object.visible) {
+          meshes.push(object)
+        }
+      })
+      
+      const intersects = raycaster.intersectObjects(meshes, false)
+      
+      if (intersects.length > 0) {
+        const point = intersects[0].point.clone()
+        console.log('Point clicked:', point)
+        onAddPoint(point)
+      }
+    } catch (error) {
+      console.error('Error in handleClick:', error)
     }
-  }, [enabled, camera, raycaster, scene, onAddPoint])
+  }, [enabled, camera, raycaster, scene, gl, onAddPoint])
 
   useEffect(() => {
-    const canvas = document.querySelector('canvas')
-    if (canvas && enabled) {
-      canvas.addEventListener('click', handleClick)
+    if (!enabled) return
+    
+    const canvas = gl.domElement
+    if (canvas) {
       canvas.style.cursor = 'crosshair'
+      canvas.addEventListener('click', handleClick as any)
     }
     
     return () => {
       if (canvas) {
-        canvas.removeEventListener('click', handleClick)
         canvas.style.cursor = 'default'
+        canvas.removeEventListener('click', handleClick as any)
       }
     }
-  }, [enabled, handleClick])
+  }, [enabled, handleClick, gl])
 
   return (
     <>
       {points.map((point, index) => {
         // Color code points: GREEN for Point A, BLUE for Point B
         const pointLetter = index === 0 ? "A" : "B"
-        const pointColor = index === 0 ? "#10b981" : "#3b82f6"  // green-500 : blue-500
+        const pointColor = index === 0 ? 0x10b981 : 0x3b82f6  // green-500 : blue-500
         const bgColor = index === 0 ? "bg-green-500" : "bg-blue-500"
-        const ringColor = index === 0 ? "ring-green-400" : "ring-blue-400"
-        const glowColor = index === 0 ? "#10b981" : "#3b82f6"
         
         return (
           <group key={point.id}>
-            {/* Main point sphere with emissive glow */}
+            {/* Large visible sphere */}
             <mesh position={point.position}>
-              <sphereGeometry args={[0.05]} />
-              <meshStandardMaterial 
+              <sphereGeometry args={[0.1, 32, 32]} />
+              <meshBasicMaterial 
                 color={pointColor} 
-                emissive={pointColor}
-                emissiveIntensity={0.8}
-                metalness={0.2}
-                roughness={0.3}
+                transparent
+                opacity={0.9}
               />
             </mesh>
             
-            {/* Animated outer glow ring */}
-            <mesh position={point.position}>
-              <ringGeometry args={[0.06, 0.08, 32]} />
+            {/* Outer ring for visibility */}
+            <mesh position={point.position} rotation={[Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[0.12, 0.15, 32]} />
               <meshBasicMaterial 
                 color={pointColor} 
                 transparent 
-                opacity={0.6}
+                opacity={0.5}
                 side={THREE.DoubleSide}
               />
             </mesh>
             
-            {/* Pulsing indicator ring */}
-            <mesh position={point.position}>
-              <ringGeometry args={[0.09, 0.11, 32]} />
-              <meshBasicMaterial 
-                color={pointColor} 
-                transparent 
-                opacity={0.3}
-                side={THREE.DoubleSide}
-              />
-            </mesh>
-            
-            {/* Label with LETTER nomenclature */}
-            <Html position={[point.position.x, point.position.y + 0.15, point.position.z]} distanceFactor={10}>
-              <div className={`${bgColor} text-white px-4 py-2 rounded-lg text-base font-bold shadow-2xl ring-4 ${ringColor} animate-pulse`}>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-white animate-pulse"></div>
-                  <span>Point {pointLetter}</span>
-                </div>
+            {/* Simple label */}
+            <Html position={[point.position.x, point.position.y + 0.2, point.position.z]} center>
+              <div className={`${bgColor} text-white px-3 py-1 rounded font-bold text-sm shadow-lg`}>
+                Point {pointLetter}
               </div>
             </Html>
           </group>
@@ -474,12 +476,18 @@ export function ModelViewer({
   }
 
   const handleAddMeasurementPoint = useCallback((point: THREE.Vector3) => {
-    if (measurementPoints.length >= 2) {
-      setMeasurementPoints([{ position: point, id: Date.now().toString() }])
-    } else {
-      setMeasurementPoints(prev => [...prev, { position: point, id: Date.now().toString() }])
-    }
-  }, [measurementPoints])
+    console.log('handleAddMeasurementPoint called with point:', point)
+    setMeasurementPoints(prev => {
+      console.log('Current measurement points:', prev.length)
+      if (prev.length >= 2) {
+        // Reset and start new measurement
+        return [{ position: point, id: Date.now().toString() }]
+      } else {
+        // Add point
+        return [...prev, { position: point, id: Date.now().toString() }]
+      }
+    })
+  }, [])
 
   const handleReset = () => {
     setResetCamera(true)
@@ -582,7 +590,7 @@ export function ModelViewer({
         />
         
         {/* Camera controls */}
-        <CameraController onReset={resetCamera} />
+        <CameraController onReset={resetCamera} measurementMode={measurementMode} />
         
         {/* Grid */}
         <gridHelper args={[20, 20, '#333333', '#333333']} />
@@ -626,9 +634,9 @@ export function ModelViewer({
               </div>
               
               <p className="text-gray-300 text-sm font-medium">
-                {measurementPoints.length === 0 && "🟢 Click to select Point A (Green)"}
-                {measurementPoints.length === 1 && "🔵 Click to select Point B (Blue)"}
-                {measurementPoints.length === 2 && "✅ Measurement Complete!"}
+                {measurementPoints.length === 0 && "Click on model to place Point A (🟢 Green)"}
+                {measurementPoints.length === 1 && "Click on model to place Point B (🔵 Blue)"}
+                {measurementPoints.length === 2 && "✅ Measurement Complete! Click to restart."}
               </p>
               
               {measurementPoints.length === 2 && (
