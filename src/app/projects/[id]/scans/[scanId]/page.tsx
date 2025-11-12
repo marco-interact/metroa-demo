@@ -62,13 +62,27 @@ function Enhanced3DViewer({
   onPointClick
 }: { 
   className?: string
-  scan: Scan
+  scan: Scan | null
   isSelectingPoints?: boolean
   selectedPointPositions?: Array<[number, number, number]>
   onPointClick?: (pointIndex: number, position: [number, number, number]) => void
 }) {
   const [viewMode, setViewMode] = useState<'pointcloud' | 'mesh'>('pointcloud')
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // Safety check - don't render if scan is null
+  if (!scan) {
+    return (
+      <div className={`relative bg-app-primary rounded-lg overflow-hidden ${className}`}>
+        <div className="w-full h-full bg-app-primary flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading scan data...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const resetCamera = () => {
     // Camera reset will be handled by Three.js controls
@@ -86,6 +100,8 @@ function Enhanced3DViewer({
 
   // Determine the 3D model URL
   const getModelUrl = () => {
+    if (!scan) return null
+    
     // Use Next.js proxy to backend so it works in all environments
     const backendProxyPrefix = '/api/backend'
     // Priority 1: Use actual reconstruction results if available
