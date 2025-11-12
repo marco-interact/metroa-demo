@@ -109,24 +109,25 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         reconstruction_stats = processor.sparse_reconstruction(quality=quality)
         logger.info(f"✅ Sparse reconstruction: {reconstruction_stats}")
         
-        # Step 5: Dense reconstruction (MUCH higher resolution!)
-        update_scan_status(scan_id, "dense_reconstruction")
-        logger.info(f"🔬 Running dense reconstruction for higher resolution...")
-        dense_stats = processor.dense_reconstruction(quality=quality)
-        logger.info(f"✅ Dense reconstruction: {dense_stats}")
+        # Step 5: Dense reconstruction (OPTIONAL - only for "high" quality)
+        # Dense takes 15-30 minutes, sparse is fast (~2 min total)
+        ply_path = None
+        if quality == "high":
+            update_scan_status(scan_id, "dense_reconstruction")
+            logger.info(f"🔬 Running DENSE reconstruction (high quality mode)...")
+            dense_stats = processor.dense_reconstruction(quality=quality)
+            logger.info(f"✅ Dense reconstruction: {dense_stats}")
+            
+            if dense_stats.get("status") == "success" and dense_stats.get("dense_ply"):
+                ply_path = Path(dense_stats["dense_ply"])
+                logger.info(f"✅ Using DENSE point cloud: {ply_path}")
         
-        # Step 6: Export to PLY (prefer dense if available)
-        update_scan_status(scan_id, "exporting")
-        logger.info(f"💾 Exporting to PLY")
-        
-        # Use dense point cloud if available, otherwise sparse
-        if dense_stats.get("status") == "success" and dense_stats.get("dense_ply"):
-            ply_path = Path(dense_stats["dense_ply"])
-            logger.info(f"✅ Using DENSE point cloud: {ply_path}")
-        else:
-            logger.info(f"⚠️  Dense reconstruction unavailable, using sparse")
+        # Step 6: Export sparse PLY (fast, always works)
+        if not ply_path:
+            update_scan_status(scan_id, "exporting")
+            logger.info(f"💾 Exporting SPARSE point cloud (fast mode)")
             ply_path = processor.export_model(output_format="PLY")
-            logger.info(f"✅ Exported sparse PLY to {ply_path}")
+            logger.info(f"✅ Exported sparse PLY: {ply_path}")
         
         # Step 6: Update database with PLY file path
         conn = get_db_connection()
