@@ -710,14 +710,14 @@ export default function ScanDetailPage() {
                   onPointSelect={(pointId) => {
                     console.log('Point selected from measurement tools:', pointId)
                   }}
-                  onSelectionModeChange={(enabled) => {
+                  onSelectionModeChange={useCallback((enabled: boolean) => {
                     console.log('🎯 Selection mode changed:', enabled)
                     setIsSelectingPoints(enabled)
                     if (!enabled) {
                       setSelectedPoints([])
                       setSelectedPointPositions([])
                     }
-                  }}
+                  }, [])}
                   onClearPoints={() => {
                     console.log('🗑️ Clearing selected points')
                     setSelectedPoints([])

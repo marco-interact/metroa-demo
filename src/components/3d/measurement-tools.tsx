@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -43,11 +43,26 @@ export function MeasurementTools({
   // Use external selected points from parent
   const selectedPoints = externalSelectedPoints
   
-  // Notify parent when selection mode changes
+  // Prevent infinite loops with ref
+  const lastSelectionModeRef = useRef<boolean | undefined>(undefined)
+  
+  // Notify parent when selection mode changes - SAFE VERSION
   useEffect(() => {
     const needsSelection = isCalibrating || (isScaled && selectedPoints.length < 2)
-    onSelectionModeChange?.(needsSelection)
-  }, [isCalibrating, isScaled, selectedPoints.length, onSelectionModeChange])
+    
+    // Only call if value actually changed
+    if (lastSelectionModeRef.current !== needsSelection && onSelectionModeChange) {
+      lastSelectionModeRef.current = needsSelection
+      // Use setTimeout to prevent blocking
+      setTimeout(() => {
+        try {
+          onSelectionModeChange(needsSelection)
+        } catch (error) {
+          console.error('Error in onSelectionModeChange:', error)
+        }
+      }, 0)
+    }
+  }, [isCalibrating, isScaled, selectedPoints.length]) // Removed onSelectionModeChange from deps
 
   // Point selection is now handled by parent component
   // const handlePointClick = (pointId: number) => {
