@@ -237,28 +237,28 @@ class COLMAPProcessor:
         Extract SIFT features from images
         Reference: https://colmap.github.io/tutorial.html#feature-detection-and-extraction
         
-        Note: COLMAP 3.13+ has different parameter names than older versions.
-        Using simplified parameters for compatibility.
+        OPTIMIZED FOR RTX 4090: Higher feature counts for denser reconstructions
+        RTX 4090 can handle significantly more features than previous generations
         """
         # Override GPU flag if GPU not available
         actual_use_gpu = use_gpu and self.gpu_available
         gpu_mode = "GPU" if actual_use_gpu else "CPU"
         logger.info(f"Extracting features with quality={quality} using {gpu_mode}")
         
-        # Quality-based parameters - OPTIMIZED FOR SPEED
-        # Lower values = faster processing, still good quality
+        # Quality-based parameters - OPTIMIZED FOR RTX 4090
+        # RTX 4090 has massive compute power - use it!
         quality_params = {
             "low": {
-                "max_num_features": "8192",    # Fast
-                "max_image_size": "1920"       # HD resolution
+                "max_num_features": "16384",    # 2x increase for better reconstruction
+                "max_image_size": "2560"        # Higher resolution even for "low"
             },
             "medium": {
-                "max_num_features": "16384",   # Balanced speed/quality
-                "max_image_size": "2560"       # 2.5K resolution
+                "max_num_features": "32768",    # 2x increase - RTX 4090 can handle it
+                "max_image_size": "3840"        # 4K resolution for better detail
             },
             "high": {
-                "max_num_features": "32768",   # Best quality
-                "max_image_size": "3840"       # 4K resolution
+                "max_num_features": "65536",    # 2x increase - maximum detail
+                "max_image_size": "4096"        # Full 4K+ resolution
             }
         }
         
@@ -311,11 +311,12 @@ class COLMAPProcessor:
         gpu_mode = "GPU" if actual_use_gpu else "CPU"
         logger.info(f"Matching features with {matching_type} matcher (quality={quality}) using {gpu_mode}")
         
-        # Quality-based match limits
+        # Quality-based match limits - OPTIMIZED FOR RTX 4090
+        # Increased match counts for denser point clouds
         quality_params = {
-            "low": {"max_num_matches": "32768"},
-            "medium": {"max_num_matches": "65536"},
-            "high": {"max_num_matches": "131072"}
+            "low": {"max_num_matches": "65536"},     # 2x increase
+            "medium": {"max_num_matches": "131072"}, # 2x increase  
+            "high": {"max_num_matches": "262144"}    # 2x increase - RTX 4090 power
         }
         match_params = quality_params.get(quality, quality_params["medium"])
         
@@ -393,25 +394,35 @@ class COLMAPProcessor:
         # Step 2: Patch Match Stereo (Dense depth estimation)
         logger.info("🔍 Running patch match stereo...")
         
-        # Quality-based stereo parameters
+        # Quality-based stereo parameters - OPTIMIZED FOR RTX 4090
+        # RTX 4090 excels at parallel patch matching - maximize quality
         quality_params = {
             "low": {
-                "window_radius": "3",      # Smaller window = faster
-                "window_step": "2",        # Larger step = faster
-                "num_samples": "5",        # Fewer samples = faster
-                "num_iterations": "3"      # Fewer iterations = faster
+                "window_radius": "5",       # Increased for better detail
+                "window_step": "1",         # Decreased for denser sampling
+                "num_samples": "15",        # 3x increase
+                "num_iterations": "5",      # More refinement
+                "geom_consistency_max_cost": "1.0",  # Stricter filtering
+                "filter_min_ncc": "0.1",    # Normal filtering
+                "cache_size": "64"          # GB - RTX 4090 has 24GB VRAM
             },
             "medium": {
-                "window_radius": "5",
-                "window_step": "1",
-                "num_samples": "15",
-                "num_iterations": "5"
+                "window_radius": "7",       # Larger window for better matching
+                "window_step": "1",         # Dense sampling
+                "num_samples": "30",        # 2x increase
+                "num_iterations": "7",      # More iterations = better quality
+                "geom_consistency_max_cost": "0.6",  # Better filtering
+                "filter_min_ncc": "0.2",    # Slightly stricter
+                "cache_size": "64"
             },
             "high": {
-                "window_radius": "7",
-                "window_step": "1",
-                "num_samples": "25",
-                "num_iterations": "7"
+                "window_radius": "11",      # Maximum detail capture
+                "window_step": "1",         # Finest sampling
+                "num_samples": "50",        # 2x increase - maximum quality
+                "num_iterations": "10",     # Maximum refinement
+                "geom_consistency_max_cost": "0.4",  # Strictest filtering
+                "filter_min_ncc": "0.3",    # Strict quality threshold
+                "cache_size": "64"          # Use all available VRAM
             }
         }
         stereo_params = quality_params.get(quality, quality_params["medium"])
@@ -420,12 +431,25 @@ class COLMAPProcessor:
             "colmap", "patch_match_stereo",
             "--workspace_path", str(undistorted_path),
             "--workspace_format", "COLMAP",
+            # Window parameters - control matching patch size
             "--PatchMatchStereo.window_radius", stereo_params["window_radius"],
             "--PatchMatchStereo.window_step", stereo_params["window_step"],
+            # Sampling parameters - more samples = better quality
             "--PatchMatchStereo.num_samples", stereo_params["num_samples"],
             "--PatchMatchStereo.num_iterations", stereo_params["num_iterations"],
+            # Geometric consistency filtering - removes outliers
             "--PatchMatchStereo.geom_consistency", "true",
-            "--PatchMatchStereo.gpu_index", "-1" if not self.gpu_available else "0"
+            "--PatchMatchStereo.geom_consistency_max_cost", stereo_params["geom_consistency_max_cost"],
+            # NCC filtering - normalized cross correlation threshold
+            "--PatchMatchStereo.filter", "true",
+            "--PatchMatchStereo.filter_min_ncc", stereo_params["filter_min_ncc"],
+            "--PatchMatchStereo.filter_min_triangulation_angle", "1.0",
+            "--PatchMatchStereo.filter_min_num_consistent", "2",
+            # Cache size - RTX 4090 has 24GB VRAM, use it!
+            "--PatchMatchStereo.cache_size", stereo_params["cache_size"],
+            # GPU configuration
+            "--PatchMatchStereo.gpu_index", "-1" if not self.gpu_available else "0",
+            "--PatchMatchStereo.allow_missing_files", "false"
         ]
         
         try:
@@ -445,10 +469,15 @@ class COLMAPProcessor:
             "--workspace_format", "COLMAP",
             "--input_type", "geometric",
             "--output_path", str(self.dense_path / "fused.ply"),
-            "--StereoFusion.min_num_pixels", "4",      # Minimum observations
-            "--StereoFusion.max_reproj_error", "2.0",  # Stricter for quality
-            "--StereoFusion.max_depth_error", "0.01",  # Depth consistency
-            "--StereoFusion.max_normal_error", "10"    # Normal consistency
+            # OPTIMIZED FOR MAXIMUM DENSITY - RTX 4090 can handle it
+            "--StereoFusion.min_num_pixels", "3",      # Lower = more points (was 4)
+            "--StereoFusion.max_reproj_error", "2.5",  # Slightly relaxed for more points
+            "--StereoFusion.max_depth_error", "0.02",  # Relaxed for more density
+            "--StereoFusion.max_normal_error", "15",   # Relaxed for more points
+            # Additional fusion parameters for better quality
+            "--StereoFusion.check_num_images", "50",   # Check consistency across many images
+            "--StereoFusion.use_cache", "true",        # Speed up with caching
+            "--StereoFusion.cache_size", "32"          # GB cache for fusion
         ]
         
         try:
@@ -490,22 +519,23 @@ class COLMAPProcessor:
         """
         logger.info(f"Starting sparse reconstruction (quality={quality})")
         
-        # Quality-based mapper parameters
+        # Quality-based mapper parameters - OPTIMIZED FOR RTX 4090
+        # Stricter parameters = better sparse model = better dense reconstruction
         quality_params = {
             "low": {
-                "init_min_num_inliers": "50",
-                "min_num_matches": "10",
-                "filter_max_reproj_error": "8.0"
+                "init_min_num_inliers": "100",   # Doubled for better initialization
+                "min_num_matches": "15",         # Higher minimum for stability
+                "filter_max_reproj_error": "6.0" # Stricter filtering
             },
             "medium": {
-                "init_min_num_inliers": "100",
-                "min_num_matches": "15",
-                "filter_max_reproj_error": "6.0"
+                "init_min_num_inliers": "150",   # Higher for better quality
+                "min_num_matches": "20",         # More matches required
+                "filter_max_reproj_error": "4.0" # Tighter error threshold
             },
             "high": {
-                "init_min_num_inliers": "150",
-                "min_num_matches": "20",
-                "filter_max_reproj_error": "4.0"
+                "init_min_num_inliers": "200",   # Maximum quality initialization
+                "min_num_matches": "30",         # Many matches for robustness
+                "filter_max_reproj_error": "2.0" # Very strict for best quality
             }
         }
         mapper_params = quality_params.get(quality, quality_params["medium"])
@@ -516,8 +546,8 @@ class COLMAPProcessor:
             "--image_path", str(self.images_path),
             "--output_path", str(self.sparse_path),
             
-            # Thread Configuration
-            "--Mapper.num_threads", "8",
+            # Thread Configuration - RTX 4090 systems typically have high-end CPUs
+            "--Mapper.num_threads", "16",  # Increased for faster processing
             
             # Initialization
             "--Mapper.init_min_num_inliers", mapper_params["init_min_num_inliers"],
@@ -529,10 +559,10 @@ class COLMAPProcessor:
             "--Mapper.ba_refine_principal_point", "0",   # Keep principal point
             "--Mapper.ba_refine_extra_params", "1",      # Refine distortion
             
-            # Bundle Adjustment Iterations
-            "--Mapper.ba_local_max_num_iterations", "40",
-            "--Mapper.ba_global_max_num_iterations", "100",
-            "--Mapper.ba_global_max_refinements", "5",
+            # Bundle Adjustment Iterations - MORE REFINEMENT = BETTER QUALITY
+            "--Mapper.ba_local_max_num_iterations", "50",   # Increased from 40
+            "--Mapper.ba_global_max_num_iterations", "150", # Increased from 100
+            "--Mapper.ba_global_max_refinements", "8",      # More global refinements
             
             # Point Filtering
             "--Mapper.filter_max_reproj_error", mapper_params["filter_max_reproj_error"],

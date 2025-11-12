@@ -357,29 +357,56 @@ function MeasurementTool({
   return (
     <>
       {points.map((point, index) => {
-        // Color code points: Blue for point 1, Green for point 2
-        const pointColor = index === 0 ? "#3b82f6" : "#10b981"  // blue-500 : green-500
-        const bgColor = index === 0 ? "bg-blue-500" : "bg-green-500"
-        const ringColor = index === 0 ? "ring-blue-400" : "ring-green-400"
+        // Color code points: GREEN for Point A, BLUE for Point B
+        const pointLetter = index === 0 ? "A" : "B"
+        const pointColor = index === 0 ? "#10b981" : "#3b82f6"  // green-500 : blue-500
+        const bgColor = index === 0 ? "bg-green-500" : "bg-blue-500"
+        const ringColor = index === 0 ? "ring-green-400" : "ring-blue-400"
+        const glowColor = index === 0 ? "#10b981" : "#3b82f6"
         
         return (
           <group key={point.id}>
-            {/* Point sphere */}
+            {/* Main point sphere with emissive glow */}
             <mesh position={point.position}>
-              <sphereGeometry args={[0.03]} />
-              <meshBasicMaterial color={pointColor} />
+              <sphereGeometry args={[0.05]} />
+              <meshStandardMaterial 
+                color={pointColor} 
+                emissive={pointColor}
+                emissiveIntensity={0.8}
+                metalness={0.2}
+                roughness={0.3}
+              />
             </mesh>
             
-            {/* Outer ring for visibility */}
+            {/* Animated outer glow ring */}
             <mesh position={point.position}>
-              <ringGeometry args={[0.04, 0.05, 32]} />
-              <meshBasicMaterial color={pointColor} transparent opacity={0.5} />
+              <ringGeometry args={[0.06, 0.08, 32]} />
+              <meshBasicMaterial 
+                color={pointColor} 
+                transparent 
+                opacity={0.6}
+                side={THREE.DoubleSide}
+              />
             </mesh>
             
-            {/* Label with color coding */}
-            <Html position={[point.position.x, point.position.y + 0.1, point.position.z]} distanceFactor={10}>
-              <div className={`${bgColor} text-white px-3 py-1.5 rounded-full text-sm font-bold shadow-lg ring-2 ${ringColor} animate-pulse`}>
-                Point {index + 1}/2
+            {/* Pulsing indicator ring */}
+            <mesh position={point.position}>
+              <ringGeometry args={[0.09, 0.11, 32]} />
+              <meshBasicMaterial 
+                color={pointColor} 
+                transparent 
+                opacity={0.3}
+                side={THREE.DoubleSide}
+              />
+            </mesh>
+            
+            {/* Label with LETTER nomenclature */}
+            <Html position={[point.position.x, point.position.y + 0.15, point.position.z]} distanceFactor={10}>
+              <div className={`${bgColor} text-white px-4 py-2 rounded-lg text-base font-bold shadow-2xl ring-4 ${ringColor} animate-pulse`}>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-white animate-pulse"></div>
+                  <span>Point {pointLetter}</span>
+                </div>
               </div>
             </Html>
           </group>
@@ -584,22 +611,24 @@ export function ModelViewer({
             <div className="text-sm text-white space-y-2">
               <p className="font-medium mb-2">🎯 Herramienta de Medición</p>
               
-              {/* Point selection status */}
+              {/* Point selection status with A/B nomenclature */}
               <div className="flex items-center gap-2 text-xs">
-                <div className={`flex items-center gap-1.5 px-2 py-1 rounded ${measurementPoints.length >= 1 ? 'bg-blue-500/20 border border-blue-500' : 'bg-gray-700 border border-gray-600'}`}>
-                  <div className={`w-2 h-2 rounded-full ${measurementPoints.length >= 1 ? 'bg-blue-500' : 'bg-gray-500'}`}></div>
-                  <span>Point 1</span>
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${measurementPoints.length >= 1 ? 'bg-green-500/30 border-2 border-green-500 shadow-lg shadow-green-500/20' : 'bg-gray-700 border-2 border-gray-600'}`}>
+                  <div className={`w-3 h-3 rounded-full ${measurementPoints.length >= 1 ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
+                  <span className={measurementPoints.length >= 1 ? 'text-green-100' : 'text-gray-400'}>Point A</span>
+                  {measurementPoints.length >= 1 && <span className="text-green-300">✓</span>}
                 </div>
-                <div className={`flex items-center gap-1.5 px-2 py-1 rounded ${measurementPoints.length >= 2 ? 'bg-green-500/20 border border-green-500' : 'bg-gray-700 border border-gray-600'}`}>
-                  <div className={`w-2 h-2 rounded-full ${measurementPoints.length >= 2 ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-                  <span>Point 2</span>
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all ${measurementPoints.length >= 2 ? 'bg-blue-500/30 border-2 border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-gray-700 border-2 border-gray-600'}`}>
+                  <div className={`w-3 h-3 rounded-full ${measurementPoints.length >= 2 ? 'bg-blue-500 animate-pulse' : 'bg-gray-500'}`}></div>
+                  <span className={measurementPoints.length >= 2 ? 'text-blue-100' : 'text-gray-400'}>Point B</span>
+                  {measurementPoints.length >= 2 && <span className="text-blue-300">✓</span>}
                 </div>
               </div>
               
-              <p className="text-gray-400 text-xs">
-                {measurementPoints.length === 0 && "Click on first point (blue)"}
-                {measurementPoints.length === 1 && "Click on second point (green)"}
-                {measurementPoints.length === 2 && "✅ Measurement complete"}
+              <p className="text-gray-300 text-sm font-medium">
+                {measurementPoints.length === 0 && "🟢 Click to select Point A (Green)"}
+                {measurementPoints.length === 1 && "🔵 Click to select Point B (Blue)"}
+                {measurementPoints.length === 2 && "✅ Measurement Complete!"}
               </p>
               
               {measurementPoints.length === 2 && (
