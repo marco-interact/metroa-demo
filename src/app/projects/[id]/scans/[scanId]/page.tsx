@@ -718,11 +718,11 @@ export default function ScanDetailPage() {
                       setSelectedPointPositions([])
                     }
                   }, [])}
-                  onClearPoints={() => {
+                  onClearPoints={useCallback(() => {
                     console.log('🗑️ Clearing selected points')
                     setSelectedPoints([])
                     setSelectedPointPositions([])
-                  }}
+                  }, [])}
                 />
               )}
 
