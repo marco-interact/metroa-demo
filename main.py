@@ -537,18 +537,44 @@ async def calibrate_scale(
 ):
     """Calibrate scale using two points with known distance"""
     try:
+        logger.info(f"🔧 Calibration request: scan_id={scan_id}, point1={point1_id}, point2={point2_id}, distance={known_distance}")
+        
         # Find sparse reconstruction path
         scan_path = Path(f"/workspace/data/results/{scan_id}")
         sparse_path = scan_path / "sparse" / "0"
         
         if not sparse_path.exists():
-            raise HTTPException(status_code=404, detail="Reconstruction not found")
+            logger.error(f"❌ Sparse reconstruction not found at: {sparse_path}")
+            raise HTTPException(status_code=404, detail=f"Reconstruction not found at {sparse_path}")
         
         # Load and calibrate
         measurement_system = MeasurementSystem(str(sparse_path))
         measurement_system.load_reconstruction()
         
+        # Check if points exist
+        if not measurement_system.points3D:
+            raise HTTPException(status_code=404, detail="No 3D points found in reconstruction")
+        
+        logger.info(f"📊 Loaded {len(measurement_system.points3D)} points from reconstruction")
+        logger.info(f"🔍 Looking for point IDs: {point1_id}, {point2_id}")
+        
+        # Check if point IDs exist
+        if point1_id not in measurement_system.points3D:
+            available_ids = list(measurement_system.points3D.keys())[:10]
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Point ID {point1_id} not found in reconstruction. Available IDs (sample): {available_ids}"
+            )
+        if point2_id not in measurement_system.points3D:
+            available_ids = list(measurement_system.points3D.keys())[:10]
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Point ID {point2_id} not found in reconstruction. Available IDs (sample): {available_ids}"
+            )
+        
         result = measurement_system.calibrate_scale(point1_id, point2_id, known_distance)
+        
+        logger.info(f"✅ Calibration successful: scale_factor={result['scale_factor']:.6f}")
         
         # Save scale factor to scan metadata
         conn = get_db_connection()
@@ -560,11 +586,17 @@ async def calibrate_scale(
             "scan_id": scan_id,
             **result
         }
+    except HTTPException:
+        raise
     except FileNotFoundError as e:
+        logger.error(f"❌ File not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        logger.error(f"❌ Validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Scale calibration failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Scale calibration failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Calibration failed: {str(e)}")
 
 @app.post("/api/measurements/add")
 async def add_measurement(

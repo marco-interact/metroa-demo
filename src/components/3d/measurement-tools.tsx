@@ -84,6 +84,13 @@ export function MeasurementTools({
       formData.append('point2_id', selectedPoints[1].toString())
       formData.append('known_distance', knownDistance)
 
+      console.log('🔧 Calibrating with:', {
+        scan_id: scanId,
+        point1_id: selectedPoints[0],
+        point2_id: selectedPoints[1],
+        known_distance: knownDistance
+      })
+
       const response = await fetch('/api/backend/measurements/calibrate', {
         method: 'POST',
         body: formData
@@ -91,17 +98,20 @@ export function MeasurementTools({
 
       if (response.ok) {
         const result = await response.json()
+        console.log('✅ Calibration success:', result)
         setIsScaled(true)
         setIsCalibrating(false)
         onClearPoints?.()  // Clear points via parent callback
         setKnownDistance("")
         alert(`Scale calibrated! Factor: ${result.scale_factor.toFixed(6)}`)
       } else {
-        alert('Calibration failed')
+        const errorText = await response.text()
+        console.error('❌ Calibration failed:', response.status, errorText)
+        alert(`Calibration failed: ${response.status} - ${errorText || 'Unknown error'}`)
       }
     } catch (error) {
-      console.error('Calibration error:', error)
-      alert('Calibration failed')
+      console.error('❌ Calibration error:', error)
+      alert(`Calibration failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
