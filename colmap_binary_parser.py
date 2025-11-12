@@ -272,6 +272,39 @@ class MeasurementSystem:
         self.cameras, self.images, self.points3D = COLMAPBinaryParser.load_reconstruction(
             self.sparse_path
         )
+    
+    def find_nearest_point(self, target_position, max_distance=1.0):
+        """
+        Find nearest point in sparse reconstruction to given 3D position
+        
+        Args:
+            target_position: numpy array [x, y, z]
+            max_distance: Maximum distance to search (meters)
+        
+        Returns:
+            Point ID of nearest point, or raises ValueError if none found
+        """
+        import numpy as np
+        
+        if not self.points3D:
+            raise ValueError("Reconstruction not loaded")
+        
+        min_dist = float('inf')
+        nearest_id = None
+        
+        for point_id, point_data in self.points3D.items():
+            point_pos = np.array(point_data['xyz'])
+            dist = np.linalg.norm(point_pos - target_position)
+            
+            if dist < min_dist and dist < max_distance:
+                min_dist = dist
+                nearest_id = point_id
+        
+        if nearest_id is None:
+            raise ValueError(f"No point found within {max_distance}m of {target_position}")
+        
+        logger.info(f"Found nearest point {nearest_id} at distance {min_dist:.4f}m")
+        return nearest_id
         
     def calibrate_scale(self, point1_id: int, point2_id: int, known_distance: float):
         """

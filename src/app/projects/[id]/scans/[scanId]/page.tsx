@@ -707,6 +707,7 @@ export default function ScanDetailPage() {
                 <MeasurementTools 
                   scanId={scanId}
                   selectedPoints={selectedPoints}
+                  selectedPointPositions={selectedPointPositions}
                   onPointSelect={(pointId) => {
                     console.log('Point selected from measurement tools:', pointId)
                   }}

@@ -531,13 +531,20 @@ async def get_job_status(job_id: str):
 @app.post("/api/measurements/calibrate")
 async def calibrate_scale(
     scan_id: str = Form(...),
-    point1_id: int = Form(...),
-    point2_id: int = Form(...),
+    point1_id: str = Form(None),  # Can be ID or position
+    point2_id: str = Form(None),
+    point1_position: str = Form(None),  # JSON array: "[x, y, z]"
+    point2_position: str = Form(None),
     known_distance: float = Form(...)
 ):
-    """Calibrate scale using two points with known distance"""
+    """Calibrate scale using two points with known distance
+    
+    Accepts either:
+    - point1_id/point2_id: COLMAP point IDs (legacy)
+    - point1_position/point2_position: 3D positions as JSON arrays "[x, y, z]" (new)
+    """
     try:
-        logger.info(f"🔧 Calibration request: scan_id={scan_id}, point1={point1_id}, point2={point2_id}, distance={known_distance}")
+        logger.info(f"🔧 Calibration request: scan_id={scan_id}, distance={known_distance}")
         
         # Find sparse reconstruction path
         scan_path = Path(f"/workspace/data/results/{scan_id}")
@@ -556,7 +563,36 @@ async def calibrate_scale(
             raise HTTPException(status_code=404, detail="No 3D points found in reconstruction")
         
         logger.info(f"📊 Loaded {len(measurement_system.points3D)} points from reconstruction")
-        logger.info(f"🔍 Looking for point IDs: {point1_id}, {point2_id}")
+        
+        # Determine point IDs - use positions if provided, otherwise use IDs
+        if point1_position and point2_position:
+            # New method: find nearest points by position
+            import json
+            import numpy as np
+            
+            try:
+                pos1 = np.array(json.loads(point1_position))
+                pos2 = np.array(json.loads(point2_position))
+                
+                logger.info(f"📍 Finding nearest points to positions: {pos1}, {pos2}")
+                
+                # Find nearest points in sparse reconstruction
+                point1_id = measurement_system.find_nearest_point(pos1)
+                point2_id = measurement_system.find_nearest_point(pos2)
+                
+                logger.info(f"✅ Found nearest points: {point1_id}, {point2_id}")
+            except Exception as e:
+                logger.error(f"❌ Error parsing positions: {e}")
+                raise HTTPException(status_code=400, detail=f"Invalid position format: {e}")
+        elif point1_id and point2_id:
+            # Legacy method: use point IDs directly
+            try:
+                point1_id = int(point1_id)
+                point2_id = int(point2_id)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid point ID format")
+        else:
+            raise HTTPException(status_code=400, detail="Must provide either point IDs or positions")
         
         # Check if point IDs exist
         if point1_id not in measurement_system.points3D:

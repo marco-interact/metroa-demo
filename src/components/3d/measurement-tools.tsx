@@ -20,6 +20,7 @@ interface Measurement {
 interface MeasurementToolsProps {
   scanId: string
   selectedPoints?: number[]
+  selectedPointPositions?: Array<[number, number, number]>
   onPointSelect?: (pointId: number) => void
   onSelectionModeChange?: (enabled: boolean) => void
   onClearPoints?: () => void
@@ -29,6 +30,7 @@ interface MeasurementToolsProps {
 export function MeasurementTools({ 
   scanId, 
   selectedPoints: externalSelectedPoints = [],
+  selectedPointPositions: externalSelectedPositions = [],
   onPointSelect, 
   onSelectionModeChange,
   onClearPoints,
@@ -42,13 +44,14 @@ export function MeasurementTools({
   
   // Use external selected points from parent
   const selectedPoints = externalSelectedPoints
+  const selectedPointPositions = externalSelectedPositions
   
   // Prevent infinite loops with ref
   const lastSelectionModeRef = useRef<boolean | undefined>(undefined)
   
   // Notify parent when selection mode changes - SAFE VERSION
   useEffect(() => {
-    const needsSelection = isCalibrating || (isScaled && selectedPoints.length < 2)
+    const needsSelection = isCalibrating || (isScaled && selectedPointPositions.length < 2)
     
     // Only call if value actually changed
     if (lastSelectionModeRef.current !== needsSelection && onSelectionModeChange) {
@@ -62,7 +65,7 @@ export function MeasurementTools({
         }
       }, 0)
     }
-  }, [isCalibrating, isScaled, selectedPoints.length]) // Removed onSelectionModeChange from deps
+  }, [isCalibrating, isScaled, selectedPointPositions.length]) // Removed onSelectionModeChange from deps
 
   // Point selection is now handled by parent component
   // const handlePointClick = (pointId: number) => {
@@ -72,7 +75,7 @@ export function MeasurementTools({
   // }
 
   const handleCalibrateScale = async () => {
-    if (selectedPoints.length !== 2 || !knownDistance) {
+    if (externalSelectedPositions.length !== 2 || !knownDistance) {
       alert("Select 2 points and enter known distance")
       return
     }
@@ -80,14 +83,15 @@ export function MeasurementTools({
     try {
       const formData = new FormData()
       formData.append('scan_id', scanId)
-      formData.append('point1_id', selectedPoints[0].toString())
-      formData.append('point2_id', selectedPoints[1].toString())
+      // Send positions as JSON arrays
+      formData.append('point1_position', JSON.stringify(externalSelectedPositions[0]))
+      formData.append('point2_position', JSON.stringify(externalSelectedPositions[1]))
       formData.append('known_distance', knownDistance)
 
-      console.log('🔧 Calibrating with:', {
+      console.log('🔧 Calibrating with positions:', {
         scan_id: scanId,
-        point1_id: selectedPoints[0],
-        point2_id: selectedPoints[1],
+        point1_position: externalSelectedPositions[0],
+        point2_position: externalSelectedPositions[1],
         known_distance: knownDistance
       })
 
@@ -107,7 +111,14 @@ export function MeasurementTools({
       } else {
         const errorText = await response.text()
         console.error('❌ Calibration failed:', response.status, errorText)
-        alert(`Calibration failed: ${response.status} - ${errorText || 'Unknown error'}`)
+        let errorMessage = 'Unknown error'
+        try {
+          const errorJson = JSON.parse(errorText)
+          errorMessage = errorJson.detail || errorMessage
+        } catch {
+          errorMessage = errorText || errorMessage
+        }
+        alert(`Calibration failed: ${errorMessage}`)
       }
     } catch (error) {
       console.error('❌ Calibration error:', error)
@@ -116,7 +127,7 @@ export function MeasurementTools({
   }
 
   const handleAddMeasurement = async () => {
-    if (selectedPoints.length !== 2) {
+    if (externalSelectedPositions.length !== 2) {
       alert("Select 2 points to measure")
       return
     }
@@ -124,8 +135,9 @@ export function MeasurementTools({
     try {
       const formData = new FormData()
       formData.append('scan_id', scanId)
-      formData.append('point1_id', selectedPoints[0].toString())
-      formData.append('point2_id', selectedPoints[1].toString())
+      // Send positions as JSON arrays
+      formData.append('point1_position', JSON.stringify(externalSelectedPositions[0]))
+      formData.append('point2_position', JSON.stringify(externalSelectedPositions[1]))
       formData.append('label', measurementLabel || `Measurement ${measurements.length + 1}`)
 
       const response = await fetch('/api/backend/measurements/add', {
@@ -217,12 +229,12 @@ export function MeasurementTools({
                   className="bg-app-elevated border-app-secondary"
                 />
                 <div className="text-xs text-gray-400">
-                  Selected points: {selectedPoints.length}/2
+                  Selected points: {selectedPointPositions.length}/2
                 </div>
                 <div className="flex gap-2">
                   <Button
                     onClick={handleCalibrateScale}
-                    disabled={selectedPoints.length !== 2 || !knownDistance}
+                    disabled={selectedPointPositions.length !== 2 || !knownDistance}
                     size="sm"
                     className="flex-1"
                   >
@@ -261,11 +273,11 @@ export function MeasurementTools({
                 className="bg-app-elevated border-app-secondary"
               />
               <div className="text-xs text-gray-400">
-                Selected points: {selectedPoints.length}/2
+                Selected points: {selectedPointPositions.length}/2
               </div>
               <Button
                 onClick={handleAddMeasurement}
-                disabled={selectedPoints.length !== 2}
+                disabled={selectedPointPositions.length !== 2}
                 size="sm"
                 className="w-full"
               >
