@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter, useParams } from "next/navigation"
+import { ErrorBoundary } from "@/components/error-boundary"
 import { 
   ArrowLeft,
   Download,
@@ -431,7 +432,8 @@ export default function ScanDetailPage() {
   }
 
   return (
-    <div className="h-screen bg-app-primary flex overflow-hidden">
+    <ErrorBoundary>
+      <div className="h-screen bg-app-primary flex overflow-hidden">
       {/* Sidebar */}
       <aside className="w-64 bg-app-primary border-r border-app-secondary/30 flex flex-col overflow-y-auto">
         <div className="p-6 cursor-pointer" onClick={() => router.push('/dashboard')}>
@@ -729,5 +731,6 @@ export default function ScanDetailPage() {
         </div>
       </main>
     </div>
+    </ErrorBoundary>
   )
 }
