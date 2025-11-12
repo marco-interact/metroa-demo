@@ -637,11 +637,18 @@ async def calibrate_scale(
 @app.post("/api/measurements/add")
 async def add_measurement(
     scan_id: str = Form(...),
-    point1_id: int = Form(...),
-    point2_id: int = Form(...),
+    point1_id: str = Form(None),
+    point2_id: str = Form(None),
+    point1_position: str = Form(None),
+    point2_position: str = Form(None),
     label: str = Form("")
 ):
-    """Add a measurement between two points"""
+    """Add a measurement between two points
+    
+    Accepts either:
+    - point1_id/point2_id: COLMAP point IDs (legacy)
+    - point1_position/point2_position: 3D positions as JSON arrays "[x, y, z]" (new)
+    """
     try:
         scan_path = Path(f"/workspace/data/results/{scan_id}")
         sparse_path = scan_path / "sparse" / "0"
@@ -652,6 +659,33 @@ async def add_measurement(
         measurement_system = MeasurementSystem(str(sparse_path))
         measurement_system.load_reconstruction()
         
+        # Determine point IDs - use positions if provided, otherwise use IDs
+        if point1_position and point2_position:
+            import json
+            import numpy as np
+            
+            try:
+                pos1 = np.array(json.loads(point1_position))
+                pos2 = np.array(json.loads(point2_position))
+                
+                logger.info(f"📍 Finding nearest points for measurement: {pos1}, {pos2}")
+                
+                point1_id = measurement_system.find_nearest_point(pos1)
+                point2_id = measurement_system.find_nearest_point(pos2)
+                
+                logger.info(f"✅ Found nearest points: {point1_id}, {point2_id}")
+            except Exception as e:
+                logger.error(f"❌ Error parsing positions: {e}")
+                raise HTTPException(status_code=400, detail=f"Invalid position format: {e}")
+        elif point1_id and point2_id:
+            try:
+                point1_id = int(point1_id)
+                point2_id = int(point2_id)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid point ID format")
+        else:
+            raise HTTPException(status_code=400, detail="Must provide either point IDs or positions")
+        
         # TODO: Load previously saved scale factor
         
         measurement = measurement_system.add_measurement(point1_id, point2_id, label)
@@ -660,8 +694,10 @@ async def add_measurement(
             "status": "success",
             "measurement": measurement
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Add measurement failed: {e}")
+        logger.error(f"Add measurement failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/measurements/{scan_id}/export")
