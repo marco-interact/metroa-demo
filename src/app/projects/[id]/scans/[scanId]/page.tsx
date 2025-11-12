@@ -238,6 +238,27 @@ export default function ScanDetailPage() {
   const [selectedPointPositions, setSelectedPointPositions] = useState<Array<[number, number, number]>>([])
   const [isSelectingPoints, setIsSelectingPoints] = useState(false)
 
+  // Handle point clicks - MUST be at top level (React hooks rule)
+  const handlePointClick = useCallback((pointIndex: number, position: [number, number, number]) => {
+    console.log('✅ Point selected:', { pointIndex, position })
+    
+    // Prevent adding more than 2 points
+    setSelectedPoints(prev => {
+      if (prev.length >= 2) {
+        console.log('⚠️ Already have 2 points, resetting...')
+        return [pointIndex]
+      }
+      return [...prev, pointIndex]
+    })
+    
+    setSelectedPointPositions(prev => {
+      if (prev.length >= 2) {
+        return [position]
+      }
+      return [...prev, position]
+    })
+  }, [])
+
   useEffect(() => {
     const token = localStorage.getItem('auth_token')
     const email = localStorage.getItem('user_email')
@@ -511,25 +532,7 @@ export default function ScanDetailPage() {
               className="w-full h-full"
               isSelectingPoints={isSelectingPoints}
               selectedPointPositions={selectedPointPositions}
-              onPointClick={useCallback((pointIndex: number, position: [number, number, number]) => {
-                console.log('✅ Point selected:', { pointIndex, position })
-                
-                // Prevent adding more than 2 points
-                setSelectedPoints(prev => {
-                  if (prev.length >= 2) {
-                    console.log('⚠️ Already have 2 points, resetting...')
-                    return [pointIndex]
-                  }
-                  return [...prev, pointIndex]
-                })
-                
-                setSelectedPointPositions(prev => {
-                  if (prev.length >= 2) {
-                    return [position]
-                  }
-                  return [...prev, position]
-                })
-              }, [])}
+              onPointClick={handlePointClick}
             />
           </div>
 
