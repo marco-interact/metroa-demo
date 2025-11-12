@@ -297,6 +297,12 @@ function CameraController({ onReset, measurementMode }: { onReset: boolean; meas
     }
   }, [onReset])
 
+  useEffect(() => {
+    if (controlsRef.current) {
+      controlsRef.current.enabled = !measurementMode
+    }
+  }, [measurementMode])
+
   return (
     <OrbitControls
       ref={controlsRef}
@@ -322,38 +328,51 @@ function MeasurementTool({
   onAddPoint: (point: THREE.Vector3) => void 
 }) {
   const { camera, raycaster, scene, gl } = useThree()
-  const [hoverPoint, setHoverPoint] = useState<THREE.Vector3 | null>(null)
   
-  const handleClick = useCallback((event: THREE.Event) => {
+  const handleClick = useCallback((event: MouseEvent) => {
     if (!enabled) return
     
     try {
-      // Get mouse position in normalized device coordinates
+      event.preventDefault()
+      event.stopPropagation()
+      
       const canvas = gl.domElement
       const rect = canvas.getBoundingClientRect()
+      
+      // Normalized device coordinates (-1 to +1)
       const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
       const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
       
       // Update raycaster
       raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
       
-      // Only intersect with meshes (not Html elements or other objects)
-      const meshes: THREE.Object3D[] = []
+      // Collect all intersectable objects (meshes AND point clouds)
+      const intersectableObjects: THREE.Object3D[] = []
       scene.traverse((object) => {
-        if ((object as THREE.Mesh).isMesh && object.visible) {
-          meshes.push(object)
+        if (object.visible) {
+          if ((object as THREE.Mesh).isMesh || (object as THREE.Points).isPoints) {
+            intersectableObjects.push(object)
+          }
         }
       })
       
-      const intersects = raycaster.intersectObjects(meshes, false)
+      if (intersectableObjects.length === 0) {
+        console.warn('No intersectable objects found in scene')
+        return
+      }
+      
+      // Raycast against all objects
+      const intersects = raycaster.intersectObjects(intersectableObjects, false)
       
       if (intersects.length > 0) {
-        const point = intersects[0].point.clone()
-        console.log('Point clicked:', point)
-        onAddPoint(point)
+        const hitPoint = intersects[0].point.clone()
+        console.log('✅ Point clicked:', hitPoint)
+        onAddPoint(hitPoint)
+      } else {
+        console.log('⚠️ No intersection found at click position')
       }
     } catch (error) {
-      console.error('Error in handleClick:', error)
+      console.error('❌ Error in handleClick:', error)
     }
   }, [enabled, camera, raycaster, scene, gl, onAddPoint])
 
@@ -361,16 +380,14 @@ function MeasurementTool({
     if (!enabled) return
     
     const canvas = gl.domElement
-    if (canvas) {
-      canvas.style.cursor = 'crosshair'
-      canvas.addEventListener('click', handleClick as any)
-    }
+    if (!canvas) return
+    
+    canvas.style.cursor = 'crosshair'
+    canvas.addEventListener('click', handleClick, true) // Use capture phase
     
     return () => {
-      if (canvas) {
-        canvas.style.cursor = 'default'
-        canvas.removeEventListener('click', handleClick as any)
-      }
+      canvas.style.cursor = 'default'
+      canvas.removeEventListener('click', handleClick, true)
     }
   }, [enabled, handleClick, gl])
 
