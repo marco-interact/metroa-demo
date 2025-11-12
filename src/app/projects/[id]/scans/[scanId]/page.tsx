@@ -514,7 +514,7 @@ export default function ScanDetailPage() {
                 Back to Scans
               </Button>
               <h1 className="text-2xl font-bold text-white font-mono">
-                {scan.name}
+                {scan?.name || 'Loading...'}
               </h1>
             </div>
             
