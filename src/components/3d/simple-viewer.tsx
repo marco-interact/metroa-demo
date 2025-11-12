@@ -39,27 +39,62 @@ function PLYModel({ url, onPointClick, enableSelection }: {
     try {
       isProcessingRef.current = true
       
-      event.stopPropagation()
-      event.preventDefault()
+      // React Three Fiber events might not have preventDefault/stopPropagation
+      if (event && typeof event.stopPropagation === 'function') {
+        event.stopPropagation()
+      }
+      if (event && typeof event.preventDefault === 'function') {
+        event.preventDefault()
+      }
+      
+      // React Three Fiber provides event data differently
+      // Get mouse position from event or use raycaster directly
+      let mouseX = 0
+      let mouseY = 0
+      
+      if (event && event.clientX !== undefined && event.clientY !== undefined) {
+        // Standard DOM event
+        const canvas = gl.domElement
+        if (!canvas) {
+          isProcessingRef.current = false
+          return
+        }
+        const rect = canvas.getBoundingClientRect()
+        mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1
+        mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      } else if (event && event.pointer) {
+        // React Three Fiber event format
+        mouseX = event.pointer.x
+        mouseY = event.pointer.y
+      } else {
+        // Fallback: use intersection point directly
+        if (event && event.point) {
+          const position = event.point.toArray().slice(0, 3) as [number, number, number]
+          const pointIndex = event.index ?? 0
+          console.log('✅ Point clicked (direct):', { pointIndex, position })
+          setTimeout(() => {
+            try {
+              onPointClick(pointIndex, position)
+            } catch (err) {
+              console.error('❌ Error calling onPointClick:', err)
+            } finally {
+              isProcessingRef.current = false
+            }
+          }, 0)
+          return
+        }
+        console.warn('⚠️ Unknown event format:', event)
+        isProcessingRef.current = false
+        return
+      }
       
       // Use requestAnimationFrame to prevent blocking
       requestAnimationFrame(() => {
         try {
-          // Calculate mouse position in normalized device coordinates
-          const canvas = gl.domElement
-          if (!canvas) {
-            isProcessingRef.current = false
-            return
-          }
-          
-          const rect = canvas.getBoundingClientRect()
-          const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-          const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
-          
           // Create raycaster with threshold for point clouds
           const raycaster = new THREE.Raycaster()
           raycaster.params.Points = { threshold: 0.15 }
-          raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
+          raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera)
           
           // Find intersected points
           const intersects = raycaster.intersectObject(pointsRef.current!, false)
