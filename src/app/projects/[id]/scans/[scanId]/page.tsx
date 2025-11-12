@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { 
   ArrowLeft,
@@ -511,13 +511,25 @@ export default function ScanDetailPage() {
               className="w-full h-full"
               isSelectingPoints={isSelectingPoints}
               selectedPointPositions={selectedPointPositions}
-              onPointClick={(pointIndex, position) => {
+              onPointClick={useCallback((pointIndex: number, position: [number, number, number]) => {
                 console.log('✅ Point selected:', { pointIndex, position })
-                if (selectedPoints.length < 2) {
-                  setSelectedPoints([...selectedPoints, pointIndex])
-                  setSelectedPointPositions([...selectedPointPositions, position])
-                }
-              }}
+                
+                // Prevent adding more than 2 points
+                setSelectedPoints(prev => {
+                  if (prev.length >= 2) {
+                    console.log('⚠️ Already have 2 points, resetting...')
+                    return [pointIndex]
+                  }
+                  return [...prev, pointIndex]
+                })
+                
+                setSelectedPointPositions(prev => {
+                  if (prev.length >= 2) {
+                    return [position]
+                  }
+                  return [...prev, position]
+                })
+              }, [])}
             />
           </div>
 

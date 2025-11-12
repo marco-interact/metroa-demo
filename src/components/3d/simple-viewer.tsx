@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState } from "react"
+import { useRef, useEffect, useState, useCallback } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { OrbitControls, Html } from "@react-three/drei"
 import * as THREE from "three"
@@ -25,44 +25,76 @@ function PLYModel({ url, onPointClick, enableSelection }: {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { camera, gl } = useThree()
+  const isProcessingRef = useRef(false) // Prevent multiple simultaneous clicks
   
-  // Handle point cloud clicks for measurement
-  const handleClick = (event: any) => {
+  // Handle point cloud clicks for measurement - SAFE VERSION
+  const handleClick = useCallback((event: any) => {
+    // Guard clauses
     if (!enableSelection || !geometry || !onPointClick || !pointsRef.current) return
+    if (isProcessingRef.current) {
+      console.log('⏳ Already processing click, ignoring...')
+      return
+    }
     
     try {
+      isProcessingRef.current = true
+      
       event.stopPropagation()
       event.preventDefault()
       
-      // Calculate mouse position in normalized device coordinates
-      const canvas = gl.domElement
-      const rect = canvas.getBoundingClientRect()
-      const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
-      const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
-      
-      // Create raycaster with threshold for point clouds
-      // Reference: https://threejs.org/docs/#api/en/core/Raycaster
-      const raycaster = new THREE.Raycaster()
-      raycaster.params.Points = { threshold: 0.15 } // Increase picking tolerance for points
-      raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
-      
-      // Find intersected points
-      const intersects = raycaster.intersectObject(pointsRef.current, false)
-      
-      if (intersects.length > 0) {
-        const intersection = intersects[0]
-        const pointIndex = intersection.index ?? 0
-        const position = intersection.point.toArray().slice(0, 3) as [number, number, number]
-        
-        console.log('✅ Point clicked:', { pointIndex, position })
-        onPointClick(pointIndex, position)
-      } else {
-        console.log('⚠️ No point intersected - try clicking closer to a point')
-      }
+      // Use requestAnimationFrame to prevent blocking
+      requestAnimationFrame(() => {
+        try {
+          // Calculate mouse position in normalized device coordinates
+          const canvas = gl.domElement
+          if (!canvas) {
+            isProcessingRef.current = false
+            return
+          }
+          
+          const rect = canvas.getBoundingClientRect()
+          const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+          const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+          
+          // Create raycaster with threshold for point clouds
+          const raycaster = new THREE.Raycaster()
+          raycaster.params.Points = { threshold: 0.15 }
+          raycaster.setFromCamera(new THREE.Vector2(x, y), camera)
+          
+          // Find intersected points
+          const intersects = raycaster.intersectObject(pointsRef.current!, false)
+          
+          if (intersects.length > 0) {
+            const intersection = intersects[0]
+            const pointIndex = intersection.index ?? 0
+            const position = intersection.point.toArray().slice(0, 3) as [number, number, number]
+            
+            console.log('✅ Point clicked:', { pointIndex, position })
+            
+            // Use setTimeout to prevent blocking
+            setTimeout(() => {
+              try {
+                onPointClick(pointIndex, position)
+              } catch (err) {
+                console.error('❌ Error calling onPointClick:', err)
+              } finally {
+                isProcessingRef.current = false
+              }
+            }, 0)
+          } else {
+            console.log('⚠️ No point intersected')
+            isProcessingRef.current = false
+          }
+        } catch (error) {
+          console.error('❌ Error in handleClick:', error)
+          isProcessingRef.current = false
+        }
+      })
     } catch (error) {
-      console.error('❌ Error in handleClick:', error)
+      console.error('❌ Error in handleClick outer:', error)
+      isProcessingRef.current = false
     }
-  }
+  }, [enableSelection, geometry, onPointClick, camera, gl])
 
   useEffect(() => {
     if (!url) return
@@ -134,13 +166,24 @@ function PLYModel({ url, onPointClick, enableSelection }: {
 
   if (!geometry) return null
 
+  // Only attach handlers if selection is enabled
+  const clickHandler = enableSelection ? handleClick : undefined
+  const pointerOverHandler = enableSelection ? (e: any) => { 
+    e.stopPropagation()
+    if (document.body) document.body.style.cursor = 'crosshair'
+  } : undefined
+  const pointerOutHandler = enableSelection ? (e: any) => { 
+    e.stopPropagation()
+    if (document.body) document.body.style.cursor = 'default'
+  } : undefined
+
   return (
     <points 
       ref={pointsRef} 
       geometry={geometry}
-      onClick={enableSelection ? handleClick : undefined}
-      onPointerOver={enableSelection ? (e) => { e.stopPropagation(); document.body.style.cursor = 'crosshair' } : undefined}
-      onPointerOut={enableSelection ? (e) => { e.stopPropagation(); document.body.style.cursor = 'default' } : undefined}
+      onClick={clickHandler}
+      onPointerOver={pointerOverHandler}
+      onPointerOut={pointerOutHandler}
     >
       <pointsMaterial
         size={enableSelection ? 0.025 : 0.015}
