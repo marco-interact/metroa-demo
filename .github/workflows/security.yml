@@ -1,0 +1,102 @@
+name: 🔒 Security & Dependency Scanning
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: 📦 Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety pip-audit
+          pip install -r requirements.txt
+
+      - name: 🔍 Python Security Scan (Bandit)
+        run: |
+          bandit -r . -f json -o bandit-report.json || true
+          bandit -r . -f txt
+
+      - name: 🛡️ Dependency Vulnerability Scan
+        run: |
+          safety check --json --output safety-report.json || true
+          safety check
+
+      - name: 📊 Pip Audit
+        run: |
+          pip-audit --format=json --output=pip-audit-report.json || true
+          pip-audit
+
+      - name: 📤 Upload Security Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports-${{ github.run_number }}
+          path: |
+            bandit-report.json
+            safety-report.json
+            pip-audit-report.json
+
+  dependency-scan:
+    name: 📦 Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 NPM Audit
+        run: |
+          npm audit --json > npm-audit-report.json || true
+          npm audit
+
+      - name: 📊 Upload NPM Audit Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: npm-audit-report-${{ github.run_number }}
+          path: npm-audit-report.json
+
+  docker-security:
+    name: 🐳 Docker Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐳 Build Docker image
+        run: docker build -t colmap-security-test .
+
+      - name: 🔍 Trivy Security Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'colmap-security-test'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: 📊 Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'

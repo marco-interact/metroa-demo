@@ -1,391 +1,419 @@
-# COLMAP Demo - 3D Reconstruction Platform
+# Metroa - COLMAP 3D Reconstruction Platform
 
-A full-stack application for 3D reconstruction using COLMAP, featuring a modern Next.js frontend and FastAPI backend optimized for GPU processing.
-
-![COLMAP Demo](https://img.shields.io/badge/COLMAP-3D%20Reconstruction-blue)
-![Next.js](https://img.shields.io/badge/Next.js-14.0.4-black)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115.4-green)
-![Python](https://img.shields.io/badge/Python-3.13-blue)
+Professional videogrammetry platform powered by COLMAP and Next.js. Upload videos, get high-quality 3D point clouds with measurement tools.
 
 ---
 
 ## 🚀 Quick Start
 
-### For RunPod Deployment
+### RunPod Deployment
+
+**Pod Specifications:**
+- Pod ID: `k0r2cn19yf6osw`
+- GPU: RTX 4090 (24GB VRAM)
+- Volume: `metroa-volume` (mvmh2mg1pt)
+- Port: 8888
+- Container: `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404`
+
+**Setup (Run once on new pod):**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/marco-interact/colmap-demo/main/runpod-setup.sh | bash
+# SSH into pod
+ssh root@203.57.40.216 -p 10091 -i ~/.ssh/id_ed25519
+
+# Run master setup script
+cd /workspace
+git clone https://github.com/marco-interact/metroa-demo.git
+cd metroa-demo
+bash setup-metroa-pod.sh
 ```
 
-See [Quick Reference Guide](cursor-logs/2025-11-03/QUICK_REFERENCE.md) for detailed commands.
+This script will:
+1. Install system dependencies
+2. Build COLMAP with RTX 4090 GPU support
+3. Clone the repository
+4. Setup Python environment
+5. Configure persistent storage
+6. Initialize database with demo data
+7. Test GPU functionality
+8. Start backend server on port 8888
 
-### Local Development
-
-```bash
-# Clone the repository
-git clone https://github.com/marco-interact/colmap-demo.git
-cd colmap-demo
-
-# Backend setup
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# Initialize database
-python3 -c "import asyncio; from database import Database; asyncio.run(Database().initialize())"
-
-# Start backend
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
-
-# Frontend setup (in a new terminal)
-npm install
-npm run dev
+**Backend URL:**
+```
+https://k0r2cn19yf6osw-8888.proxy.runpod.net
 ```
 
 ---
 
-## 📋 Features
+### Vercel Frontend Deployment
 
-- ✨ **3D Reconstruction**: Upload images and generate 3D point clouds using COLMAP
-- 🎨 **Modern UI**: Beautiful, responsive interface built with Next.js and Tailwind CSS
-- 🚀 **GPU Accelerated**: Optimized for CUDA-enabled GPUs on RunPod
-- 📊 **Project Management**: Organize and manage multiple reconstruction projects
-- 🔍 **3D Viewer**: Interactive Three.js-based 3D model viewer
-- 🎯 **Demo Scans**: Pre-loaded demo projects for quick testing
-- 💾 **Database Backed**: SQLite database for efficient project storage
-- 🔄 **Real-time Processing**: Live updates during reconstruction
+**Project:** `metroa-demo`  
+**Team:** `interact-hq`
+
+**Deploy:**
+
+```bash
+# On your local machine
+cd /path/to/metroa-demo
+
+# Set backend URL
+echo 'NEXT_PUBLIC_API_URL="https://k0r2cn19yf6osw-8888.proxy.runpod.net"' > .env.production
+
+# Deploy to Vercel
+vercel --prod
+```
 
 ---
 
 ## 🏗️ Architecture
 
-### Tech Stack
-
-**Frontend:**
-- Next.js 14.0.4
-- React 18
-- TypeScript
-- Tailwind CSS
-- Three.js / React Three Fiber
-- Framer Motion
-
-**Backend:**
-- Python 3.13
-- FastAPI
-- COLMAP (Computer Vision)
-- SQLite (aiosqlite)
-- OpenCV
-- NumPy
-
-**Infrastructure:**
-- RunPod (GPU Computing)
-- Vercel (Frontend Hosting)
-- Docker (Containerization)
-
-### Project Structure
-
 ```
-colmap-demo/
-├── src/                      # Next.js frontend
-│   ├── app/                  # App router pages
-│   │   ├── api/             # API routes
-│   │   ├── projects/        # Projects pages
-│   │   └── dashboard/       # Dashboard
-│   ├── components/          # React components
-│   ├── lib/                 # Utilities
-│   └── types/               # TypeScript types
-├── main.py                  # FastAPI backend
-├── database.py              # Database management
-├── colmap_processor.py      # COLMAP processing
-├── data/                    # Application data
-│   ├── results/            # Processing results
-│   ├── cache/              # Temporary cache
-│   └── uploads/            # User uploads
-├── demo-resources/          # Demo projects
-├── scripts/                 # Utility scripts
-├── cursor-logs/            # Development logs
-└── config/                 # Configuration files
+User Browser
+    ↓
+Next.js Frontend (Vercel)
+├── Three.js 3D Viewer
+├── Measurement Tools
+└── Project Management
+    ↓
+    Proxies to /api/backend
+    ↓
+FastAPI Backend (RunPod)
+├── Video Upload Handler
+├── COLMAP Processor
+│   ├── Frame Extraction (Auto FPS)
+│   ├── Feature Detection (GPU/CPU)
+│   ├── Feature Matching (GPU/CPU)
+│   ├── Sparse Reconstruction
+│   └── Dense Reconstruction (10-100x more points!)
+├── SQLite Database
+└── File Storage (Persistent Volume)
 ```
 
 ---
 
-## 🔧 Configuration
+## 🎯 Features
 
-### Environment Variables
+### 3D Reconstruction
+- ✅ **Auto FPS Detection** - Adapts to video length
+- ✅ **GPU Acceleration** - RTX 4090 support with CPU fallback
+- ✅ **Dense Reconstruction** - 10-100x more points than sparse
+- ✅ **Smart Quality Modes** - Low/Medium/High presets
+- ✅ **Target: < 2 minutes** for 20-second videos
 
-**Backend** (`.env` or system environment):
-```bash
-STORAGE_DIR=/workspace/colmap-demo/data/results
-DATABASE_PATH=/workspace/colmap-demo/data/database.db
-CACHE_DIR=/workspace/colmap-demo/data/cache
-UPLOADS_DIR=/workspace/colmap-demo/data/uploads
-COLMAP_PATH=/usr/local/bin/colmap
-PYTHONUNBUFFERED=1
+### 3D Viewer
+- ✅ **WebGL Point Cloud Rendering** - Millions of points
+- ✅ **Interactive Controls** - Rotate, zoom, pan
+- ✅ **Measurement Tools** - Calibrated distance measurements
+- ✅ **Color-Coded Selectors** - Blue (Point 1), Green (Point 2)
+- ✅ **Performance Optimized** - Auto-downsampling for large clouds
+
+### Measurement System
+- ✅ **Scale Calibration** - Set known distance
+- ✅ **Point Selection** - Visual feedback with indicators
+- ✅ **Distance Calculation** - Real-world measurements
+- ✅ **Export** - CSV/JSON measurement data
+
+---
+
+## 📁 Project Structure
+
 ```
-
-**Frontend** (Vercel environment variables):
-```bash
-NEXT_PUBLIC_API_URL=http://your-runpod-endpoint.proxy.runpod.net
+metroa-demo/
+├── main.py                    # FastAPI backend (port 8888)
+├── database.py                # SQLite database layer
+├── colmap_processor.py        # COLMAP pipeline with GPU support
+├── colmap_binary_parser.py    # Measurement system
+├── thumbnail_generator.py     # Thumbnail creation
+├── requirements.txt           # Python dependencies
+├── setup-metroa-pod.sh       # Master setup script for RunPod
+├── build-colmap-gpu-fixed.sh  # COLMAP GPU build script
+│
+├── src/                       # Next.js frontend
+│   ├── app/                   # App router pages
+│   ├── components/            # React components
+│   │   ├── 3d/               # Three.js 3D viewers
+│   │   ├── forms/            # Project/scan modals
+│   │   └── ui/               # Shadcn UI components
+│   ├── lib/                   # API client, utilities
+│   └── types/                 # TypeScript definitions
+│
+├── demo-resources/            # Demo 3D models & thumbnails
+├── data/                      # Persistent storage (symlinked to volume)
+│   ├── results/              # Reconstruction outputs
+│   ├── uploads/              # User video uploads
+│   └── cache/                # Temporary files
+│
+├── package.json               # Node.js dependencies
+├── next.config.js             # Next.js configuration
+├── tailwind.config.ts         # Tailwind CSS
+└── vercel.json                # Vercel deployment config
 ```
 
 ---
 
-## 📦 Deployment
+## 🔧 Technology Stack
 
-### RunPod (Backend)
+### Backend
+- **Python 3.12** - Runtime
+- **FastAPI** - REST API framework
+- **COLMAP 3.10** - 3D reconstruction engine
+- **SQLite** - Database
+- **FFmpeg** - Video frame extraction
+- **CUDA 12.8** - GPU acceleration
 
-Complete deployment guide available at:
-- [Full Deployment Guide](cursor-logs/2025-11-03/RUNPOD_DEPLOYMENT_GUIDE.md)
-- [Quick Reference](cursor-logs/2025-11-03/QUICK_REFERENCE.md)
+### Frontend
+- **Next.js 14** - React framework
+- **TypeScript** - Type safety
+- **Three.js** - 3D rendering
+- **React Three Fiber** - React wrapper for Three.js
+- **Tailwind CSS** - Styling
+- **Shadcn UI** - Component library
 
-**Current Pod Configuration:**
-- Pod ID: `xhqt6a1roo8mrc`
-- Storage: `rrtms4xkiz` (colmap-gpu-volume)
-- Public Endpoint: `http://xhqt6a1roo8mrc-8000.proxy.runpod.net`
+---
 
-### Vercel (Frontend)
+## 📊 Performance Targets
+
+| Video Length | Frames | Processing Time | Point Cloud Size |
+|--------------|--------|-----------------|------------------|
+| 10 seconds | ~40 | **~1 minute** | 50K-500K points |
+| 20 seconds | ~70 | **~2 minutes** | 100K-1M points |
+| 60 seconds | ~70 | **~2 minutes** | 100K-1M points |
+
+---
+
+## 🛠️ Backend Commands
+
+### Start/Stop Backend (RunPod)
 
 ```bash
-# Install Vercel CLI
-npm install -g vercel
+# Start
+cd /workspace/metroa-demo
+bash setup-metroa-pod.sh
+
+# Stop
+kill $(cat /workspace/metroa-demo/backend.pid)
+
+# View logs
+tail -f /workspace/metroa-demo/backend.log
+
+# Restart
+kill $(cat backend.pid) 2>/dev/null || true
+cd /workspace/metroa-demo
+source venv/bin/activate
+QT_QPA_PLATFORM=offscreen nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8888 --reload > backend.log 2>&1 &
+echo $! > backend.pid
+```
+
+### Database Management
+
+```bash
+# Reinitialize database
+cd /workspace/metroa-demo
+source venv/bin/activate
+python3 -c "from database import db; print(db.setup_demo_data())"
+
+# Backup database
+cp /workspace/data/database.db /workspace/data/database.backup.db
+
+# View database
+sqlite3 /workspace/data/database.db "SELECT * FROM projects;"
+```
+
+---
+
+## 🌐 Frontend Commands
+
+### Local Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run dev server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+### Vercel Deployment
+
+```bash
+# Set backend URL
+echo 'NEXT_PUBLIC_API_URL="https://k0r2cn19yf6osw-8888.proxy.runpod.net"' > .env.production
 
 # Deploy
-cd colmap-demo
-npm install
-npm run build
-vercel --prod --scope interact-hq
-```
-
-**Vercel Configuration:**
-- Team: interact-hq
-- Team ID: `team_PWckdPO4Vl3C1PWOA9qs9DrI`
-
----
-
-## 🛠️ Development
-
-### Prerequisites
-
-- Python 3.13+
-- Node.js 18+
-- COLMAP 3.9.1+
-- CUDA-compatible GPU (for production)
-- SQLite 3
-
-### Install COLMAP
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get install \
-    cmake \
-    ninja-build \
-    build-essential \
-    libboost-all-dev \
-    libeigen3-dev \
-    libflann-dev \
-    libfreeimage-dev \
-    libmetis-dev \
-    libgoogle-glog-dev \
-    libgflags-dev \
-    libsqlite3-dev \
-    libglew-dev \
-    qtbase5-dev \
-    libqt5opengl5-dev \
-    libcgal-dev \
-    libceres-dev
-
-git clone https://github.com/colmap/colmap.git
-cd colmap
-mkdir build && cd build
-cmake .. -GNinja
-ninja && sudo ninja install
-```
-
-**macOS:**
-```bash
-brew install colmap
-```
-
-### Running Tests
-
-```bash
-# Test COLMAP installation
-colmap -h
-
-# Test backend
-curl http://localhost:8000/health
-
-# Test reconstruction
-cd scripts/test
-./test-colmap-simple.sh
+vercel --prod
 ```
 
 ---
 
-## 📚 API Documentation
+## 🧪 Testing
 
-### Base URL
+### Backend Health Check
 
-**Local**: `http://localhost:8000`  
-**Production**: `http://xhqt6a1roo8mrc-8000.proxy.runpod.net`
-
-### Endpoints
-
-#### Health Check
-```http
-GET /health
+```bash
+curl https://k0r2cn19yf6osw-8888.proxy.runpod.net/health
 ```
 
-#### List Projects
-```http
-GET /api/projects
+Expected response:
+```json
+{"status":"healthy","message":"Backend is running","database_path":"/workspace/data/database.db"}
 ```
 
-#### Get Project Details
-```http
-GET /api/projects/{project_id}
+### API Status
+
+```bash
+curl https://k0r2cn19yf6osw-8888.proxy.runpod.net/api/status
 ```
 
-#### Upload Images
-```http
-POST /api/upload
-Content-Type: multipart/form-data
-
-Body: files (multiple image files)
-```
-
-#### Start Processing
-```http
-POST /api/process
-Content-Type: application/json
-
-Body: {
-  "project_id": "string",
-  "config": {
-    "quality": "high|medium|low"
-  }
+Expected:
+```json
+{
+  "backend": "running",
+  "projects_count": 1,
+  "scans_count": 2,
+  "projects": [{"id":"...","name":"Reconstruction Test Project 1"}]
 }
 ```
 
-#### Get Results
-```http
-GET /api/results/{result_id}
-```
+---
+
+## 📚 API Endpoints
+
+### Health & Status
+- `GET /health` - Health check
+- `GET /api/status` - Backend status
+
+### Projects & Scans
+- `GET /api/projects` - List all projects
+- `GET /api/projects/{id}` - Get project details
+- `GET /api/projects/{id}/scans` - List project scans
+- `GET /api/scans/{id}/details` - Get scan details
+- `DELETE /api/scans/{id}` - Delete scan
+- `POST /projects` - Create project
+
+### Reconstruction
+- `POST /api/reconstruction/upload` - Upload video for processing
+- `GET /api/jobs/{id}` - Get processing job status
+- `GET /api/point-cloud/{id}/stats` - Get point cloud statistics
+
+### Measurements
+- `POST /api/measurements/calibrate` - Calibrate scale
+- `POST /api/measurements/add` - Add measurement
+- `GET /api/measurements/{id}/export` - Export measurements
+- `GET /api/measurements/{id}/stats` - Get reconstruction stats
 
 ---
 
-## 🔍 Demo Projects
-
-The application includes three pre-loaded demo projects:
-
-1. **Dollhouse** (`demoscan-dollhouse`)
-   - First floor architectural scan
-   - High-detail interior reconstruction
-
-2. **Facade** (`demoscan-fachada`)
-   - Building exterior scan
-   - Large-scale architectural model
-
-3. **Triangulos** (`demoscan-tiangulos`)
-   - Complex geometric structures
-   - Multi-angle reconstruction
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
-
----
-
-## 📝 Documentation
-
-- [RunPod Deployment Guide](cursor-logs/2025-11-03/RUNPOD_DEPLOYMENT_GUIDE.md)
-- [Quick Reference](cursor-logs/2025-11-03/QUICK_REFERENCE.md)
-- [Cursor Logs](cursor-logs/) - Development history and notes
-
----
-
-## 🐛 Troubleshooting
+## 🔍 Troubleshooting
 
 ### Backend Issues
 
-**COLMAP not found:**
+**502 Bad Gateway:**
 ```bash
-export PATH="/path/to/colmap/bin:$PATH"
+# Backend not running - start it
+bash /workspace/metroa-demo/setup-metroa-pod.sh
 ```
 
-**Database errors:**
+**GPU not working:**
 ```bash
-rm -f data/database.db
-python3 -c "import asyncio; from database import Database; asyncio.run(Database().initialize())"
+# Check GPU
+nvidia-smi
+
+# Test COLMAP GPU
+QT_QPA_PLATFORM=offscreen colmap -h
+
+# Backend will automatically fallback to CPU
 ```
 
-**Port in use:**
+**Database issues:**
 ```bash
-lsof -ti:8000 | xargs kill -9
+# Reinitialize
+cd /workspace/metroa-demo && source venv/bin/activate
+python3 -c "from database import db; db.setup_demo_data()"
 ```
 
 ### Frontend Issues
 
-**Build errors:**
+**Can't connect to backend:**
 ```bash
-rm -rf node_modules .next
-npm install
-npm run build
+# Check .env.production
+cat .env.production
+
+# Should be:
+NEXT_PUBLIC_API_URL="https://k0r2cn19yf6osw-8888.proxy.runpod.net"
+
+# Redeploy if wrong
+vercel --prod
 ```
 
-**API connection issues:**
-Check `NEXT_PUBLIC_API_URL` environment variable in Vercel.
+**3D Viewer slow/frozen:**
+- Point clouds auto-downsample to 500K points
+- Use requestIdleCallback for non-blocking loading
+- Browser needs WebGL support
 
 ---
 
-## 📊 Performance
+## 📦 Dependencies
 
-- **GPU Required**: CUDA-compatible GPU recommended for production
-- **Memory**: Minimum 16GB RAM, 8GB VRAM
-- **Storage**: SSD recommended, ~10GB per project
-- **Processing Time**: Varies by project size (10-60 minutes typical)
+### Python (requirements.txt)
+- fastapi
+- uvicorn
+- numpy
+- opencv-python
+- pillow
+- aiofiles
 
----
-
-## 🔒 Security
-
-- All uploads are validated and scanned
-- Database uses parameterized queries
-- CORS configured for trusted origins
-- File size limits enforced
-- Temporary files automatically cleaned
-
----
-
-## 📄 License
-
-This project is proprietary software. All rights reserved.
+### Node.js (package.json)
+- next
+- react
+- three
+- @react-three/fiber
+- @react-three/drei
+- tailwindcss
+- lucide-react
 
 ---
 
-## 👥 Team
+## 🎯 Demo Data
 
-**Organization**: Interact HQ  
-**Repository**: https://github.com/marco-interact/colmap-demo  
-**Contact**: [Your contact information]
+**Project:** Reconstruction Test Project 1  
+**Scans:**
+1. Dollhouse Interior Scan (~1M points)
+2. Facade Architecture Scan (~890K points)
 
----
-
-## 🙏 Acknowledgments
-
-- [COLMAP](https://colmap.github.io/) - Computer Vision library
-- [Next.js](https://nextjs.org/) - React framework
-- [FastAPI](https://fastapi.tiangolo.com/) - Python web framework
-- [Three.js](https://threejs.org/) - 3D rendering library
+Demo files located in: `demo-resources/`
 
 ---
 
-**Last Updated**: 2025-11-03  
-**Version**: 1.0.0
+## 📞 Support
 
+- **RunPod Dashboard:** https://www.runpod.io/console/pods
+- **Vercel Dashboard:** https://vercel.com/interact-hq/metroa-demo
+- **GitHub Repo:** https://github.com/marco-interact/metroa-demo
+- **COLMAP Docs:** https://colmap.github.io/tutorial.html
+
+---
+
+## 📝 License
+
+Proprietary - Interact HQ
+
+---
+
+## 🚀 Quick Reference
+
+```bash
+# RUNPOD COMMANDS (☁️ RunPod Terminal)
+bash setup-metroa-pod.sh              # Setup everything
+tail -f /workspace/metroa-demo/backend.log  # View logs
+kill $(cat backend.pid)                # Stop backend
+
+# LOCAL COMMANDS (📱 Mac Terminal)
+vercel --prod                          # Deploy frontend
+npm run dev                            # Local development
+curl https://k0r2cn19yf6osw-8888.proxy.runpod.net/health  # Test backend
+```
+
+**Ready for production!** 🎉

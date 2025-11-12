@@ -1,70 +1,68 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
+# Dependencies
 /node_modules
 /.pnp
 .pnp.js
 
-# testing
+# Testing
 /coverage
 
-# next.js
+# Next.js
 /.next/
 /out/
 
-# production
+# Production
 /build
 
-# misc
+# Misc
 .DS_Store
 *.pem
 
-# debug
+# Debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# Local env files
 .env*.local
-.env
+.env.production
 
-# vercel
+# Vercel
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# uploads and temporary files
-/uploads
-/temp
-/colmap-worker/uploads
-/colmap-worker/outputs
-/colmap-worker/temp
-
-# Database files
-*.db
-*.db-journal
-/data/
-
-# Python cache
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 venv/
-venv-local/
 env/
 ENV/
+*.egg-info/
 
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+
+# Data (local only)
+/data/results/*
+/data/uploads/*
+/data/cache/*
+!/data/results/.gitkeep
+!/data/uploads/.gitkeep
+!/data/cache/.gitkeep
+
+# Database (local only)
+*.db
+*.db-journal
+
+# Logs
+*.log
+backend.pid
 
 # OS
+.DS_Store
 Thumbs.db
-
-.github/workflows/
