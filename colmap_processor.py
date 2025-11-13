@@ -484,14 +484,45 @@ class COLMAPProcessor:
             return stats
             
         except subprocess.CalledProcessError as e:
+            # Log full error details for debugging
+            error_output = e.stderr if e.stderr else e.stdout if e.stdout else "No error output"
+            logger.error(f"❌ Feature matching failed (exit code {e.returncode})")
+            logger.error(f"Command: {' '.join(cmd)}")
+            logger.error(f"Error output: {error_output}")
+            
             # If GPU was attempted and failed, try CPU fallback
-            if actual_use_gpu and "GPU" in str(e.stderr):
+            if actual_use_gpu and ("GPU" in str(error_output) or "CUDA" in str(error_output)):
                 logger.warning(f"⚠️  GPU feature matching failed, retrying with CPU...")
                 self.gpu_available = False  # Disable GPU for future calls
-                return self.match_features(matching_type=matching_type, use_gpu=False, quality=quality)
+                return self.match_features(matching_type=matching_type, use_gpu=False, quality=quality, progress_callback=progress_callback)
             
-            logger.error(f"Feature matching failed: {e.stderr}")
-            raise
+            # If exhaustive matching failed, try sequential matching as fallback
+            if overlap_config["use_exhaustive"] or matching_type == "exhaustive":
+                logger.warning(f"⚠️  Exhaustive matching failed, retrying with sequential matching (overlap=50)...")
+                try:
+                    # Fallback to sequential matching with moderate overlap
+                    fallback_cmd = [
+                        "colmap", "sequential_matcher",
+                        "--database_path", str(self.database_path),
+                        "--SequentialMatching.overlap", "50",  # Moderate overlap
+                    ] + matching_base_params
+                    
+                    if progress_callback:
+                        progress_callback(0, estimated_pairs)
+                    
+                    result = subprocess.run(fallback_cmd, check=True, capture_output=True, text=True, env=self.env)
+                    stats = self._parse_match_stats(result.stdout)
+                    
+                    if progress_callback:
+                        progress_callback(estimated_pairs, estimated_pairs)
+                    
+                    logger.info(f"✅ Feature matching succeeded with sequential fallback: {stats}")
+                    return stats
+                except subprocess.CalledProcessError as fallback_error:
+                    logger.error(f"❌ Sequential fallback also failed: {fallback_error.stderr}")
+            
+            # Re-raise with full error details
+            raise Exception(f"Feature matching failed: {error_output}")
     
     def dense_reconstruction(self, quality: str = "medium", progress_callback=None) -> Dict:
         """
