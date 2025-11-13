@@ -448,11 +448,6 @@ async def get_reconstruction_statistics(scan_id: str):
     except Exception as e:
         logger.error(f"Failed to get reconstruction statistics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting scan details: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/scans/{scan_id}")
 async def delete_scan(scan_id: str):
