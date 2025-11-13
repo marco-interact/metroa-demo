@@ -282,7 +282,7 @@ class COLMAPProcessor:
             },
             "ultra": {
                 "max_num_features": "65536",    # Maximum features
-                "max_image_size": "0",          # Full resolution (no downsampling)
+                "max_image_size": "8192",       # Very high resolution (8K) - max_image_size=0 may not be supported
                 "first_octave": "-1",           # Extract at higher resolution
                 "num_octaves": "4",
                 "peak_threshold": "0.0066",     # Lower threshold for more features
@@ -327,14 +327,52 @@ class COLMAPProcessor:
             return stats
             
         except subprocess.CalledProcessError as e:
+            # Log full error details for debugging
+            error_output = e.stderr if e.stderr else e.stdout if e.stdout else "No error output"
+            logger.error(f"❌ Feature extraction failed (exit code {e.returncode})")
+            logger.error(f"Command: {' '.join(cmd)}")
+            logger.error(f"Error output: {error_output}")
+            
             # If GPU was attempted and failed, try CPU fallback
-            if actual_use_gpu and "GPU" in str(e.stderr):
+            if actual_use_gpu and ("GPU" in str(error_output) or "CUDA" in str(error_output)):
                 logger.warning(f"⚠️  GPU feature extraction failed, retrying with CPU...")
                 self.gpu_available = False  # Disable GPU for future calls
-                return self.extract_features(quality=quality, use_gpu=False)
+                return self.extract_features(quality=quality, use_gpu=False, progress_callback=progress_callback)
             
-            logger.error(f"Feature extraction failed: {e.stderr}")
-            raise
+            # If max_image_size might be the issue, try with a reasonable limit
+            if params["max_image_size"] == "0" or int(params.get("max_image_size", 4096)) > 8192:
+                logger.warning(f"⚠️  Feature extraction failed with max_image_size={params['max_image_size']}, retrying with 8192...")
+                # Create fallback params
+                fallback_params = params.copy()
+                fallback_params["max_image_size"] = "8192"
+                fallback_cmd = [
+                    "colmap", "feature_extractor",
+                    "--database_path", str(self.database_path),
+                    "--image_path", str(self.images_path),
+                    "--ImageReader.single_camera", "1",
+                    "--ImageReader.camera_model", "OPENCV",
+                    "--SiftExtraction.max_num_features", fallback_params["max_num_features"],
+                    "--SiftExtraction.max_image_size", fallback_params["max_image_size"],
+                    "--SiftExtraction.first_octave", fallback_params["first_octave"],
+                    "--SiftExtraction.num_octaves", fallback_params["num_octaves"],
+                    "--SiftExtraction.octave_resolution", "3",
+                    "--SiftExtraction.peak_threshold", fallback_params["peak_threshold"],
+                    "--SiftExtraction.edge_threshold", "10",
+                    "--SiftExtraction.use_gpu", "1" if actual_use_gpu else "0",
+                    "--SiftExtraction.gpu_index", "0",
+                ]
+                try:
+                    result = subprocess.run(fallback_cmd, check=True, capture_output=True, text=True, env=self.env)
+                    stats = self._parse_feature_stats(result.stdout)
+                    if progress_callback:
+                        progress_callback(image_count, image_count)
+                    logger.info(f"✅ Feature extraction succeeded with fallback parameters: {stats}")
+                    return stats
+                except subprocess.CalledProcessError as fallback_error:
+                    logger.error(f"❌ Fallback also failed: {fallback_error.stderr}")
+            
+            # Re-raise with full error details
+            raise Exception(f"Feature extraction failed: {error_output}")
     
     def match_features(self, matching_type: str = "sequential", use_gpu: bool = True, quality: str = "medium", progress_callback=None) -> Dict:
         """
