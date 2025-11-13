@@ -544,17 +544,66 @@ export default function ProjectDetailPage() {
                     </span>
                   </div>
 
-                  {/* Progress bar for processing scans */}
+                  {/* Enhanced Progress Display for processing scans */}
                   {scan.status === 'processing' && (
-                    <div className="mt-2">
-                      <Progress 
-                        value={processingStatus[scan.id]?.progress || 0} 
-                        indicatorColor="bg-yellow-500"
-                        className="h-1.5"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        {processingStatus[scan.id]?.stage || 'Initializing...'}
-                      </p>
+                    <div className="mt-3 space-y-2">
+                      {/* Overall Progress Bar */}
+                      <div>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-gray-400">Overall Progress</span>
+                          <span className="text-white font-semibold">{processingStatus[scan.id]?.progress || 0}%</span>
+                        </div>
+                        <Progress 
+                          value={processingStatus[scan.id]?.progress || 0} 
+                          indicatorColor="bg-blue-500"
+                          className="h-2"
+                        />
+                      </div>
+                      
+                      {/* Current Stage */}
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                        <p className="text-xs text-white font-medium">
+                          {processingStatus[scan.id]?.stage || 'Initializing...'}
+                        </p>
+                      </div>
+                      
+                      {/* Stage Breakdown */}
+                      <div className="grid grid-cols-2 gap-1.5 text-xs">
+                        {[
+                          { name: 'Extracting', range: [0, 10], icon: '📹' },
+                          { name: 'Features', range: [10, 30], icon: '🔍' },
+                          { name: 'Matching', range: [30, 50], icon: '🔗' },
+                          { name: 'Sparse', range: [50, 65], icon: '🏗️' },
+                          { name: 'Dense', range: [65, 90], icon: '🔬' },
+                          { name: 'Finalizing', range: [90, 100], icon: '✅' },
+                        ].map((stage) => {
+                          const progress = processingStatus[scan.id]?.progress || 0
+                          const isActive = progress >= stage.range[0] && progress < stage.range[1]
+                          const isCompleted = progress >= stage.range[1]
+                          const stageProgress = isCompleted ? 100 : 
+                                             isActive ? ((progress - stage.range[0]) / (stage.range[1] - stage.range[0])) * 100 : 0
+                          
+                          return (
+                            <div key={stage.name} className="flex items-center gap-1.5">
+                              <span className={`text-xs ${isCompleted ? 'text-green-400' : isActive ? 'text-blue-400' : 'text-gray-600'}`}>
+                                {isCompleted ? '✓' : isActive ? '⟳' : '○'}
+                              </span>
+                              <span className={`text-xs ${isCompleted ? 'text-green-300' : isActive ? 'text-white' : 'text-gray-500'}`}>
+                                {stage.icon} {stage.name}
+                              </span>
+                              {isActive && (
+                                <div className="flex-1 h-1 bg-gray-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-blue-500 transition-all duration-300"
+                                    style={{ width: `${stageProgress}%` }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
                   

@@ -153,7 +153,7 @@ class COLMAPProcessor:
             logger.warning(f"⚠️  Auto-detection failed: {e}, using defaults")
             return 10.0, 20.0, 200  # Safe defaults
     
-    def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = None, quality: str = "medium") -> int:
+    def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = None, quality: str = "medium", progress_callback=None) -> int:
         """
         Extract frames from video using ffmpeg with AUTO FPS DETECTION
         
@@ -208,6 +208,10 @@ class COLMAPProcessor:
         # Format: %06d for frame numbering
         output_pattern = self.images_path / "frame_%06d.jpg"
         
+        # Call progress callback at start
+        if progress_callback:
+            progress_callback(0, estimated_frames)
+        
         # Use fps filter to extract at specified FPS
         cmd = [
             "ffmpeg", "-i", video_path,
@@ -227,6 +231,11 @@ class COLMAPProcessor:
             
             # Count extracted frames
             frame_count = len(list(self.images_path.glob("*.jpg")))
+            
+            # Call progress callback at completion
+            if progress_callback:
+                progress_callback(frame_count, frame_count)
+            
             logger.info(f"Extracted {frame_count} frames to {self.images_path}")
             return frame_count
             
@@ -234,7 +243,7 @@ class COLMAPProcessor:
             logger.error(f"Frame extraction failed: {e.stderr}")
             raise
     
-    def extract_features(self, quality: str = "medium", use_gpu: bool = True) -> Dict:
+    def extract_features(self, quality: str = "medium", use_gpu: bool = True, progress_callback=None) -> Dict:
         """
         Extract SIFT features from images
         Reference: https://colmap.github.io/tutorial.html#feature-detection-and-extraction
@@ -301,10 +310,19 @@ class COLMAPProcessor:
         ]
         
         try:
+            # Get image count for progress tracking
+            image_count = len(list(self.images_path.glob("*.jpg")))
+            if progress_callback:
+                progress_callback(0, image_count)
+            
             result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=self.env)
             
             # Parse statistics
             stats = self._parse_feature_stats(result.stdout)
+            
+            if progress_callback:
+                progress_callback(image_count, image_count)
+            
             logger.info(f"Feature extraction complete: {stats}")
             return stats
             
@@ -318,7 +336,7 @@ class COLMAPProcessor:
             logger.error(f"Feature extraction failed: {e.stderr}")
             raise
     
-    def match_features(self, matching_type: str = "sequential", use_gpu: bool = True, quality: str = "medium") -> Dict:
+    def match_features(self, matching_type: str = "sequential", use_gpu: bool = True, quality: str = "medium", progress_callback=None) -> Dict:
         """
         Match features between images with geometric verification
         
@@ -404,10 +422,26 @@ class COLMAPProcessor:
             ] + matching_base_params
         
         try:
+            # Estimate image pairs for progress tracking
+            image_count = len(list(self.images_path.glob("*.jpg")))
+            if overlap_config["use_exhaustive"]:
+                # Exhaustive: n*(n-1)/2 pairs
+                estimated_pairs = (image_count * (image_count - 1)) // 2
+            else:
+                # Sequential: overlap * image_count
+                estimated_pairs = int(overlap_config["overlap"]) * image_count
+            
+            if progress_callback:
+                progress_callback(0, estimated_pairs)
+            
             result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=self.env)
             
             # Parse match statistics
             stats = self._parse_match_stats(result.stdout)
+            
+            if progress_callback:
+                progress_callback(estimated_pairs, estimated_pairs)
+            
             logger.info(f"Feature matching complete: {stats}")
             return stats
             
@@ -421,7 +455,7 @@ class COLMAPProcessor:
             logger.error(f"Feature matching failed: {e.stderr}")
             raise
     
-    def dense_reconstruction(self, quality: str = "medium") -> Dict:
+    def dense_reconstruction(self, quality: str = "medium", progress_callback=None) -> Dict:
         """
         Dense Stereo Reconstruction
         Reference: https://colmap.github.io/tutorial.html#dense-reconstruction
@@ -438,6 +472,8 @@ class COLMAPProcessor:
         # Step 1: Image Undistortion
         # Undistort images using sparse reconstruction camera parameters
         logger.info("📸 Undistorting images...")
+        if progress_callback:
+            progress_callback("Undistorting images...", 0)
         undistorted_path = self.dense_path / "undistorted"
         
         undistort_cmd = [
@@ -452,12 +488,16 @@ class COLMAPProcessor:
         try:
             subprocess.run(undistort_cmd, check=True, capture_output=True, text=True, env=self.env)
             logger.info("✅ Image undistortion complete")
+            if progress_callback:
+                progress_callback("Undistortion complete", 33)
         except subprocess.CalledProcessError as e:
             logger.error(f"Image undistortion failed: {e.stderr}")
             raise
         
         # Step 2: Patch Match Stereo (Dense depth estimation)
         logger.info("🔍 Running patch match stereo...")
+        if progress_callback:
+            progress_callback("Patch match stereo...", 33)
         
         # Quality-based stereo parameters - OPTIMIZED FOR RTX 4090
         # RTX 4090 excels at parallel patch matching - maximize quality
@@ -536,6 +576,8 @@ class COLMAPProcessor:
         try:
             subprocess.run(stereo_cmd, check=True, capture_output=True, text=True, env=self.env)
             logger.info("✅ Patch match stereo complete")
+            if progress_callback:
+                progress_callback("Patch match stereo complete", 66)
         except subprocess.CalledProcessError as e:
             logger.warning(f"⚠️  Patch match stereo failed: {e.stderr}")
             logger.warning("Skipping dense reconstruction, using sparse only")
@@ -543,6 +585,8 @@ class COLMAPProcessor:
         
         # Step 3: Stereo Fusion (Create dense point cloud)
         logger.info("🔗 Fusing depth maps...")
+        if progress_callback:
+            progress_callback("Fusing depth maps...", 66)
         
         # Quality-based fusion parameters - fine-tuned for precision and density
         # Enhanced for 5M-20M point target (ultra quality)
@@ -621,7 +665,7 @@ class COLMAPProcessor:
             logger.warning(f"⚠️  Stereo fusion failed: {e.stderr}")
             return {"status": "failed", "error": str(e)}
     
-    def sparse_reconstruction(self, quality: str = "medium") -> Dict:
+    def sparse_reconstruction(self, quality: str = "medium", progress_callback=None) -> Dict:
         """
         Incremental Structure-from-Motion reconstruction
         

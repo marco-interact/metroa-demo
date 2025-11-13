@@ -103,34 +103,70 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         processor = COLMAPProcessor(str(results_dir))
         
         # Step 1: Extract frames from video with AUTO FPS DETECTION
-        update_scan_status(scan_id, "processing", progress=5, stage="Extracting frames from video...")
+        update_scan_status(scan_id, "processing", progress=2, stage="Extracting frames from video...")
         logger.info(f"📹 Extracting frames from {video_path}")
+        
+        # Progress tracking for frame extraction (0-10%)
+        def frame_progress_callback(current, total):
+            if total > 0:
+                progress_pct = 2 + int((current / total) * 8)  # 2-10%
+                update_scan_status(scan_id, "processing", progress=progress_pct, 
+                                stage=f"Extracting frames from video... ({current}/{total})")
+        
         frame_count = processor.extract_frames(
             video_path=str(video_path),
             target_fps=None,  # Enable auto FPS detection
-            quality=quality
+            quality=quality,
+            progress_callback=frame_progress_callback
         )
+        update_scan_status(scan_id, "processing", progress=10, stage=f"Extracted {frame_count} frames")
         logger.info(f"✅ Extracted {frame_count} frames")
         
         if frame_count < 3:
             raise Exception(f"Not enough frames extracted: {frame_count}. Need at least 3.")
         
         # Step 2: Extract SIFT features
-        update_scan_status(scan_id, "processing", progress=15, stage="Extracting SIFT features...")
+        update_scan_status(scan_id, "processing", progress=10, stage="Extracting SIFT features...")
         logger.info(f"🔍 Extracting SIFT features")
-        feature_stats = processor.extract_features(quality=quality)
+        
+        # Progress tracking for feature extraction (10-30%)
+        def feature_progress_callback(current, total):
+            if total > 0:
+                progress_pct = 10 + int((current / total) * 20)  # 10-30%
+                update_scan_status(scan_id, "processing", progress=progress_pct,
+                                stage=f"Extracting SIFT features... ({current}/{total} images)")
+        
+        feature_stats = processor.extract_features(quality=quality, progress_callback=feature_progress_callback)
+        update_scan_status(scan_id, "processing", progress=30, stage="Feature extraction complete")
         logger.info(f"✅ Feature extraction: {feature_stats}")
         
         # Step 3: Match features
-        update_scan_status(scan_id, "processing", progress=35, stage="Matching features between images...")
+        update_scan_status(scan_id, "processing", progress=30, stage="Matching features between images...")
         logger.info(f"🔗 Matching features")
-        match_stats = processor.match_features(quality=quality)
+        
+        # Progress tracking for feature matching (30-50%)
+        def match_progress_callback(current, total):
+            if total > 0:
+                progress_pct = 30 + int((current / total) * 20)  # 30-50%
+                update_scan_status(scan_id, "processing", progress=progress_pct,
+                                stage=f"Matching features... ({current}/{total} pairs)")
+        
+        match_stats = processor.match_features(quality=quality, progress_callback=match_progress_callback)
+        update_scan_status(scan_id, "processing", progress=50, stage="Feature matching complete")
         logger.info(f"✅ Feature matching: {match_stats}")
         
         # Step 4: Sparse reconstruction
-        update_scan_status(scan_id, "processing", progress=55, stage="Running sparse reconstruction...")
+        update_scan_status(scan_id, "processing", progress=50, stage="Running sparse reconstruction...")
         logger.info(f"🏗️ Running sparse reconstruction")
-        reconstruction_stats = processor.sparse_reconstruction(quality=quality)
+        
+        # Progress tracking for sparse reconstruction (50-65%)
+        def sparse_progress_callback(stage_name, progress_pct):
+            overall_pct = 50 + int(progress_pct * 0.15)  # 50-65%
+            update_scan_status(scan_id, "processing", progress=overall_pct,
+                            stage=f"Sparse reconstruction: {stage_name}")
+        
+        reconstruction_stats = processor.sparse_reconstruction(quality=quality, progress_callback=sparse_progress_callback)
+        update_scan_status(scan_id, "processing", progress=65, stage="Sparse reconstruction complete")
         logger.info(f"✅ Sparse reconstruction: {reconstruction_stats}")
         
         # Extract sparse reconstruction metrics
@@ -142,12 +178,16 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         # Medium: Fast dense (~1-2 min), High: Quality dense (~2-4 min), Ultra: Maximum quality (~4-8 min)
         ply_path = None
         if quality in ["medium", "high", "ultra"]:
-            update_scan_status(scan_id, "processing", progress=70, stage="Running dense reconstruction (undistorting images)...")
             logger.info(f"🔬 Running DENSE reconstruction ({quality} quality mode)...")
             
-            # Dense reconstruction has multiple sub-stages
-            update_scan_status(scan_id, "processing", progress=75, stage="Running dense reconstruction (patch match stereo)...")
-            dense_stats = processor.dense_reconstruction(quality=quality)
+            # Progress tracking for dense reconstruction (65-90%)
+            def dense_progress_callback(stage_name, progress_pct):
+                overall_pct = 65 + int(progress_pct * 0.25)  # 65-90%
+                update_scan_status(scan_id, "processing", progress=overall_pct,
+                                stage=f"Dense reconstruction: {stage_name}")
+            
+            update_scan_status(scan_id, "processing", progress=65, stage="Dense reconstruction: Undistorting images...")
+            dense_stats = processor.dense_reconstruction(quality=quality, progress_callback=dense_progress_callback)
             logger.info(f"✅ Dense reconstruction: {dense_stats}")
             
             if dense_stats.get("status") == "success" and dense_stats.get("dense_ply"):
