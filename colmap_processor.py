@@ -381,7 +381,8 @@ class COLMAPProcessor:
             "--image_path", str(self.images_path),
             "--input_path", str(self.sparse_path / "0"),  # Use model 0
             "--output_path", str(undistorted_path),
-            "--output_type", "COLMAP"  # Keep COLMAP format
+            "--output_type", "COLMAP",  # Keep COLMAP format
+            "--DenseMapperOptions.max_image_size", "0"  # 0 = no downsampling, full resolution
         ]
         
         try:
@@ -431,6 +432,8 @@ class COLMAPProcessor:
             "colmap", "patch_match_stereo",
             "--workspace_path", str(undistorted_path),
             "--workspace_format", "COLMAP",
+            # CRITICAL: Prevent image downsampling - full resolution processing
+            "--DenseMapperOptions.max_image_size", "0",  # 0 = no downsampling
             # Window parameters - control matching patch size
             "--PatchMatchStereo.window_radius", stereo_params["window_radius"],
             "--PatchMatchStereo.window_step", stereo_params["window_step"],
@@ -463,17 +466,42 @@ class COLMAPProcessor:
         # Step 3: Stereo Fusion (Create dense point cloud)
         logger.info("🔗 Fusing depth maps...")
         
+        # Quality-based fusion parameters - fine-tuned for precision and density
+        fusion_params = {
+            "low": {
+                "max_reproj_error": "2.0",      # Reduced for precision
+                "max_depth_error": "0.015",      # Fine-tuned
+                "max_normal_error": "12"         # Fine-tuned
+            },
+            "medium": {
+                "max_reproj_error": "1.5",      # Reduced for better precision
+                "max_depth_error": "0.012",      # Fine-tuned for accuracy
+                "max_normal_error": "10"         # Fine-tuned
+            },
+            "high": {
+                "max_reproj_error": "1.2",      # Strictest for maximum precision
+                "max_depth_error": "0.01",       # Very precise depth matching
+                "max_normal_error": "8"          # Strict normal consistency
+            }
+        }
+        fusion_quality_params = fusion_params.get(quality, fusion_params["medium"])
+        
         fusion_cmd = [
             "colmap", "stereo_fusion",
             "--workspace_path", str(undistorted_path),
             "--workspace_format", "COLMAP",
             "--input_type", "geometric",
             "--output_path", str(self.dense_path / "fused.ply"),
-            # OPTIMIZED FOR MAXIMUM DENSITY - RTX 4090 can handle it
+            # CRITICAL: Prevent image downsampling during fusion
+            "--DenseMapperOptions.max_image_size", "0",  # 0 = no downsampling
+            # OPTIMIZED FOR MAXIMUM DENSITY AND PRECISION - RTX 4090 can handle it
             "--StereoFusion.min_num_pixels", "3",      # Lower = more points (was 4)
-            "--StereoFusion.max_reproj_error", "2.5",  # Slightly relaxed for more points
-            "--StereoFusion.max_depth_error", "0.02",  # Relaxed for more density
-            "--StereoFusion.max_normal_error", "15",   # Relaxed for more points
+            # Reduced reprojection error for more precise point fusion
+            "--StereoFusion.max_reproj_error", fusion_quality_params["max_reproj_error"],
+            # Fine-tuned depth error for better accuracy
+            "--StereoFusion.max_depth_error", fusion_quality_params["max_depth_error"],
+            # Fine-tuned normal error for better surface consistency
+            "--StereoFusion.max_normal_error", fusion_quality_params["max_normal_error"],
             # Additional fusion parameters for better quality
             "--StereoFusion.check_num_images", "50",   # Check consistency across many images
             "--StereoFusion.use_cache", "true",        # Speed up with caching
@@ -566,11 +594,11 @@ class COLMAPProcessor:
             
             # Point Filtering
             "--Mapper.filter_max_reproj_error", mapper_params["filter_max_reproj_error"],
-            "--Mapper.filter_min_tri_angle", "1.5",
+            "--Mapper.filter_min_tri_angle", "1.5",  # Filter unstable points with small triangulation angles
             "--Mapper.min_num_matches", mapper_params["min_num_matches"],
             
-            # Triangulation
-            "--Mapper.tri_min_angle", "1.5",
+            # Triangulation - filter unstable 3D points
+            "--Mapper.tri_min_angle", "1.5",  # Minimum triangulation angle (degrees) for new points
             "--Mapper.tri_ignore_two_view_tracks", "0",  # Include 2-view tracks
             "--Mapper.tri_max_transitivity", "2",
             
