@@ -410,8 +410,8 @@ class COLMAPProcessor:
             "--image_path", str(self.images_path),
             "--input_path", str(self.sparse_path / "0"),  # Use model 0
             "--output_path", str(undistorted_path),
-            "--output_type", "COLMAP",  # Keep COLMAP format
-            "--DenseMapperOptions.max_image_size", "0"  # 0 = no downsampling, full resolution
+            "--output_type", "COLMAP"  # Keep COLMAP format
+            # Note: max_image_size is set in patch_match_stereo, not here
         ]
         
         try:
