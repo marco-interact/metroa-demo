@@ -245,8 +245,8 @@ function Enhanced3DViewer({
 export default function ScanDetailPage() {
   const router = useRouter()
   const params = useParams()
-  const projectId = params.id as string
-  const scanId = params.scanId as string
+  const projectId = params?.id as string
+  const scanId = params?.scanId as string
   
   const [scan, setScan] = useState<Scan | null>(null)
   const [userName, setUserName] = useState("")
@@ -276,7 +276,20 @@ export default function ScanDetailPage() {
     })
   }, [])
 
+  // Validate params before proceeding
   useEffect(() => {
+    if (!projectId || !scanId) {
+      console.error('❌ Missing required params:', { projectId, scanId })
+      router.push('/dashboard')
+      return
+    }
+  }, [projectId, scanId, router])
+
+  useEffect(() => {
+    if (!projectId || !scanId) {
+      return // Don't proceed if params are missing
+    }
+
     const token = localStorage.getItem('auth_token')
     const email = localStorage.getItem('user_email')
     
@@ -292,7 +305,7 @@ export default function ScanDetailPage() {
     }
 
     loadScanData()
-  }, [router])
+  }, [router, projectId, scanId])
   
   // Poll for scan updates when status is processing
   useEffect(() => {
@@ -350,6 +363,11 @@ export default function ScanDetailPage() {
   }
 
   const loadScanData = async () => {
+    if (!projectId || !scanId) {
+      console.error('❌ Cannot load scan data - missing params:', { projectId, scanId })
+      return
+    }
+
     try {
       console.log('🔄 Loading scan data for:', scanId)
       
