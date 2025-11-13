@@ -197,7 +197,7 @@ result = db.setup_demo_data()
 if result['status'] == 'success':
     print(f"✅ Demo data setup: {result['message']}")
     print(f"   Project: Reconstruction Test Project 1")
-    print(f"   Scans: 2 (Dollhouse Interior + Facade Architecture)")
+    print(f"   Scans: 1 (Dollhouse Scan)")
 else:
     print(f"⚠️  Demo data setup: {result.get('message', 'Unknown error')}")
 PYEOF

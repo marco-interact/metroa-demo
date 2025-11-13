@@ -530,7 +530,7 @@ async def delete_scan(scan_id: str):
         scan_dict = dict(scan)
         
         # Don't allow deleting demo scans
-        if scan_dict.get('name') in ['demoscan-dollhouse', 'demoscan-fachada']:
+        if scan_dict.get('name') in ['Dollhouse Scan', 'demoscan-dollhouse']:
             conn.close()
             raise HTTPException(status_code=403, detail="Cannot delete demo scans")
         

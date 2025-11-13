@@ -380,8 +380,7 @@ vercel --prod
 
 **Project:** Reconstruction Test Project 1  
 **Scans:**
-1. Dollhouse Interior Scan (~1M points)
-2. Facade Architecture Scan (~890K points)
+1. Dollhouse Scan (~1M points)
 
 Demo files located in: `demo-resources/`
 

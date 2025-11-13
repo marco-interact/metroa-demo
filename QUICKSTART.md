@@ -88,7 +88,7 @@ open https://metroa-demo.vercel.app
 
 **Expected:**
 - ✅ 1 project: "Reconstruction Test Project 1"
-- ✅ 2 scans: Dollhouse Interior + Facade Architecture
+- ✅ 1 scan: Dollhouse Scan
 - ✅ 3D viewer works
 - ✅ Measurement tool with blue/green indicators
 - ✅ "Back to Scans" button works

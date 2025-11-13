@@ -121,7 +121,7 @@ open https://metroa-demo.vercel.app
 **Checklist:**
 - [ ] Frontend loads without errors
 - [ ] Dashboard shows "Reconstruction Test Project 1"
-- [ ] 2 demo scans visible (Dollhouse + Facade)
+- [ ] 1 demo scan visible (Dollhouse)
 - [ ] Can click into scans
 - [ ] 3D viewer loads point clouds
 - [ ] Measurement tool works (blue/green indicators)
@@ -199,7 +199,7 @@ curl https://k0r2cn19yf6osw-8888.proxy.runpod.net/api/status
 
 ✅ **Backend:**
 - Health check returns 200
-- Demo data loaded (1 project, 2 scans)
+- Demo data loaded (1 project, 1 scan)
 - GPU detected (or CPU fallback active)
 - Logs show no errors
 
