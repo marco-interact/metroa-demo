@@ -529,7 +529,7 @@ class Database:
             # Demo scan configurations
             demo_scans = [
                 {
-                    "name": "Dollhouse Interior Scan",
+                    "name": "Dollhouse Scan",
                     "video_filename": "dollhouse-interior.mp4",
                     "video_size": 18432000,  # ~18MB
                     "ply_file": "demoscan-dollhouse/fvtc_firstfloor_processed.ply",
@@ -537,16 +537,6 @@ class Database:
                     "thumbnail": "thumbnails/demoscan-dollhouse-thumb.jpg",
                     "point_count": 1045892,
                     "camera_count": 48
-                },
-                {
-                    "name": "Facade Architecture Scan",
-                    "video_filename": "facade-exterior.mp4",
-                    "video_size": 24576000,  # ~24MB
-                    "ply_file": "demoscan-fachada/1mill.ply",
-                    "glb_file": "demoscan-fachada/aleppo_destroyed_building_front.glb",
-                    "thumbnail": "thumbnails/demoscan-fachada-thumb.jpg",
-                    "point_count": 892847,
-                    "camera_count": 36
                 }
             ]
             

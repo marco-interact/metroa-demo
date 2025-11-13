@@ -122,9 +122,6 @@ function Enhanced3DViewer({
     if (scan.name?.toLowerCase().includes('dollhouse')) {
       return `${backendProxyPrefix}/demo-resources/demoscan-dollhouse/fvtc_firstfloor_processed.ply`
     }
-    if (scan.name?.toLowerCase().includes('facade') || scan.name?.toLowerCase().includes('fachada')) {
-      return `${backendProxyPrefix}/demo-resources/demoscan-fachada/1mill.ply`
-    }
     
     // Priority 4: Default fallback
     return `${backendProxyPrefix}/demo-resources/demoscan-dollhouse/fvtc_firstfloor_processed.ply`
