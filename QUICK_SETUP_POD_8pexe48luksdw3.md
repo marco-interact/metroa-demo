@@ -96,10 +96,15 @@ vercel --prod
 - **Pod ID:** `8pexe48luksdw3`
 - **Name:** `metroa_worker_gpu`
 - **GPU:** RTX 4090 (24GB VRAM)
-- **Port:** 8888
+- **Port:** 8888 (Backend API)
+- **Port:** 8888 (Jupyter Lab)
 - **Volume:** `metroa-volume` (mvmh2mg1pt) - **SAME VOLUME**
-- **SSH:** `ssh root@203.57.40.132 -p 10164 -i ~/.ssh/id_ed25519`
+- **SSH Public Key:** `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHNBJaFmISOLjiFilSH5ROHAzqyURW7j61vXnVhMebYn`
+- **Jupyter Password:** `8mt1655csdm6mvvacmap`
+- **SSH Gateway:** `ssh 8pexe48luksdw3-64411de4@ssh.runpod.io -i ~/.ssh/id_ed25519`
+- **SSH Direct:** `ssh root@203.57.40.132 -p 10164 -i ~/.ssh/id_ed25519`
 - **Public URL:** `https://8pexe48luksdw3-8888.proxy.runpod.net`
+- **Jupyter Lab:** `https://8pexe48luksdw3-8888.proxy.runpod.net` (use password above)
 
 ---
 
