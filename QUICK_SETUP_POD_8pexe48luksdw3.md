@@ -6,10 +6,24 @@
 
 ## 🎯 One-Command Setup
 
-### Step 1: SSH into New Pod
+### Step 1: Access New Pod
 
+**Option A: RunPod Web Terminal (Easiest)**
+1. Go to [RunPod Dashboard](https://www.runpod.io/console/pods)
+2. Find pod `8pexe48luksdw3`
+3. Click "Connect" → "Web Terminal"
+4. You're now in the pod terminal!
+
+**Option B: SSH from Your Mac**
 ```bash
+# From your Mac terminal (not from RunPod)
 ssh root@203.57.40.132 -p 10164 -i ~/.ssh/id_ed25519
+```
+
+**Option C: RunPod SSH Gateway**
+```bash
+# From your Mac terminal
+ssh 8pexe48luksdw3-64411de4@ssh.runpod.io -i ~/.ssh/id_ed25519
 ```
 
 ### Step 2: Run Automated Setup
