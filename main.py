@@ -1209,9 +1209,9 @@ async def get_reconstruction_status(job_id: str):
         # Use current_stage if available, otherwise map from status
         if not current_stage and status in stage_mapping:
             current_stage = stage_mapping[status]
-    
-    return {
-        "job_id": job_id,
+        
+        return {
+            "job_id": job_id,
             "status": overall_status,
             "message": current_stage or "Processing...",
             "progress": progress,
