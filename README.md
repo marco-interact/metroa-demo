@@ -6,10 +6,36 @@ Professional videogrammetry platform powered by COLMAP and Next.js. Upload video
 
 ## 🚀 Quick Start
 
-### RunPod Deployment
+### Option 1: Docker Image (Recommended for Production)
+
+**Pre-built GPU image with COLMAP + OpenMVS + Open3D**
+
+```bash
+# Build the image
+make build
+# or
+./docker-build.sh
+
+# Run locally (requires GPU)
+docker run --gpus all -p 8888:8888 metroa-backend:latest
+
+# Test health endpoint
+curl http://localhost:8888/health
+```
+
+**For RunPod:**
+1. Build and push image to your registry
+2. Update RunPod template to use: `metroa-backend:latest`
+3. Configure volumes: `/workspace/data` → persistent storage
+
+See [INFRA.md](./INFRA.md) for detailed Docker documentation.
+
+---
+
+### Option 2: RunPod Script Setup (Legacy)
 
 **Pod Specifications:**
-- Pod ID: `k0r2cn19yf6osw`
+- Pod ID: `8pexe48luksdw3`
 - GPU: RTX 4090 (24GB VRAM)
 - Volume: `metroa-volume` (mvmh2mg1pt)
 - Port: 8888
@@ -19,7 +45,7 @@ Professional videogrammetry platform powered by COLMAP and Next.js. Upload video
 
 ```bash
 # SSH into pod
-ssh root@203.57.40.216 -p 10091 -i ~/.ssh/id_ed25519
+ssh root@203.57.40.132 -p 10164 -i ~/.ssh/id_ed25519
 
 # Run master setup script
 cd /workspace
@@ -40,7 +66,7 @@ This script will:
 
 **Backend URL:**
 ```
-https://k0r2cn19yf6osw-8888.proxy.runpod.net
+https://8pexe48luksdw3-8888.proxy.runpod.net
 ```
 
 ---

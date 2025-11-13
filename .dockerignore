@@ -1,8 +1,11 @@
 # Don't copy these to Docker image
 
-# Node modules
+# Node modules (frontend)
 node_modules/
 npm-debug.log*
+.next/
+out/
+dist/
 
 # Python
 __pycache__/
@@ -14,15 +17,17 @@ venv/
 venv-local/
 env/
 ENV/
+*.egg-info/
 
 # Data directories (these should use volumes)
 data/
-# demo-resources/ - INCLUDED for demo scans
+workspace/
 
 # Logs
 *.log
 backend.log
 frontend.log
+logs/
 
 # Database (use volume or external DB)
 *.db
@@ -40,25 +45,54 @@ colmap.db
 .DS_Store
 Thumbs.db
 
-# Git
+# Git (keep .gitignore for reference)
 .git/
 .gitignore
 
-# Documentation
+# Documentation (keep only essential)
 docs/
-README.md
 *.md
+!README.md
 
-# Scripts
+# Scripts (not needed in container)
 scripts/
 *.sh
+!build-colmap-gpu-fixed.sh  # Keep for reference if needed
 
-# Config files not needed in backend container
+# Config files (use environment variables)
 .env
 .env.local
+.env.production
 
 # Fonts
 JetBrains_Mono/
 
-# Note: Frontend files (src/, public/, package.json) are NOT excluded
-# They are needed for frontend Dockerfile builds
+# Build artifacts
+build/
+colmap/
+openmvs/
+*.o
+*.a
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Test files
+test/
+tests/
+*_test.py
+*_test_*.py
+
+# Frontend build artifacts (not needed for backend)
+src/
+public/
+package.json
+package-lock.json
+tsconfig.json
+tailwind.config.ts
+next.config.js
+vercel.json
+
+# Note: demo-resources/ IS included (needed for demo scans)
