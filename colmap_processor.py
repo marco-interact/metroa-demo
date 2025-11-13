@@ -436,7 +436,6 @@ class COLMAPProcessor:
             "--SiftMatching.max_ratio", "0.8",      # Lower = more selective matches
             "--SiftMatching.max_distance", "0.7",   # Maximum feature distance
             "--SiftMatching.cross_check", "1",      # Enable cross-checking for robustness
-            "--SiftMatching.max_error", "4.0",       # Maximum geometric error
             "--SiftMatching.use_gpu", "1" if actual_use_gpu else "0",
             "--SiftMatching.gpu_index", "0",
             "--SiftMatching.max_num_matches", match_params["max_num_matches"],
