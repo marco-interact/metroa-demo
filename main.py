@@ -395,11 +395,15 @@ async def get_scan_details(scan_id: str):
             
             scan_dict['results'] = {
                 'point_cloud_url': point_cloud_url,
+                'mesh_url': f"/demo-resources/{scan_dict['glb_file']}" if scan_dict.get('glb_file') and not scan_dict['glb_file'].startswith('/') else None,
+                'thumbnail_url': f"/demo-resources/{scan_dict['thumbnail']}" if scan_dict.get('thumbnail') and not scan_dict['thumbnail'].startswith('/') else None
             }
         
         return scan_dict
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to get scan details: {e}")
+        logger.error(f"Error getting scan details: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/reconstruction/{scan_id}/statistics")
@@ -444,11 +448,6 @@ async def get_reconstruction_statistics(scan_id: str):
     except Exception as e:
         logger.error(f"Failed to get reconstruction statistics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-                'mesh_url': f"/demo-resources/{scan_dict['glb_file']}" if scan_dict.get('glb_file') and not scan_dict['glb_file'].startswith('/') else None,
-                'thumbnail_url': f"/demo-resources/{scan_dict['thumbnail']}" if scan_dict.get('thumbnail') and not scan_dict['thumbnail'].startswith('/') else None
-            }
-        
-        return scan_dict
     except HTTPException:
         raise
     except Exception as e:
