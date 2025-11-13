@@ -649,6 +649,8 @@ class COLMAPProcessor:
         try:
             subprocess.run(fusion_cmd, check=True, capture_output=True, text=True, env=self.env)
             logger.info("✅ Stereo fusion complete - Dense point cloud created")
+            if progress_callback:
+                progress_callback("Fusion complete", 100)
             
             # Check if dense point cloud exists
             dense_ply = self.dense_path / "fused.ply"
