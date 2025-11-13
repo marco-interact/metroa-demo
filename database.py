@@ -118,6 +118,27 @@ class Database:
                 )
             ''')
             
+            # Reconstruction metrics table (detailed statistics for dense reconstruction)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS reconstruction_metrics (
+                    scan_id TEXT PRIMARY KEY,
+                    quality_mode TEXT NOT NULL,
+                    sparse_points INTEGER,
+                    dense_points INTEGER,
+                    density_multiplier REAL,
+                    registered_images INTEGER,
+                    total_images INTEGER,
+                    registration_rate REAL,
+                    avg_reproj_error REAL,
+                    avg_track_length REAL,
+                    coverage_percentage REAL,
+                    processing_time_seconds REAL,
+                    quality_grade TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (scan_id) REFERENCES scans (id)
+                )
+            ''')
+            
             conn.commit()
             logger.info("Database initialized successfully")
             
@@ -616,6 +637,95 @@ class Database:
             }
         finally:
             conn.close()
+    
+    def save_reconstruction_metrics(self, scan_id: str, metrics: Dict[str, Any]):
+        """
+        Save detailed reconstruction metrics for dense reconstruction analysis
+        
+        Args:
+            scan_id: Scan ID
+            metrics: Dictionary with metrics:
+                - quality_mode: str (low/medium/high/ultra)
+                - sparse_points: int
+                - dense_points: int
+                - registered_images: int
+                - total_images: int
+                - avg_reproj_error: float
+                - avg_track_length: float
+                - coverage_percentage: float
+                - processing_time_seconds: float
+        """
+        conn = self.get_connection()
+        try:
+            # Calculate derived metrics
+            sparse_points = metrics.get('sparse_points', 0)
+            dense_points = metrics.get('dense_points', 0)
+            density_multiplier = dense_points / max(sparse_points, 1)
+            
+            registered_images = metrics.get('registered_images', 0)
+            total_images = metrics.get('total_images', 0)
+            registration_rate = registered_images / max(total_images, 1)
+            
+            # Calculate quality grade
+            quality_grade = self._calculate_quality_grade(metrics)
+            
+            # Insert or replace metrics
+            conn.execute('''
+                INSERT OR REPLACE INTO reconstruction_metrics 
+                (scan_id, quality_mode, sparse_points, dense_points, density_multiplier,
+                 registered_images, total_images, registration_rate, avg_reproj_error,
+                 avg_track_length, coverage_percentage, processing_time_seconds, quality_grade)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                scan_id,
+                metrics.get('quality_mode', 'medium'),
+                sparse_points,
+                dense_points,
+                density_multiplier,
+                registered_images,
+                total_images,
+                registration_rate,
+                metrics.get('avg_reproj_error', 0.0),
+                metrics.get('avg_track_length', 0.0),
+                metrics.get('coverage_percentage', 0.0),
+                metrics.get('processing_time_seconds', 0.0),
+                quality_grade
+            ))
+            conn.commit()
+            logger.info(f"Saved reconstruction metrics for scan {scan_id}: {dense_points} dense points ({density_multiplier:.1f}x multiplier)")
+        except Exception as e:
+            logger.error(f"Failed to save reconstruction metrics: {e}")
+        finally:
+            conn.close()
+    
+    def get_reconstruction_metrics(self, scan_id: str) -> Optional[Dict]:
+        """Get reconstruction metrics for a scan"""
+        conn = self.get_connection()
+        try:
+            row = conn.execute('SELECT * FROM reconstruction_metrics WHERE scan_id = ?', (scan_id,)).fetchone()
+            if row:
+                return dict(row)
+            return None
+        finally:
+            conn.close()
+    
+    def _calculate_quality_grade(self, metrics: Dict[str, Any]) -> str:
+        """Calculate quality grade based on metrics"""
+        density_multiplier = metrics.get('dense_points', 0) / max(metrics.get('sparse_points', 1), 1)
+        registration_rate = metrics.get('registered_images', 0) / max(metrics.get('total_images', 1), 1)
+        avg_reproj_error = metrics.get('avg_reproj_error', 10.0)
+        
+        # Grade based on multiple factors
+        if density_multiplier >= 50 and registration_rate >= 0.8 and avg_reproj_error < 1.0:
+            return "A+"
+        elif density_multiplier >= 30 and registration_rate >= 0.7 and avg_reproj_error < 1.5:
+            return "A"
+        elif density_multiplier >= 20 and registration_rate >= 0.6 and avg_reproj_error < 2.0:
+            return "B"
+        elif density_multiplier >= 10 and registration_rate >= 0.5:
+            return "C"
+        else:
+            return "D"
 
 # Global database instance
 db = Database()

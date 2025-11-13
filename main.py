@@ -67,9 +67,13 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
     """
     Background task to process COLMAP reconstruction
     This runs asynchronously after video upload
+    Enhanced with statistics tracking for dense reconstruction analysis
     """
+    import time
+    start_time = time.time()
+    
     try:
-        logger.info(f"🚀 Starting COLMAP reconstruction for scan {scan_id}")
+        logger.info(f"🚀 Starting COLMAP reconstruction for scan {scan_id} (quality={quality})")
         update_scan_status(scan_id, "extracting_frames")
         
         # Create results directory
@@ -109,12 +113,17 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         reconstruction_stats = processor.sparse_reconstruction(quality=quality)
         logger.info(f"✅ Sparse reconstruction: {reconstruction_stats}")
         
-        # Step 5: Dense reconstruction (OPTIONAL - only for "high" quality)
-        # Dense takes 15-30 minutes, sparse is fast (~2 min total)
+        # Extract sparse reconstruction metrics
+        sparse_points = reconstruction_stats.get("best_model_points", 0)
+        registered_images = reconstruction_stats.get("stats", {}).get("registered_images", 0)
+        total_images = frame_count
+        
+        # Step 5: Dense reconstruction (enabled for medium/high/ultra quality)
+        # Medium: Fast dense (~1-2 min), High: Quality dense (~2-4 min), Ultra: Maximum quality (~4-8 min)
         ply_path = None
-        if quality == "high":
+        if quality in ["medium", "high", "ultra"]:
             update_scan_status(scan_id, "dense_reconstruction")
-            logger.info(f"🔬 Running DENSE reconstruction (high quality mode)...")
+            logger.info(f"🔬 Running DENSE reconstruction ({quality} quality mode)...")
             dense_stats = processor.dense_reconstruction(quality=quality)
             logger.info(f"✅ Dense reconstruction: {dense_stats}")
             
@@ -129,7 +138,54 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
             ply_path = processor.export_model(output_format="PLY")
             logger.info(f"✅ Exported sparse PLY: {ply_path}")
         
-        # Step 6: Update database with PLY file path
+        # Step 7: Count points in PLY file for statistics
+        dense_points = 0
+        if ply_path and ply_path.exists():
+            try:
+                # Count points in PLY file (simple header parsing)
+                with open(ply_path, 'rb') as f:
+                    header_lines = []
+                    for _ in range(100):  # Read first 100 lines for header
+                        line = f.readline().decode('utf-8', errors='ignore')
+                        header_lines.append(line.strip())
+                        if 'end_header' in line.lower():
+                            break
+                    
+                    # Find vertex count in header
+                    for line in header_lines:
+                        if 'element vertex' in line.lower():
+                            dense_points = int(line.split()[-1])
+                            break
+            except Exception as e:
+                logger.warning(f"Could not count points in PLY: {e}")
+                # Fallback: estimate from file size (rough approximation)
+                if ply_path.exists():
+                    file_size_mb = ply_path.stat().st_size / (1024 * 1024)
+                    dense_points = int(file_size_mb * 100000)  # Rough estimate: 100K points per MB
+        
+        # Step 8: Calculate processing time
+        processing_time = time.time() - start_time
+        
+        # Step 9: Save reconstruction metrics
+        try:
+            from database import db
+            metrics = {
+                "quality_mode": quality,
+                "sparse_points": sparse_points,
+                "dense_points": dense_points,
+                "registered_images": registered_images,
+                "total_images": total_images,
+                "avg_reproj_error": reconstruction_stats.get("stats", {}).get("avg_reproj_error", 0.0),
+                "avg_track_length": reconstruction_stats.get("stats", {}).get("avg_track_length", 0.0),
+                "coverage_percentage": (registered_images / max(total_images, 1)) * 100,
+                "processing_time_seconds": processing_time
+            }
+            db.save_reconstruction_metrics(scan_id, metrics)
+            logger.info(f"📊 Saved metrics: {dense_points:,} dense points ({dense_points/max(sparse_points,1):.1f}x multiplier)")
+        except Exception as e:
+            logger.warning(f"Could not save reconstruction metrics: {e}")
+        
+        # Step 10: Update database with PLY file path
         conn = get_db_connection()
         try:
             conn.execute(
@@ -140,7 +196,7 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         finally:
             conn.close()
         
-        logger.info(f"✅ COLMAP reconstruction complete for scan {scan_id}")
+        logger.info(f"✅ COLMAP reconstruction complete for scan {scan_id} ({processing_time:.1f}s)")
         
     except Exception as e:
         logger.error(f"❌ COLMAP reconstruction failed for scan {scan_id}: {e}")
@@ -339,6 +395,55 @@ async def get_scan_details(scan_id: str):
             
             scan_dict['results'] = {
                 'point_cloud_url': point_cloud_url,
+            }
+        
+        return scan_dict
+    except Exception as e:
+        logger.error(f"Failed to get scan details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/reconstruction/{scan_id}/statistics")
+async def get_reconstruction_statistics(scan_id: str):
+    """
+    Get detailed reconstruction statistics for a scan
+    
+    Returns metrics including:
+    - Point counts (sparse vs dense)
+    - Density multiplier
+    - Registration rate
+    - Quality grade
+    - Processing time
+    """
+    try:
+        from database import db
+        metrics = db.get_reconstruction_metrics(scan_id)
+        
+        if not metrics:
+            # Return default structure if no metrics found
+            return {
+                "scan_id": scan_id,
+                "status": "no_metrics",
+                "message": "Reconstruction metrics not yet available"
+            }
+        
+        return {
+            "scan_id": scan_id,
+            "quality_mode": metrics.get("quality_mode", "unknown"),
+            "sparse_points": metrics.get("sparse_points", 0),
+            "dense_points": metrics.get("dense_points", 0),
+            "density_multiplier": round(metrics.get("density_multiplier", 0.0), 2),
+            "registered_images": metrics.get("registered_images", 0),
+            "total_images": metrics.get("total_images", 0),
+            "registration_rate": round(metrics.get("registration_rate", 0.0), 3),
+            "avg_reproj_error": round(metrics.get("avg_reproj_error", 0.0), 3),
+            "avg_track_length": round(metrics.get("avg_track_length", 0.0), 2),
+            "coverage_percentage": round(metrics.get("coverage_percentage", 0.0), 1),
+            "processing_time_seconds": round(metrics.get("processing_time_seconds", 0.0), 1),
+            "quality_grade": metrics.get("quality_grade", "N/A")
+        }
+    except Exception as e:
+        logger.error(f"Failed to get reconstruction statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
                 'mesh_url': f"/demo-resources/{scan_dict['glb_file']}" if scan_dict.get('glb_file') and not scan_dict['glb_file'].startswith('/') else None,
                 'thumbnail_url': f"/demo-resources/{scan_dict['thumbnail']}" if scan_dict.get('thumbnail') and not scan_dict['thumbnail'].startswith('/') else None
             }

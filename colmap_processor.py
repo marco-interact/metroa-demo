@@ -426,6 +426,7 @@ class COLMAPProcessor:
         
         # Quality-based stereo parameters - OPTIMIZED FOR RTX 4090
         # RTX 4090 excels at parallel patch matching - maximize quality
+        # Enhanced for 5M-20M point target (ultra quality)
         quality_params = {
             "low": {
                 "window_radius": "5",       # Increased for better detail
@@ -453,6 +454,16 @@ class COLMAPProcessor:
                 "geom_consistency_max_cost": "0.4",  # Strictest filtering
                 "filter_min_ncc": "0.3",    # Strict quality threshold
                 "cache_size": "64"          # Use all available VRAM
+            },
+            "ultra": {
+                "window_radius": "13",      # Even larger for ultra detail
+                "window_step": "1",         # Finest sampling
+                "num_samples": "75",        # 50% more than high - maximum quality
+                "num_iterations": "12",     # More refinement iterations
+                "geom_consistency_max_cost": "0.3",  # Ultra-strict filtering
+                "filter_min_ncc": "0.35",   # Very strict quality threshold
+                "cache_size": "64",         # Use all available VRAM
+                "geom_consistency_regularizer": "0.3"  # Enhanced geometric consistency
             }
         }
         stereo_params = quality_params.get(quality, quality_params["medium"])
@@ -472,6 +483,9 @@ class COLMAPProcessor:
             # Geometric consistency filtering - removes outliers
             "--PatchMatchStereo.geom_consistency", "true",
             "--PatchMatchStereo.geom_consistency_max_cost", stereo_params["geom_consistency_max_cost"],
+            # Enhanced geometric consistency for ultra quality
+            *(["--PatchMatchStereo.geom_consistency_regularizer", stereo_params.get("geom_consistency_regularizer", "0.3")] 
+              if quality == "ultra" else []),
             # NCC filtering - normalized cross correlation threshold
             "--PatchMatchStereo.filter", "true",
             "--PatchMatchStereo.filter_min_ncc", stereo_params["filter_min_ncc"],
@@ -496,21 +510,33 @@ class COLMAPProcessor:
         logger.info("🔗 Fusing depth maps...")
         
         # Quality-based fusion parameters - fine-tuned for precision and density
+        # Enhanced for 5M-20M point target (ultra quality)
         fusion_params = {
             "low": {
                 "max_reproj_error": "2.0",      # Reduced for precision
                 "max_depth_error": "0.015",      # Fine-tuned
-                "max_normal_error": "12"         # Fine-tuned
+                "max_normal_error": "12",        # Fine-tuned
+                "min_num_pixels": "3"            # Lower = more points
             },
             "medium": {
                 "max_reproj_error": "1.5",      # Reduced for better precision
                 "max_depth_error": "0.012",      # Fine-tuned for accuracy
-                "max_normal_error": "10"         # Fine-tuned
+                "max_normal_error": "10",        # Fine-tuned
+                "min_num_pixels": "3"            # Lower = more points
             },
             "high": {
                 "max_reproj_error": "1.2",      # Strictest for maximum precision
                 "max_depth_error": "0.01",       # Very precise depth matching
-                "max_normal_error": "8"          # Strict normal consistency
+                "max_normal_error": "8",         # Strict normal consistency
+                "min_num_pixels": "2"            # Even lower for more points
+            },
+            "ultra": {
+                "max_reproj_error": "1.0",       # Ultra-strict reprojection error
+                "max_depth_error": "0.008",      # Ultra-precise depth matching
+                "max_normal_error": "6",         # Very strict normal consistency
+                "min_num_pixels": "2",           # Minimum pixels for fusion
+                "max_num_pixels": "10000",       # Maximum pixels per point
+                "max_traversal_depth": "100"     # Deep traversal for coverage
             }
         }
         fusion_quality_params = fusion_params.get(quality, fusion_params["medium"])
@@ -524,7 +550,7 @@ class COLMAPProcessor:
             # CRITICAL: Prevent image downsampling during fusion
             "--DenseMapperOptions.max_image_size", "0",  # 0 = no downsampling
             # OPTIMIZED FOR MAXIMUM DENSITY AND PRECISION - RTX 4090 can handle it
-            "--StereoFusion.min_num_pixels", "3",      # Lower = more points (was 4)
+            "--StereoFusion.min_num_pixels", fusion_quality_params["min_num_pixels"],
             # Reduced reprojection error for more precise point fusion
             "--StereoFusion.max_reproj_error", fusion_quality_params["max_reproj_error"],
             # Fine-tuned depth error for better accuracy
@@ -534,7 +560,11 @@ class COLMAPProcessor:
             # Additional fusion parameters for better quality
             "--StereoFusion.check_num_images", "50",   # Check consistency across many images
             "--StereoFusion.use_cache", "true",        # Speed up with caching
-            "--StereoFusion.cache_size", "32"          # GB cache for fusion
+            "--StereoFusion.cache_size", "32",         # GB cache for fusion
+            # Ultra quality enhancements
+            *(["--StereoFusion.max_num_pixels", fusion_quality_params.get("max_num_pixels", "10000"),
+               "--StereoFusion.max_traversal_depth", fusion_quality_params.get("max_traversal_depth", "100")]
+              if quality == "ultra" else [])
         ]
         
         try:
