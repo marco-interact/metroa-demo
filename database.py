@@ -74,15 +74,51 @@ class Database:
                     video_size INTEGER,
                     video_duration REAL,
                     processing_quality TEXT DEFAULT 'medium',
+                    quality_mode TEXT DEFAULT 'fast',  -- New: fast, high_quality, ultra_openmvs
                     thumbnail_path TEXT,
                     ply_file TEXT,
                     glb_file TEXT,
                     thumbnail TEXT,
+                    pointcloud_final_path TEXT,  -- New: Final cleaned PLY after Open3D
+                    point_count_raw INTEGER,     -- New: Point count before Open3D
+                    point_count_final INTEGER,    -- New: Point count after Open3D
+                    postprocessing_stats TEXT,    -- New: JSON with Open3D stats
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (project_id) REFERENCES projects (id)
                 )
             ''')
+            
+            # Add new columns to existing scans table if they don't exist
+            try:
+                conn.execute("ALTER TABLE scans ADD COLUMN quality_mode TEXT DEFAULT 'fast'")
+                logger.info("✅ Added quality_mode column")
+            except:
+                pass  # Column already exists
+            
+            try:
+                conn.execute("ALTER TABLE scans ADD COLUMN pointcloud_final_path TEXT")
+                logger.info("✅ Added pointcloud_final_path column")
+            except:
+                pass
+            
+            try:
+                conn.execute("ALTER TABLE scans ADD COLUMN point_count_raw INTEGER")
+                logger.info("✅ Added point_count_raw column")
+            except:
+                pass
+            
+            try:
+                conn.execute("ALTER TABLE scans ADD COLUMN point_count_final INTEGER")
+                logger.info("✅ Added point_count_final column")
+            except:
+                pass
+            
+            try:
+                conn.execute("ALTER TABLE scans ADD COLUMN postprocessing_stats TEXT")
+                logger.info("✅ Added postprocessing_stats column")
+            except:
+                pass
             
             # Technical details table (stores COLMAP processing results)
             conn.execute('''

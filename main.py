@@ -19,6 +19,9 @@ from pathlib import Path
 import asyncio
 from colmap_processor import COLMAPProcessor, process_video_to_pointcloud
 from colmap_binary_parser import MeasurementSystem, COLMAPBinaryParser
+from quality_presets import get_preset, map_legacy_quality, QUALITY_PRESETS
+from pointcloud_postprocess import postprocess_pointcloud, get_pointcloud_stats
+from openmvs_processor import OpenMVSProcessor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -84,16 +87,42 @@ def update_scan_status(scan_id: str, status: str, error: str = None, progress: i
 
 def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
     """
-    Background task to process COLMAP reconstruction
-    This runs asynchronously after video upload
-    Enhanced with statistics tracking for dense reconstruction analysis
+    Enhanced reconstruction pipeline with quality presets, OpenMVS, and Open3D post-processing
+    
+    Quality modes:
+    - fast: Quick processing with conservative settings
+    - high_quality: Enhanced COLMAP with Open3D cleanup
+    - ultra_openmvs: COLMAP + OpenMVS + Open3D for maximum quality
+    
+    Legacy quality modes are automatically mapped:
+    - low/medium → fast
+    - high → high_quality
+    - ultra → ultra_openmvs
     """
     import time
     start_time = time.time()
     
     try:
-        logger.info(f"🚀 Starting COLMAP reconstruction for scan {scan_id} (quality={quality})")
+        # Map legacy quality to new preset system
+        quality_mode = map_legacy_quality(quality)
+        preset = get_preset(quality_mode)
+        
+        logger.info(f"🚀 Starting reconstruction for scan {scan_id}")
+        logger.info(f"📊 Quality mode: {quality_mode} (mapped from legacy '{quality}')")
+        logger.info(f"📋 Preset: {preset.description} ({preset.estimated_time}, target: {preset.target_points})")
+        
         update_scan_status(scan_id, "extracting_frames")
+        
+        # Update database with quality_mode
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                "UPDATE scans SET quality_mode = ? WHERE id = ?",
+                (quality_mode, scan_id)
+            )
+            conn.commit()
+        finally:
+            conn.close()
         
         # Create results directory
         results_dir = Path(f"/workspace/data/results/{scan_id}")
@@ -174,11 +203,54 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         registered_images = reconstruction_stats.get("stats", {}).get("registered_images", 0)
         total_images = frame_count
         
-        # Step 5: Dense reconstruction (enabled for medium/high/ultra quality)
-        # Medium: Fast dense (~1-2 min), High: Quality dense (~2-4 min), Ultra: Maximum quality (~4-8 min)
+        # Step 5: Dense reconstruction or OpenMVS (based on quality mode)
         ply_path = None
-        if quality in ["medium", "high", "ultra"]:
-            logger.info(f"🔬 Running DENSE reconstruction ({quality} quality mode)...")
+        raw_ply_path = None
+        
+        if quality_mode == "ultra_openmvs":
+            # Ultra mode: Use OpenMVS for densification
+            logger.info(f"🔬 Running OpenMVS densification (ultra_openmvs mode)...")
+            
+            try:
+                openmvs_processor = OpenMVSProcessor(str(results_dir))
+                
+                # Progress tracking for OpenMVS (65-85%)
+                def openmvs_progress_callback(stage_name, progress_pct):
+                    overall_pct = 65 + int(progress_pct * 0.20)  # 65-85%
+                    update_scan_status(scan_id, "processing", progress=overall_pct,
+                                    stage=f"OpenMVS: {stage_name}")
+                
+                # Export COLMAP to OpenMVS format
+                update_scan_status(scan_id, "processing", progress=65, stage="OpenMVS: Exporting COLMAP format...")
+                export_result = openmvs_processor.export_colmap_to_openmvs(
+                    progress_callback=lambda msg, pct: openmvs_progress_callback(msg, pct * 0.5)
+                )
+                
+                # Run DensifyPointCloud
+                update_scan_status(scan_id, "processing", progress=75, stage="OpenMVS: Densifying point cloud...")
+                dense_result = openmvs_processor.densify_pointcloud(
+                    input_mvs=export_result["mvs_file"],
+                    quality="ultra_openmvs",
+                    progress_callback=lambda msg, pct: openmvs_progress_callback(msg, 50 + pct * 0.5)
+                )
+                
+                if dense_result.get("status") == "success" and dense_result.get("dense_ply"):
+                    raw_ply_path = Path(dense_result["dense_ply"])
+                    logger.info(f"✅ OpenMVS densification complete: {raw_ply_path}")
+                    update_scan_status(scan_id, "processing", progress=85, stage="OpenMVS densification complete!")
+                else:
+                    raise RuntimeError("OpenMVS densification failed")
+                    
+            except Exception as e:
+                logger.error(f"❌ OpenMVS processing failed: {e}")
+                logger.warning("⚠️  Falling back to COLMAP dense reconstruction...")
+                # Fallback to COLMAP dense
+                quality_mode = "high_quality"
+                preset = get_preset(quality_mode)
+        
+        # COLMAP dense reconstruction (for fast, high_quality, or OpenMVS fallback)
+        if not raw_ply_path and preset.enable_dense:
+            logger.info(f"🔬 Running COLMAP DENSE reconstruction ({quality_mode} mode)...")
             
             # Progress tracking for dense reconstruction (65-90%)
             def dense_progress_callback(stage_name, progress_pct):
@@ -187,45 +259,75 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                                 stage=f"Dense reconstruction: {stage_name}")
             
             update_scan_status(scan_id, "processing", progress=65, stage="Dense reconstruction: Undistorting images...")
+            # Use legacy quality for COLMAP processor (it still uses old system)
             dense_stats = processor.dense_reconstruction(quality=quality, progress_callback=dense_progress_callback)
             logger.info(f"✅ Dense reconstruction: {dense_stats}")
             
             if dense_stats.get("status") == "success" and dense_stats.get("dense_ply"):
-                ply_path = Path(dense_stats["dense_ply"])
-                logger.info(f"✅ Using DENSE point cloud: {ply_path}")
+                raw_ply_path = Path(dense_stats["dense_ply"])
+                logger.info(f"✅ Using COLMAP DENSE point cloud: {raw_ply_path}")
                 update_scan_status(scan_id, "processing", progress=90, stage="Dense reconstruction complete!")
         
-        # Step 6: Export sparse PLY (fast, always works)
-        if not ply_path:
-            update_scan_status(scan_id, "processing", progress=80, stage="Exporting point cloud...")
-            logger.info(f"💾 Exporting SPARSE point cloud (fast mode)")
-            ply_path = processor.export_model(output_format="PLY")
-            logger.info(f"✅ Exported sparse PLY: {ply_path}")
+        # Step 6: Export sparse PLY (fallback if no dense)
+        if not raw_ply_path:
+            update_scan_status(scan_id, "processing", progress=80, stage="Exporting sparse point cloud...")
+            logger.info(f"💾 Exporting SPARSE point cloud (no dense reconstruction)")
+            raw_ply_path = processor.export_model(output_format="PLY")
+            logger.info(f"✅ Exported sparse PLY: {raw_ply_path}")
         
-        # Step 7: Count points in PLY file for statistics
-        dense_points = 0
-        if ply_path and ply_path.exists():
+        # Step 7: Open3D Post-Processing (clean and optimize point cloud)
+        final_ply_path = None
+        postprocessing_stats = None
+        
+        if raw_ply_path and raw_ply_path.exists():
+            update_scan_status(scan_id, "processing", progress=90, stage="Post-processing point cloud with Open3D...")
+            logger.info(f"🧹 Post-processing point cloud: {raw_ply_path}")
+            
+            # Get point count before post-processing
+            raw_stats = get_pointcloud_stats(str(raw_ply_path))
+            point_count_raw = raw_stats.get("point_count", 0)
+            
+            # Prepare Open3D post-processing parameters from preset
+            open3d_config = {
+                "open3d_outlier_removal": preset.open3d_outlier_removal,
+                "open3d_statistical_nb_neighbors": preset.open3d_statistical_nb_neighbors,
+                "open3d_statistical_std_ratio": preset.open3d_statistical_std_ratio,
+                "open3d_downsample_threshold": preset.open3d_downsample_threshold,
+                "open3d_voxel_size": preset.open3d_voxel_size,
+            }
+            
+            # Post-process point cloud
+            final_ply_path = results_dir / "pointcloud_final.ply"
+            
+            def postprocess_progress_callback(step, total, message):
+                progress_pct = 90 + int((step / total) * 8)  # 90-98%
+                update_scan_status(scan_id, "processing", progress=progress_pct,
+                                stage=f"Open3D: {message}")
+            
             try:
-                # Count points in PLY file (simple header parsing)
-                with open(ply_path, 'rb') as f:
-                    header_lines = []
-                    for _ in range(100):  # Read first 100 lines for header
-                        line = f.readline().decode('utf-8', errors='ignore')
-                        header_lines.append(line.strip())
-                        if 'end_header' in line.lower():
-                            break
-                    
-                    # Find vertex count in header
-                    for line in header_lines:
-                        if 'element vertex' in line.lower():
-                            dense_points = int(line.split()[-1])
-                            break
+                postprocessing_stats = postprocess_pointcloud(
+                    input_ply_path=str(raw_ply_path),
+                    output_ply_path=str(final_ply_path),
+                    quality_preset=open3d_config,
+                    progress_callback=postprocess_progress_callback
+                )
+                
+                point_count_final = postprocessing_stats.get("point_count_after", point_count_raw)
+                logger.info(f"✅ Post-processing complete: {point_count_raw:,} → {point_count_final:,} points")
+                
             except Exception as e:
-                logger.warning(f"Could not count points in PLY: {e}")
-                # Fallback: estimate from file size (rough approximation)
-                if ply_path.exists():
-                    file_size_mb = ply_path.stat().st_size / (1024 * 1024)
-                    dense_points = int(file_size_mb * 100000)  # Rough estimate: 100K points per MB
+                logger.error(f"❌ Post-processing failed: {e}")
+                logger.warning("⚠️  Using raw point cloud without post-processing")
+                # Fallback: use raw PLY
+                final_ply_path = raw_ply_path
+                postprocessing_stats = {"error": str(e), "point_count_after": point_count_raw}
+        else:
+            logger.error(f"❌ No point cloud file found for post-processing")
+            raise RuntimeError("No point cloud file generated")
+        
+        # Use final PLY path for statistics
+        ply_path = final_ply_path
+        dense_points = postprocessing_stats.get("point_count_after", 0) if postprocessing_stats else 0
         
         # Step 8: Calculate processing time
         processing_time = time.time() - start_time
@@ -234,7 +336,7 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         try:
             from database import db
             metrics = {
-                "quality_mode": quality,
+                "quality_mode": quality_mode,  # Use new quality_mode, not legacy quality
                 "sparse_points": sparse_points,
                 "dense_points": dense_points,
                 "registered_images": registered_images,
@@ -249,19 +351,41 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         except Exception as e:
             logger.warning(f"Could not save reconstruction metrics: {e}")
         
-        # Step 10: Update database with PLY file path
-        update_scan_status(scan_id, "processing", progress=95, stage="Finalizing reconstruction...")
+        # Step 10: Update database with final PLY path and statistics
+        update_scan_status(scan_id, "processing", progress=98, stage="Finalizing reconstruction...")
         conn = get_db_connection()
         try:
+            # Prepare postprocessing stats JSON
+            postprocessing_stats_json = json.dumps(postprocessing_stats) if postprocessing_stats else None
+            
             conn.execute(
-                "UPDATE scans SET status = ?, ply_file = ?, progress = 100, current_stage = ? WHERE id = ?",
-                ("completed", str(ply_path), "Reconstruction complete!", scan_id)
+                """UPDATE scans SET 
+                    status = ?, 
+                    ply_file = ?,
+                    pointcloud_final_path = ?,
+                    point_count_raw = ?,
+                    point_count_final = ?,
+                    postprocessing_stats = ?,
+                    progress = 100, 
+                    current_stage = ? 
+                   WHERE id = ?""",
+                (
+                    "completed",
+                    str(raw_ply_path),  # Keep original PLY path for compatibility
+                    str(final_ply_path),  # New: final cleaned PLY path
+                    postprocessing_stats.get("point_count_before", 0) if postprocessing_stats else 0,
+                    postprocessing_stats.get("point_count_after", 0) if postprocessing_stats else dense_points,
+                    postprocessing_stats_json,
+                    "Reconstruction complete!",
+                    scan_id
+                )
             )
             conn.commit()
         finally:
             conn.close()
         
-        logger.info(f"✅ COLMAP reconstruction complete for scan {scan_id} ({processing_time:.1f}s)")
+        logger.info(f"✅ Reconstruction complete for scan {scan_id} ({processing_time:.1f}s)")
+        logger.info(f"📊 Quality mode: {quality_mode}, Points: {dense_points:,}")
         
     except Exception as e:
         logger.error(f"❌ COLMAP reconstruction failed for scan {scan_id}: {e}")
@@ -1005,15 +1129,20 @@ async def upload_video_for_reconstruction(
         
         logger.info(f"💾 Saved video to {video_path} ({len(content)} bytes)")
         
+        # Map legacy quality to new quality_mode
+        quality_mode = map_legacy_quality(quality)
+        
         # Create scan record in database for persistence
         conn = get_db_connection()
         conn.execute(
-            """INSERT INTO scans (id, project_id, name, video_filename, video_size, processing_quality, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (scan_id, project_id, scan_name, video.filename, len(content), quality, 'processing')
+            """INSERT INTO scans (id, project_id, name, video_filename, video_size, processing_quality, quality_mode, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (scan_id, project_id, scan_name, video.filename, len(content), quality, quality_mode, 'processing')
         )
         conn.commit()
         conn.close()
+        
+        logger.info(f"📊 Quality mode set to: {quality_mode} (from legacy '{quality}')")
         
         logger.info(f"✅ Created scan record in database: {scan_id}")
         
@@ -1048,8 +1177,8 @@ async def get_reconstruction_status(job_id: str):
         conn.close()
         
         if not scan:
-            raise HTTPException(status_code=404, detail="Job not found")
-        
+        raise HTTPException(status_code=404, detail="Job not found")
+    
         scan_dict = dict(scan)
         status = scan_dict.get('status', 'pending')
         
@@ -1080,9 +1209,9 @@ async def get_reconstruction_status(job_id: str):
         # Use current_stage if available, otherwise map from status
         if not current_stage and status in stage_mapping:
             current_stage = stage_mapping[status]
-        
-        return {
-            "job_id": job_id,
+    
+    return {
+        "job_id": job_id,
             "status": overall_status,
             "message": current_stage or "Processing...",
             "progress": progress,
