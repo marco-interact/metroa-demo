@@ -276,6 +276,22 @@ export default function ScanDetailPage() {
     })
   }, [])
 
+  // Memoize selection mode change callback
+  const onSelectionModeChange = useCallback((enabled: boolean) => {
+    console.log('🎯 Selection mode changed:', enabled)
+    setIsSelectingPoints(enabled)
+    if (!enabled) {
+      setSelectedPoints([])
+      setSelectedPointPositions([])
+    }
+  }, [])
+
+  // Memoize clear points callback
+  const onClearPoints = useCallback(() => {
+    setSelectedPoints([])
+    setSelectedPointPositions([])
+  }, [])
+
   // Validate params before proceeding
   useEffect(() => {
     if (!projectId || !scanId) {
@@ -741,14 +757,7 @@ export default function ScanDetailPage() {
                   onPointSelect={(pointId) => {
                     console.log('Point selected from measurement tools:', pointId)
                   }}
-                  onSelectionModeChange={useCallback((enabled: boolean) => {
-                    console.log('🎯 Selection mode changed:', enabled)
-                    setIsSelectingPoints(enabled)
-                    if (!enabled) {
-                      setSelectedPoints([])
-                      setSelectedPointPositions([])
-                    }
-                  }, [])}
+                  onSelectionModeChange={onSelectionModeChange}
                   onClearPoints={useCallback(() => {
                     console.log('🗑️ Clearing selected points')
                     setSelectedPoints([])
