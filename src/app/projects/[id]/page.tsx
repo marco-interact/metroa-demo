@@ -279,8 +279,8 @@ export default function ProjectDetailPage() {
         setProcessingStatus(prev => ({
           ...prev,
           [scanId]: {
-            progress: status.progress,
-            stage: status.currentStage
+            progress: status.progress || 0,
+            stage: status.currentStage || status.message || 'Processing...'
           }
         }))
         

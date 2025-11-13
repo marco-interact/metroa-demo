@@ -45,20 +45,39 @@ app.add_middleware(
 # Database path - RunPod volume mount (50GB volume at /workspace)
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/workspace/database.db")
 
-def update_scan_status(scan_id: str, status: str, error: str = None):
-    """Update scan status in database"""
+def update_scan_status(scan_id: str, status: str, error: str = None, progress: int = None, stage: str = None):
+    """Update scan status in database with progress tracking"""
     conn = get_db_connection()
     try:
+        # Add progress and stage columns if they don't exist
+        try:
+            conn.execute("ALTER TABLE scans ADD COLUMN progress INTEGER DEFAULT 0")
+            conn.execute("ALTER TABLE scans ADD COLUMN current_stage TEXT")
+        except:
+            pass  # Columns already exist
+        
         if error:
             conn.execute(
-                "UPDATE scans SET status = ? WHERE id = ?",
+                "UPDATE scans SET status = ?, progress = 0 WHERE id = ?",
                 (f"failed: {error}", scan_id)
             )
         else:
-            conn.execute(
-                "UPDATE scans SET status = ? WHERE id = ?",
-                (status, scan_id)
-            )
+            update_query = "UPDATE scans SET status = ?"
+            params = [status]
+            
+            if progress is not None:
+                update_query += ", progress = ?"
+                params.append(progress)
+            
+            if stage is not None:
+                update_query += ", current_stage = ?"
+                params.append(stage)
+            
+            update_query += " WHERE id = ?"
+            params.append(scan_id)
+            
+            conn.execute(update_query, tuple(params))
+        
         conn.commit()
     finally:
         conn.close()
@@ -84,6 +103,7 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         processor = COLMAPProcessor(str(results_dir))
         
         # Step 1: Extract frames from video with AUTO FPS DETECTION
+        update_scan_status(scan_id, "processing", progress=5, stage="Extracting frames from video...")
         logger.info(f"📹 Extracting frames from {video_path}")
         frame_count = processor.extract_frames(
             video_path=str(video_path),
@@ -96,19 +116,19 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
             raise Exception(f"Not enough frames extracted: {frame_count}. Need at least 3.")
         
         # Step 2: Extract SIFT features
-        update_scan_status(scan_id, "extracting_features")
+        update_scan_status(scan_id, "processing", progress=15, stage="Extracting SIFT features...")
         logger.info(f"🔍 Extracting SIFT features")
         feature_stats = processor.extract_features(quality=quality)
         logger.info(f"✅ Feature extraction: {feature_stats}")
         
         # Step 3: Match features
-        update_scan_status(scan_id, "matching_features")
+        update_scan_status(scan_id, "processing", progress=35, stage="Matching features between images...")
         logger.info(f"🔗 Matching features")
         match_stats = processor.match_features(quality=quality)
         logger.info(f"✅ Feature matching: {match_stats}")
         
         # Step 4: Sparse reconstruction
-        update_scan_status(scan_id, "reconstructing")
+        update_scan_status(scan_id, "processing", progress=55, stage="Running sparse reconstruction...")
         logger.info(f"🏗️ Running sparse reconstruction")
         reconstruction_stats = processor.sparse_reconstruction(quality=quality)
         logger.info(f"✅ Sparse reconstruction: {reconstruction_stats}")
@@ -122,18 +142,22 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         # Medium: Fast dense (~1-2 min), High: Quality dense (~2-4 min), Ultra: Maximum quality (~4-8 min)
         ply_path = None
         if quality in ["medium", "high", "ultra"]:
-            update_scan_status(scan_id, "dense_reconstruction")
+            update_scan_status(scan_id, "processing", progress=70, stage="Running dense reconstruction (undistorting images)...")
             logger.info(f"🔬 Running DENSE reconstruction ({quality} quality mode)...")
+            
+            # Dense reconstruction has multiple sub-stages
+            update_scan_status(scan_id, "processing", progress=75, stage="Running dense reconstruction (patch match stereo)...")
             dense_stats = processor.dense_reconstruction(quality=quality)
             logger.info(f"✅ Dense reconstruction: {dense_stats}")
             
             if dense_stats.get("status") == "success" and dense_stats.get("dense_ply"):
                 ply_path = Path(dense_stats["dense_ply"])
                 logger.info(f"✅ Using DENSE point cloud: {ply_path}")
+                update_scan_status(scan_id, "processing", progress=90, stage="Dense reconstruction complete!")
         
         # Step 6: Export sparse PLY (fast, always works)
         if not ply_path:
-            update_scan_status(scan_id, "exporting")
+            update_scan_status(scan_id, "processing", progress=80, stage="Exporting point cloud...")
             logger.info(f"💾 Exporting SPARSE point cloud (fast mode)")
             ply_path = processor.export_model(output_format="PLY")
             logger.info(f"✅ Exported sparse PLY: {ply_path}")
@@ -186,11 +210,12 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
             logger.warning(f"Could not save reconstruction metrics: {e}")
         
         # Step 10: Update database with PLY file path
+        update_scan_status(scan_id, "processing", progress=95, stage="Finalizing reconstruction...")
         conn = get_db_connection()
         try:
             conn.execute(
-                "UPDATE scans SET status = ?, ply_file = ? WHERE id = ?",
-                ("completed", str(ply_path), scan_id)
+                "UPDATE scans SET status = ?, ply_file = ?, progress = 100, current_stage = ? WHERE id = ?",
+                ("completed", str(ply_path), "Reconstruction complete!", scan_id)
             )
             conn.commit()
         finally:
@@ -974,25 +999,65 @@ async def upload_video_for_reconstruction(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/reconstruction/{job_id}/status")
+@app.get("/api/jobs/{job_id}")
 async def get_reconstruction_status(job_id: str):
-    """Get status of reconstruction job"""
-    job_path = Path(f"/workspace/{job_id}")
-    
-    if not job_path.exists():
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    # Check for outputs
-    ply_file = job_path / "exports" / "point_cloud.ply"
-    status = "processing"
-    
-    if ply_file.exists():
-        status = "completed"
-    
-    return {
-        "job_id": job_id,
-        "status": status,
-        "output_file": str(ply_file) if ply_file.exists() else None
-    }
+    """Get detailed status of reconstruction job with progress tracking"""
+    try:
+        conn = get_db_connection()
+        scan = conn.execute("SELECT * FROM scans WHERE id = ?", (job_id,)).fetchone()
+        conn.close()
+        
+        if not scan:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        scan_dict = dict(scan)
+        status = scan_dict.get('status', 'pending')
+        
+        # Determine overall status
+        if status == 'completed':
+            overall_status = 'completed'
+        elif status.startswith('failed'):
+            overall_status = 'failed'
+        elif status == 'processing':
+            overall_status = 'processing'
+        else:
+            overall_status = 'pending'
+        
+        # Get progress and stage
+        progress = scan_dict.get('progress', 0) or 0
+        current_stage = scan_dict.get('current_stage', 'Initializing...')
+        
+        # Map status to stage names for better UX
+        stage_mapping = {
+            'extracting_frames': 'Extracting frames from video...',
+            'extracting_features': 'Extracting SIFT features...',
+            'matching_features': 'Matching features between images...',
+            'reconstructing': 'Running sparse reconstruction...',
+            'dense_reconstruction': 'Running dense reconstruction...',
+            'exporting': 'Exporting point cloud...',
+        }
+        
+        # Use current_stage if available, otherwise map from status
+        if not current_stage and status in stage_mapping:
+            current_stage = stage_mapping[status]
+        
+        return {
+            "job_id": job_id,
+            "status": overall_status,
+            "message": current_stage or "Processing...",
+            "progress": progress,
+            "current_stage": current_stage or "Initializing...",
+            "created_at": scan_dict.get('created_at', ''),
+            "results": {
+                "ply_file": scan_dict.get('ply_file'),
+                "point_count": None  # Could be added later
+            } if overall_status == 'completed' else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting job status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/reconstruction/{job_id}/export")
 async def export_reconstruction(job_id: str, format: str = "PLY"):

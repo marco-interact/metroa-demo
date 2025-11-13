@@ -169,8 +169,9 @@ function Enhanced3DViewer({
             <ProcessingStatus
               scanId={scan.id}
               status="processing"
-              progress={75}
-              message="Feature extraction and matching in progress..."
+              progress={processingProgress.progress}
+              message={processingProgress.stage}
+              currentStage={processingProgress.stage}
               className="mt-4"
             />
           </div>
@@ -254,6 +255,7 @@ export default function ScanDetailPage() {
   const [selectedPoints, setSelectedPoints] = useState<number[]>([])
   const [selectedPointPositions, setSelectedPointPositions] = useState<Array<[number, number, number]>>([])
   const [isSelectingPoints, setIsSelectingPoints] = useState(false)
+  const [processingProgress, setProcessingProgress] = useState({ progress: 0, stage: 'Initializing...' })
 
   // Handle point clicks - MUST be at top level (React hooks rule)
   const handlePointClick = useCallback((pointIndex: number, position: [number, number, number]) => {

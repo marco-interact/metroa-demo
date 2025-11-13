@@ -19,16 +19,28 @@ interface ProcessingStatusProps {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress: number
   message: string
+  currentStage?: string
   onCancel?: () => void
   onRetry?: () => void
   className?: string
 }
+
+// Define all processing stages with their progress ranges
+const PROCESSING_STAGES = [
+  { name: 'Extracting frames from video...', min: 0, max: 15, icon: '📹' },
+  { name: 'Extracting SIFT features...', min: 15, max: 35, icon: '🔍' },
+  { name: 'Matching features between images...', min: 35, max: 55, icon: '🔗' },
+  { name: 'Running sparse reconstruction...', min: 55, max: 70, icon: '🏗️' },
+  { name: 'Running dense reconstruction...', min: 70, max: 95, icon: '🔬' },
+  { name: 'Finalizing reconstruction...', min: 95, max: 100, icon: '✅' },
+]
 
 export function ProcessingStatus({
   scanId,
   status,
   progress,
   message,
+  currentStage,
   onCancel,
   onRetry,
   className = ""
@@ -130,24 +142,66 @@ export function ProcessingStatus({
         </div>
       </div>
 
-      {/* Progress Bar */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-          <span>Progress</span>
-          <span>{Math.round(progress)}%</span>
+      {/* Overall Progress Bar */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+          <span>Overall Progress</span>
+          <span className="font-semibold text-white">{Math.round(progress)}%</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-700 rounded-full h-2.5 overflow-hidden">
           <div 
-            className={`h-2 rounded-full transition-all duration-300 ${getProgressColor()}`}
+            className={`h-full rounded-full transition-all duration-500 ${getProgressColor()}`}
             style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
           />
         </div>
       </div>
 
-      {/* Status Message */}
-      <div className="text-sm text-gray-600 mb-3">
-        {message}
+      {/* Current Stage Message */}
+      <div className="text-sm text-white mb-4 font-medium">
+        {currentStage || message || 'Processing...'}
       </div>
+
+      {/* Stage-by-Stage Progress */}
+      {status === 'processing' && (
+        <div className="space-y-2 mb-3">
+          <div className="text-xs text-gray-400 mb-2 font-medium">Processing Stages:</div>
+          {PROCESSING_STAGES.map((stage, index) => {
+            const isActive = currentStage?.includes(stage.name.split('...')[0]) || 
+                           (progress >= stage.min && progress < stage.max)
+            const isCompleted = progress >= stage.max
+            const stageProgress = isCompleted ? 100 : 
+                                 isActive ? ((progress - stage.min) / (stage.max - stage.min)) * 100 : 0
+            
+            return (
+              <div key={index} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-2">
+                    <span className={isCompleted ? 'text-green-400' : isActive ? 'text-blue-400' : 'text-gray-500'}>
+                      {isCompleted ? '✓' : isActive ? '⟳' : '○'}
+                    </span>
+                    <span className={isCompleted ? 'text-green-300' : isActive ? 'text-white' : 'text-gray-500'}>
+                      {stage.name}
+                    </span>
+                  </div>
+                  {isActive && (
+                    <span className="text-xs text-gray-400">{Math.round(stageProgress)}%</span>
+                  )}
+                </div>
+                {isActive && (
+                  <div className="ml-5 w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        isCompleted ? 'bg-green-500' : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${Math.max(0, Math.min(100, stageProgress))}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Expanded Details */}
       {isExpanded && (
