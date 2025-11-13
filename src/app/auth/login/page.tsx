@@ -81,7 +81,7 @@ export default function LoginPage() {
           <div className="mx-auto w-16 h-16 bg-primary-500 rounded-xl flex items-center justify-center mb-6">
             <div className="w-8 h-8 bg-white rounded-md"></div>
           </div>
-          <h1 className="text-3xl font-bold text-primary-400">Metroa</h1>
+          <h1 className="text-3xl font-bold text-primary-400">Metroa Labs</h1>
         </div>
 
         {/* Demo Credentials Card */}
@@ -101,7 +101,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => {
                   navigator.clipboard.writeText('demo@metroa.app')
-                  setFormData(prev => ({ ...prev, email: 'demo@colmap.app' }))
+                  setFormData(prev => ({ ...prev, email: 'demo@metroa.app' }))
                 }}
                 className="text-primary-400 hover:text-primary-300 text-xs px-2 py-1 rounded border border-primary-400/30 hover:border-primary-300/50"
               >

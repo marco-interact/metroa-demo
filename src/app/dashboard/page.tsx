@@ -159,7 +159,7 @@ export default function DashboardPage() {
       {/* Sidebar */}
       <aside className="w-64 bg-app-primary border-r border-app-primary flex flex-col">
         <div className="p-6">
-          <h1 className="text-xl font-bold text-primary-400 font-mono">Metroa</h1>
+          <h1 className="text-xl font-bold text-primary-400 font-mono">Metroa Labs</h1>
         </div>
 
         {/* User Profile */}

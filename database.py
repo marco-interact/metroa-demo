@@ -520,7 +520,7 @@ class Database:
             project_id = self.create_project(
                 user_id=user_id,
                 name="Reconstruction Test Project 1",
-                description="Demo Metroa 3D reconstructions from demo-resources",
+                description="Demo Metroa Labs 3D reconstructions from demo-resources",
                 location="Demo Location",
                 space_type="indoor",
                 project_type="architecture"

@@ -13,10 +13,10 @@ const inter = Inter({
 // JetBrains Mono loaded via @font-face in globals.css
 
 export const metadata: Metadata = {
-  title: 'Metroa Workspace - 3D Reconstruction Platform',
+  title: 'Metroa Labs - 3D Reconstruction Platform',
   description: 'Professional 3D reconstruction and scanning platform powered by COLMAP and Open3D',
   keywords: ['3D reconstruction', 'COLMAP', 'photogrammetry', 'point cloud', 'mesh generation'],
-  authors: [{ name: 'Metroa Workspace Team' }],
+  authors: [{ name: 'Metroa Labs Team' }],
 }
 
 export default function RootLayout({
