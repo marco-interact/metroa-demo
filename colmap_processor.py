@@ -252,15 +252,31 @@ class COLMAPProcessor:
         quality_params = {
             "low": {
                 "max_num_features": "16384",    # 2x increase for better reconstruction
-                "max_image_size": "2560"        # Higher resolution even for "low"
+                "max_image_size": "2560",       # Higher resolution even for "low"
+                "first_octave": "-1",           # Extract at higher resolution
+                "num_octaves": "4",             # Standard octave count
+                "peak_threshold": "0.0066",     # Lower = more features
             },
             "medium": {
                 "max_num_features": "32768",    # 2x increase - RTX 4090 can handle it
-                "max_image_size": "3840"        # 4K resolution for better detail
+                "max_image_size": "3840",       # 4K resolution for better detail
+                "first_octave": "-1",           # Extract at higher resolution
+                "num_octaves": "4",
+                "peak_threshold": "0.0066",
             },
             "high": {
                 "max_num_features": "65536",    # 2x increase - maximum detail
-                "max_image_size": "4096"        # Full 4K+ resolution
+                "max_image_size": "4096",       # Full 4K+ resolution
+                "first_octave": "-1",           # Extract at higher resolution
+                "num_octaves": "4",
+                "peak_threshold": "0.0066",
+            },
+            "ultra": {
+                "max_num_features": "65536",    # Maximum features
+                "max_image_size": "0",          # Full resolution (no downsampling)
+                "first_octave": "-1",           # Extract at higher resolution
+                "num_octaves": "4",
+                "peak_threshold": "0.0066",     # Lower threshold for more features
             }
         }
         
@@ -272,9 +288,16 @@ class COLMAPProcessor:
             "--database_path", str(self.database_path),
             "--image_path", str(self.images_path),
             "--ImageReader.single_camera", "1",  # All frames from same camera
+            "--ImageReader.camera_model", "OPENCV",  # Use OpenCV camera model
             "--SiftExtraction.max_num_features", params["max_num_features"],
             "--SiftExtraction.max_image_size", params["max_image_size"],
+            "--SiftExtraction.first_octave", params["first_octave"],  # Extract at higher resolution
+            "--SiftExtraction.num_octaves", params["num_octaves"],
+            "--SiftExtraction.octave_resolution", "3",
+            "--SiftExtraction.peak_threshold", params["peak_threshold"],  # Lower = more features
+            "--SiftExtraction.edge_threshold", "10",
             "--SiftExtraction.use_gpu", "1" if actual_use_gpu else "0",  # GPU control
+            "--SiftExtraction.gpu_index", "0",
         ]
         
         try:
@@ -325,7 +348,8 @@ class COLMAPProcessor:
         quality_params = {
             "low": {"max_num_matches": "65536"},     # 2x increase
             "medium": {"max_num_matches": "131072"}, # 2x increase  
-            "high": {"max_num_matches": "262144"}    # 2x increase - RTX 4090 power
+            "high": {"max_num_matches": "262144"},   # 2x increase - RTX 4090 power
+            "ultra": {"max_num_matches": "262144"}    # Maximum matches
         }
         match_params = quality_params.get(quality, quality_params["medium"])
         
@@ -343,20 +367,33 @@ class COLMAPProcessor:
             "high": {
                 "overlap": "100",  # Match all frames (exhaustive-like)
                 "use_exhaustive": True  # Use exhaustive for 100% overlap potential
+            },
+            "ultra": {
+                "overlap": "100",  # Match all frames
+                "use_exhaustive": True  # Exhaustive matching for maximum quality
             }
         }
         overlap_config = overlap_params.get(quality, overlap_params["medium"])
         
-        # For high quality: Use exhaustive matching for maximum overlap (>80%)
+        # Enhanced matching parameters for robust feature matching
+        matching_base_params = [
+            "--SiftMatching.max_ratio", "0.8",      # Lower = more selective matches
+            "--SiftMatching.max_distance", "0.7",   # Maximum feature distance
+            "--SiftMatching.cross_check", "1",      # Enable cross-checking for robustness
+            "--SiftMatching.max_error", "4.0",       # Maximum geometric error
+            "--SiftMatching.use_gpu", "1" if actual_use_gpu else "0",
+            "--SiftMatching.gpu_index", "0",
+            "--SiftMatching.max_num_matches", match_params["max_num_matches"],
+        ]
+        
+        # For high/ultra quality: Use exhaustive matching for maximum overlap (>80%)
         # Exhaustive matches ALL image pairs = 100% overlap potential
         if overlap_config["use_exhaustive"] or matching_type == "exhaustive":
             logger.info(f"🎯 Using EXHAUSTIVE matching for >80% overlap (quality={quality})")
             cmd = [
                 "colmap", "exhaustive_matcher",
                 "--database_path", str(self.database_path),
-                "--SiftMatching.use_gpu", "1" if actual_use_gpu else "0",
-                "--SiftMatching.max_num_matches", match_params["max_num_matches"],
-            ]
+            ] + matching_base_params
         else:  # sequential_matcher with high overlap
             overlap_value = overlap_config["overlap"]
             logger.info(f"🎯 Using SEQUENTIAL matching with overlap={overlap_value} for >80% coverage (quality={quality})")
@@ -364,9 +401,7 @@ class COLMAPProcessor:
                 "colmap", "sequential_matcher",
                 "--database_path", str(self.database_path),
                 "--SequentialMatching.overlap", overlap_value,  # Match many adjacent frames for high overlap
-                "--SiftMatching.use_gpu", "1" if actual_use_gpu else "0",
-                "--SiftMatching.max_num_matches", match_params["max_num_matches"],
-            ]
+            ] + matching_base_params
         
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=self.env)
@@ -612,17 +647,26 @@ class COLMAPProcessor:
             "low": {
                 "init_min_num_inliers": "100",   # Doubled for better initialization
                 "min_num_matches": "15",         # Higher minimum for stability
-                "filter_max_reproj_error": "6.0" # Stricter filtering
+                "filter_max_reproj_error": "6.0", # Stricter filtering
+                "min_tri_angle": "1.5",         # Minimum triangulation angle
             },
             "medium": {
                 "init_min_num_inliers": "150",   # Higher for better quality
                 "min_num_matches": "20",         # More matches required
-                "filter_max_reproj_error": "4.0" # Tighter error threshold
+                "filter_max_reproj_error": "4.0", # Tighter error threshold
+                "min_tri_angle": "1.5",
             },
             "high": {
                 "init_min_num_inliers": "200",   # Maximum quality initialization
                 "min_num_matches": "30",         # Many matches for robustness
-                "filter_max_reproj_error": "2.0" # Very strict for best quality
+                "filter_max_reproj_error": "2.0", # Very strict for best quality
+                "min_tri_angle": "1.5",
+            },
+            "ultra": {
+                "init_min_num_inliers": "200",   # Maximum quality initialization
+                "min_num_matches": "30",         # Many matches for robustness
+                "filter_max_reproj_error": "2.0", # Very strict for best quality
+                "min_tri_angle": "1.5",         # Minimum triangulation angle for stability
             }
         }
         mapper_params = quality_params.get(quality, quality_params["medium"])

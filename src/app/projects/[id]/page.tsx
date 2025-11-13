@@ -54,7 +54,7 @@ export default function ProjectDetailPage() {
   const [newScan, setNewScan] = useState({
     name: "",
     file: null as File | null,
-    quality: "medium" as "low" | "medium" | "high"
+    quality: "high" as "low" | "medium" | "high" | "ultra"
   })
   const [dragActive, setDragActive] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -230,7 +230,7 @@ export default function ProjectDetailPage() {
         await new Promise(resolve => setTimeout(resolve, 500))
         setUploadProgress(60)
         
-        const result = await apiClient.uploadVideo(newScan.file, projectId, newScan.name, userEmail)
+        const result = await apiClient.uploadVideo(newScan.file, projectId, newScan.name, userEmail, newScan.quality)
         
         setUploadProgress(100)
         
@@ -692,7 +692,44 @@ export default function ProjectDetailPage() {
             <p className="text-xs text-gray-500 mt-2">
               Only .mp4 files no larger than 500mb
             </p>
-      </div>
+          </div>
+
+          {/* Quality Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-3">
+              Reconstruction Quality
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { value: "medium", label: "Medium", points: "200K-1M", time: "1-2 min", desc: "Balanced quality" },
+                { value: "high", label: "High", points: "1M-5M", time: "2-4 min", desc: "Recommended" },
+                { value: "ultra", label: "Ultra", points: "5M-20M", time: "4-8 min", desc: "Maximum quality" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setNewScan(prev => ({ ...prev, quality: option.value as any }))}
+                  className={`p-4 rounded-lg border-2 transition-all text-left ${
+                    newScan.quality === option.value
+                      ? 'border-primary-500 bg-primary-500/10'
+                      : 'border-gray-600 hover:border-gray-500'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <span className="font-semibold text-white capitalize">{option.label}</span>
+                    {newScan.quality === option.value && (
+                      <div className="w-2 h-2 rounded-full bg-primary-500" />
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-400 space-y-1">
+                    <div>{option.points} points</div>
+                    <div>{option.time}</div>
+                    <div className="text-gray-500">{option.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
 
           {isUploading && (
             <div className="space-y-2">

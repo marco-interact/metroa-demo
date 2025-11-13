@@ -191,7 +191,7 @@ class APIClient {
   }
 
   // Upload video for processing 
-  async uploadVideo(file: File, projectId: string, scanName: string, userEmail: string = 'demo@metroa.app'): Promise<{ jobId: string; scanId: string }> {
+  async uploadVideo(file: File, projectId: string, scanName: string, userEmail: string = 'demo@metroa.app', quality: string = 'high'): Promise<{ jobId: string; scanId: string }> {
     if (!this.baseUrl) {
       // Demo mode - simulate upload
       return new Promise((resolve) => {
@@ -206,7 +206,7 @@ class APIClient {
     formData.append('video', file)
     formData.append('project_id', projectId)
     formData.append('scan_name', scanName)
-    formData.append('quality', 'medium')
+    formData.append('quality', quality)
     formData.append('user_email', userEmail)
 
     try {

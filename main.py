@@ -913,7 +913,7 @@ async def upload_video_for_reconstruction(
     background_tasks: BackgroundTasks,
     project_id: str = Form(...),
     scan_name: str = Form(...),
-    quality: str = Form("low"),  # Default to "low" for speed (2min target)
+    quality: str = Form("high"),  # Default to "high" for best quality (recommended)
     user_email: str = Form("demo@colmap.app"),
     video: UploadFile = File(...)
 ):
