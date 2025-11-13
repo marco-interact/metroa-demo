@@ -1177,8 +1177,8 @@ async def get_reconstruction_status(job_id: str):
         conn.close()
         
         if not scan:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
+            raise HTTPException(status_code=404, detail="Job not found")
+        
         scan_dict = dict(scan)
         status = scan_dict.get('status', 'pending')
         
