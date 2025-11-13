@@ -288,6 +288,7 @@ export default function ScanDetailPage() {
 
   // Memoize clear points callback
   const onClearPoints = useCallback(() => {
+    console.log('🗑️ Clearing selected points')
     setSelectedPoints([])
     setSelectedPointPositions([])
   }, [])
@@ -758,11 +759,7 @@ export default function ScanDetailPage() {
                     console.log('Point selected from measurement tools:', pointId)
                   }}
                   onSelectionModeChange={onSelectionModeChange}
-                  onClearPoints={useCallback(() => {
-                    console.log('🗑️ Clearing selected points')
-                    setSelectedPoints([])
-                    setSelectedPointPositions([])
-                  }, [])}
+                  onClearPoints={onClearPoints}
                 />
               )}
 
