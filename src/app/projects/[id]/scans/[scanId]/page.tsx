@@ -438,7 +438,7 @@ export default function ScanDetailPage() {
       <aside className="w-64 bg-app-primary border-r border-app-secondary/30 flex flex-col overflow-y-auto">
         <div className="p-6 cursor-pointer" onClick={() => router.push('/dashboard')}>
           <h1 className="text-xl font-bold text-primary-400 font-mono hover:text-primary-300 transition-colors">
-            Colmap App
+            Metroa
           </h1>
         </div>
 

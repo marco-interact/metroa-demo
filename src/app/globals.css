@@ -1,4 +1,4 @@
-/* Colmap App Global Styles */
+/* Metroa App Global Styles */
 
 /* JetBrains Mono - Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
@@ -64,7 +64,7 @@
 }
 
 :root {
-  /* Colmap App Brand Colors - Synchronized with tailwind.config.ts */
+  /* Metroa App Brand Colors - Synchronized with tailwind.config.ts */
   --primary: #3E93C9;          /* Matches tailwind primary-400 */
   --primary-dark: #2c6997;     /* Matches tailwind primary-600 */
   --secondary: #64748b;        /* Matches tailwind secondary-500 */

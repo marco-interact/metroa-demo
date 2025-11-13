@@ -51,7 +51,7 @@ export function Sidebar({ activeItem = 'projects' }: SidebarProps) {
           transition={{ duration: 0.5 }}
         >
           <h2 className="text-2xl font-mono font-bold text-green-500 mb-8">
-            Colmap App
+            Metroa
           </h2>
         </motion.div>
 

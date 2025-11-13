@@ -100,7 +100,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText('demo@colmap.app')
+                  navigator.clipboard.writeText('demo@metroa.app')
                   setFormData(prev => ({ ...prev, email: 'demo@colmap.app' }))
                 }}
                 className="text-primary-400 hover:text-primary-300 text-xs px-2 py-1 rounded border border-primary-400/30 hover:border-primary-300/50"
