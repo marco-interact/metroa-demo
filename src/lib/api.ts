@@ -191,7 +191,7 @@ class APIClient {
   }
 
   // Upload video for processing 
-  async uploadVideo(file: File, projectId: string, scanName: string, userEmail: string = 'demo@colmap.app'): Promise<{ jobId: string; scanId: string }> {
+  async uploadVideo(file: File, projectId: string, scanName: string, userEmail: string = 'demo@metroa.app'): Promise<{ jobId: string; scanId: string }> {
     if (!this.baseUrl) {
       // Demo mode - simulate upload
       return new Promise((resolve) => {

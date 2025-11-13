@@ -1,4 +1,4 @@
-# COLMAP MVP Backend - Python Dependencies
+# Metroa Backend - Python Dependencies
 # Optimized for RunPod deployment
 
 # Web Framework

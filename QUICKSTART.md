@@ -51,7 +51,7 @@ Backend URLs:
 
 **📱 MAC TERMINAL:**
 ```bash
-cd /Users/marco.aurelio/Desktop/colmap-demo
+cd /Users/marco.aurelio/Desktop/metroa-demo
 
 # Set backend URL
 echo 'NEXT_PUBLIC_API_URL="https://k0r2cn19yf6osw-8888.proxy.runpod.net"' > .env.production

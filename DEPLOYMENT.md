@@ -75,7 +75,7 @@ Should show: `"projects_count": 1, "scans_count": 2`
 
 **📱 MAC TERMINAL** - Create Vercel project:
 ```bash
-cd /Users/marco.aurelio/Desktop/colmap-demo
+cd /Users/marco.aurelio/Desktop/metroa-demo
 
 # Create .env.production
 echo 'NEXT_PUBLIC_API_URL="https://k0r2cn19yf6osw-8888.proxy.runpod.net"' > .env.production

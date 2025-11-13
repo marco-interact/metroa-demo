@@ -192,7 +192,7 @@ export default function ProjectDetailPage() {
     setIsUploading(true)
     
     try {
-      // Upload video to COLMAP worker (or simulate in demo mode)
+      // Upload video to Metroa worker (or simulate in demo mode)
       if (isDemoMode()) {
         // Demo mode - simulate upload progress
         for (let i = 0; i <= 100; i += 10) {
@@ -395,7 +395,7 @@ export default function ProjectDetailPage() {
       {/* Sidebar */}
       <aside className="w-64 bg-app-primary border-r border-app-secondary/30 flex flex-col">
         <div className="p-6">
-          <h1 className="text-xl font-bold text-primary-400 font-mono">Colmap App</h1>
+          <h1 className="text-xl font-bold text-primary-400 font-mono">Metroa</h1>
         </div>
 
         {/* User Profile */}

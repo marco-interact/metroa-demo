@@ -1,4 +1,4 @@
-# Metroa - COLMAP 3D Reconstruction Platform
+# Metroa - 3D Reconstruction Platform
 
 Professional videogrammetry platform powered by COLMAP and Next.js. Upload videos, get high-quality 3D point clouds with measurement tools.
 

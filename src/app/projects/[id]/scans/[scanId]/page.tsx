@@ -162,7 +162,7 @@ function Enhanced3DViewer({
               <div className="absolute inset-0 border-2 border-yellow-300/50 rounded-lg animate-pulse"></div>
             </div>
             <p className="text-yellow-400 font-medium">Processing Video</p>
-            <p className="text-gray-400 text-sm">COLMAP reconstruction in progress...</p>
+            <p className="text-gray-400 text-sm">Metroa reconstruction in progress...</p>
             <div className="w-48 bg-gray-700 rounded-full h-2 mx-auto">
               <div className="bg-yellow-400 h-2 rounded-full w-3/4 animate-pulse"></div>
             </div>

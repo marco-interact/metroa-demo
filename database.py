@@ -520,7 +520,7 @@ class Database:
             project_id = self.create_project(
                 user_id=user_id,
                 name="Reconstruction Test Project 1",
-                description="Demo COLMAP 3D reconstructions from demo-resources",
+                description="Demo Metroa 3D reconstructions from demo-resources",
                 location="Demo Location",
                 space_type="indoor",
                 project_type="architecture"
@@ -609,7 +609,7 @@ class Database:
                 SELECT p.id, p.created_at 
                 FROM projects p
                 JOIN users u ON p.user_id = u.id
-                WHERE u.email = 'demo@colmap.app' AND p.name = 'Demo Showcase Project'
+                WHERE u.email = 'demo@metroa.app' AND p.name = 'Demo Showcase Project'
                 ORDER BY p.created_at DESC
             ''').fetchall()
             

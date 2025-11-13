@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create FastAPI app
-app = FastAPI(title="COLMAP Backend", version="1.0.0")
+app = FastAPI(title="Metroa Backend", version="1.0.0")
 
 # Mount static files for demo resources
 app.mount("/demo-resources", StaticFiles(directory="demo-resources"), name="demo-resources")

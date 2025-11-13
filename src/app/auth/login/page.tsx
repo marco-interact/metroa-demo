@@ -57,7 +57,7 @@ export default function LoginPage() {
       await new Promise(resolve => setTimeout(resolve, 1500))
       
       // Demo login - accept demo credentials or any valid email/password
-      if ((formData.email === 'demo@colmap.app' && formData.password === 'demo123') || 
+      if ((formData.email === 'demo@metroa.app' && formData.password === 'demo123') || 
           (formData.email && formData.password.length >= 6)) {
         // Store user session (in production, handle this properly)
         localStorage.setItem('auth_token', 'demo_token')
@@ -81,7 +81,7 @@ export default function LoginPage() {
           <div className="mx-auto w-16 h-16 bg-primary-500 rounded-xl flex items-center justify-center mb-6">
             <div className="w-8 h-8 bg-white rounded-md"></div>
           </div>
-          <h1 className="text-3xl font-bold text-primary-400">Colmap App</h1>
+          <h1 className="text-3xl font-bold text-primary-400">Metroa</h1>
         </div>
 
         {/* Demo Credentials Card */}
@@ -95,7 +95,7 @@ export default function LoginPage() {
             <div className="flex items-center justify-between bg-app-elevated rounded p-2">
               <div>
                 <p className="text-xs text-gray-400">Email</p>
-                <p className="text-sm text-white font-mono">demo@colmap.app</p>
+                <p className="text-sm text-white font-mono">demo@metroa.app</p>
               </div>
               <button
                 type="button"
@@ -130,7 +130,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => {
-              setFormData({ email: 'demo@colmap.app', password: 'demo123' })
+              setFormData({ email: 'demo@metroa.app', password: 'demo123' })
             }}
             className="w-full bg-primary-500/10 hover:bg-primary-500/20 text-primary-400 border border-primary-500/30 hover:border-primary-500/50 py-2 px-3 rounded text-xs font-medium transition-colors"
           >

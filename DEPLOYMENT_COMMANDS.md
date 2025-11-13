@@ -1,7 +1,7 @@
 # Deployment Commands - Frontend & Backend
 
 ## ✅ Code Pushed Successfully!
-All changes have been pushed to: `https://github.com/marco-interact/colmap-demo.git`
+All changes have been pushed to: `https://github.com/marco-interact/metroa-demo.git`
 
 ---
 
@@ -57,7 +57,7 @@ ssh root@<your-pod-ip> -p <ssh-port>
 cd /workspace/metroa-demo
 
 # If project doesn't exist, clone it:
-# git clone https://github.com/marco-interact/colmap-demo.git metroa-demo
+# git clone https://github.com/marco-interact/metroa-demo.git metroa-demo
 # cd metroa-demo
 ```
 
