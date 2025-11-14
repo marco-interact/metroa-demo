@@ -726,6 +726,79 @@ class Database:
         finally:
             conn.close()
     
+    def force_delete_project_by_name(self, project_name: str) -> Dict:
+        """Force delete a project by name and all its associated data"""
+        conn = self.get_connection()
+        try:
+            # Find project by name
+            project = conn.execute(
+                'SELECT id, name FROM projects WHERE name = ?',
+                (project_name,)
+            ).fetchone()
+            
+            if not project:
+                return {
+                    "status": "error",
+                    "message": f"Project '{project_name}' not found",
+                    "deleted_projects": 0,
+                    "deleted_scans": 0
+                }
+            
+            project_id = project['id']
+            project_name_found = project['name']
+            
+            logger.info(f"🗑️ Force deleting project: {project_name_found} (ID: {project_id})")
+            
+            # Get all scans for this project
+            scan_ids = conn.execute(
+                'SELECT id FROM scans WHERE project_id = ?',
+                (project_id,)
+            ).fetchall()
+            
+            deleted_scans = 0
+            
+            # Delete all associated data for each scan
+            for scan_row in scan_ids:
+                scan_id = scan_row['id']
+                try:
+                    # Delete related data
+                    conn.execute('DELETE FROM scan_technical_details WHERE scan_id = ?', (scan_id,))
+                    conn.execute('DELETE FROM reconstruction_metrics WHERE scan_id = ?', (scan_id,))
+                    conn.execute('DELETE FROM processing_jobs WHERE scan_id = ?', (scan_id,))
+                    deleted_scans += 1
+                    logger.info(f"  Deleted scan data: {scan_id}")
+                except Exception as e:
+                    logger.warning(f"  Failed to delete scan data {scan_id}: {e}")
+            
+            # Delete all scans
+            conn.execute('DELETE FROM scans WHERE project_id = ?', (project_id,))
+            
+            # Delete the project itself
+            conn.execute('DELETE FROM projects WHERE id = ?', (project_id,))
+            
+            conn.commit()
+            
+            logger.info(f"✅ Force deleted project '{project_name_found}' with {deleted_scans} scans")
+            
+            return {
+                "status": "success",
+                "message": f"Force deleted project '{project_name_found}'",
+                "deleted_projects": 1,
+                "deleted_scans": deleted_scans,
+                "project_id": project_id
+            }
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"❌ Failed to force delete project '{project_name}': {e}")
+            return {
+                "status": "error",
+                "message": f"Failed to delete project: {str(e)}",
+                "deleted_projects": 0,
+                "deleted_scans": 0
+            }
+        finally:
+            conn.close()
+    
     def save_reconstruction_metrics(self, scan_id: str, metrics: Dict[str, Any]):
         """
         Save detailed reconstruction metrics for dense reconstruction analysis
