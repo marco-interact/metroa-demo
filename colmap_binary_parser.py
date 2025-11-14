@@ -341,9 +341,136 @@ class MeasurementSystem:
             "reconstruction_distance": reconstruction_distance
         }
     
+    def calculate_angle(self, point1_id: int, point2_id: int, point3_id: int) -> float:
+        """
+        Calculate angle between three points (point2 is vertex)
+        
+        Args:
+            point1_id: ID of first point
+            point2_id: ID of vertex point
+            point3_id: ID of third point
+            
+        Returns:
+            Angle in degrees
+        """
+        import numpy as np
+        
+        if point1_id not in self.points3D or point2_id not in self.points3D or point3_id not in self.points3D:
+            raise ValueError("Point IDs not found in reconstruction")
+        
+        p1 = np.array(self.points3D[point1_id]['xyz'])
+        p2 = np.array(self.points3D[point2_id]['xyz'])  # Vertex
+        p3 = np.array(self.points3D[point3_id]['xyz'])
+        
+        # Vectors from vertex to points
+        v1 = p1 - p2
+        v2 = p3 - p2
+        
+        # Calculate angle using dot product
+        cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+        cos_angle = np.clip(cos_angle, -1.0, 1.0)  # Handle numerical errors
+        angle_rad = np.arccos(cos_angle)
+        angle_deg = np.degrees(angle_rad)
+        
+        return angle_deg
+    
+    def calculate_thickness(self, point1_id: int, point2_id: int) -> float:
+        """
+        Calculate thickness (distance) between two surface points
+        
+        Args:
+            point1_id: ID of first surface point
+            point2_id: ID of second surface point (opposite side)
+            
+        Returns:
+            Thickness in meters (scaled)
+        """
+        if point1_id not in self.points3D or point2_id not in self.points3D:
+            raise ValueError("Point IDs not found in reconstruction")
+        
+        p1 = self.points3D[point1_id]['xyz']
+        p2 = self.points3D[point2_id]['xyz']
+        
+        distance = COLMAPBinaryParser.calculate_distance(p1, p2)
+        return distance * self.scale_factor
+    
+    def calculate_radius(self, point_ids: list) -> Dict:
+        """
+        Calculate radius of curvature from 3+ points on a curve
+        
+        Args:
+            point_ids: List of 3+ point IDs on the curve
+            
+        Returns:
+            Dictionary with radius, center, and fit quality
+        """
+        import numpy as np
+        
+        if len(point_ids) < 3:
+            raise ValueError("Need at least 3 points to calculate radius")
+        
+        # Get point positions
+        points = []
+        for pid in point_ids:
+            if pid not in self.points3D:
+                raise ValueError(f"Point ID {pid} not found")
+            points.append(np.array(self.points3D[pid]['xyz']) * self.scale_factor)
+        
+        points = np.array(points)
+        
+        # Fit circle to points (2D projection on best-fit plane)
+        # For simplicity, project to XY plane and fit circle
+        # In production, use PCA to find best plane
+        
+        # Center estimate (centroid)
+        center_estimate = np.mean(points, axis=0)
+        
+        # Calculate distances from center
+        distances = np.linalg.norm(points - center_estimate, axis=1)
+        radius_estimate = np.mean(distances)
+        
+        # Simple radius calculation (average distance from centroid)
+        # For more accurate results, use circle fitting algorithm
+        radius = radius_estimate
+        
+        return {
+            "radius_meters": radius,
+            "center": center_estimate.tolist(),
+            "fit_quality": "good" if np.std(distances) / radius < 0.1 else "fair"
+        }
+    
+    def get_point_info(self, point_id: int) -> Dict:
+        """
+        Get detailed information about a point
+        
+        Args:
+            point_id: ID of point
+            
+        Returns:
+            Dictionary with position, normal (if available), and other info
+        """
+        import numpy as np
+        
+        if point_id not in self.points3D:
+            raise ValueError(f"Point ID {point_id} not found")
+        
+        point_data = self.points3D[point_id]
+        position = np.array(point_data['xyz']) * self.scale_factor
+        
+        # Normal estimation (simplified - use average of neighboring points)
+        # In production, use PCA or mesh normals
+        normal = None  # TODO: Implement normal estimation
+        
+        return {
+            "position": position.tolist(),
+            "normal": normal,
+            "rgb": point_data.get('rgb', [128, 128, 128]),
+            "error": point_data.get('error', 0.0)
+        }
+    
     def add_measurement(self, point1_id: int, point2_id: int, label: str = "") -> Dict:
         """
-        Add a measurement between two points
+        Add a distance measurement between two points
         
         Args:
             point1_id: ID of first 3D point

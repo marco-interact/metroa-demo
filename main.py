@@ -958,19 +958,34 @@ async def calibrate_scale(
 @app.post("/api/measurements/add")
 async def add_measurement(
     scan_id: str = Form(...),
+    measurement_type: str = Form("distance"),
     point1_id: str = Form(None),
     point2_id: str = Form(None),
+    point3_id: str = Form(None),
     point1_position: str = Form(None),
     point2_position: str = Form(None),
+    point3_position: str = Form(None),
+    point_position: str = Form(None),  # For info measurement
+    points: str = Form(None),  # JSON array for radius measurement
     label: str = Form("")
 ):
-    """Add a measurement between two points
+    """Add a measurement of various types
+    
+    Measurement types:
+    - distance: 2 points
+    - angle: 3 points (point2 is vertex)
+    - thickness: 2 points (surface to surface)
+    - radius: 3+ points (on curve)
+    - info: 1 point (coordinates and normal)
     
     Accepts either:
-    - point1_id/point2_id: COLMAP point IDs (legacy)
-    - point1_position/point2_position: 3D positions as JSON arrays "[x, y, z]" (new)
+    - point IDs (legacy)
+    - point positions as JSON arrays "[x, y, z]" (new)
     """
     try:
+        import json
+        import numpy as np
+        
         scan_path = Path(f"/workspace/data/results/{scan_id}")
         sparse_path = scan_path / "sparse" / "0"
         
@@ -980,36 +995,119 @@ async def add_measurement(
         measurement_system = MeasurementSystem(str(sparse_path))
         measurement_system.load_reconstruction()
         
-        # Determine point IDs - use positions if provided, otherwise use IDs
-        if point1_position and point2_position:
-            import json
-            import numpy as np
-            
-            try:
+        # TODO: Load previously saved scale factor from database
+        
+        measurement = None
+        
+        if measurement_type == "distance" or measurement_type == "thickness":
+            # Distance or Thickness: 2 points
+            if point1_position and point2_position:
                 pos1 = np.array(json.loads(point1_position))
                 pos2 = np.array(json.loads(point2_position))
-                
-                logger.info(f"📍 Finding nearest points for measurement: {pos1}, {pos2}")
-                
                 point1_id = measurement_system.find_nearest_point(pos1)
                 point2_id = measurement_system.find_nearest_point(pos2)
-                
-                logger.info(f"✅ Found nearest points: {point1_id}, {point2_id}")
-            except Exception as e:
-                logger.error(f"❌ Error parsing positions: {e}")
-                raise HTTPException(status_code=400, detail=f"Invalid position format: {e}")
-        elif point1_id and point2_id:
-            try:
+            elif point1_id and point2_id:
                 point1_id = int(point1_id)
                 point2_id = int(point2_id)
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid point ID format")
+            else:
+                raise HTTPException(status_code=400, detail="Need 2 points for distance/thickness")
+            
+            if measurement_type == "distance":
+                measurement = measurement_system.add_measurement(point1_id, point2_id, label)
+            else:  # thickness
+                thickness = measurement_system.calculate_thickness(point1_id, point2_id)
+                measurement = {
+                    "id": len(measurement_system.measurements),
+                    "type": "thickness",
+                    "point1_id": point1_id,
+                    "point2_id": point2_id,
+                    "thickness_meters": thickness,
+                    "label": label or f"Thickness {len(measurement_system.measurements) + 1}",
+                    "scaled": measurement_system.scale_factor != 1.0
+                }
+                measurement_system.measurements.append(measurement)
+        
+        elif measurement_type == "angle":
+            # Angle: 3 points (point2 is vertex)
+            if point1_position and point2_position and point3_position:
+                pos1 = np.array(json.loads(point1_position))
+                pos2 = np.array(json.loads(point2_position))
+                pos3 = np.array(json.loads(point3_position))
+                point1_id = measurement_system.find_nearest_point(pos1)
+                point2_id = measurement_system.find_nearest_point(pos2)
+                point3_id = measurement_system.find_nearest_point(pos3)
+            elif point1_id and point2_id and point3_id:
+                point1_id = int(point1_id)
+                point2_id = int(point2_id)
+                point3_id = int(point3_id)
+            else:
+                raise HTTPException(status_code=400, detail="Need 3 points for angle (vertex in middle)")
+            
+            angle_deg = measurement_system.calculate_angle(point1_id, point2_id, point3_id)
+            measurement = {
+                "id": len(measurement_system.measurements),
+                "type": "angle",
+                "point1_id": point1_id,
+                "point2_id": point2_id,
+                "point3_id": point3_id,
+                "angle_degrees": angle_deg,
+                "label": label or f"Angle {len(measurement_system.measurements) + 1}",
+                "scaled": measurement_system.scale_factor != 1.0
+            }
+            measurement_system.measurements.append(measurement)
+        
+        elif measurement_type == "radius":
+            # Radius: 3+ points on curve
+            if points:
+                positions = json.loads(points)
+                if len(positions) < 3:
+                    raise HTTPException(status_code=400, detail="Need at least 3 points for radius")
+                point_ids = []
+                for pos in positions:
+                    pos_array = np.array(pos)
+                    pid = measurement_system.find_nearest_point(pos_array)
+                    point_ids.append(pid)
+            else:
+                raise HTTPException(status_code=400, detail="Need points array for radius measurement")
+            
+            radius_result = measurement_system.calculate_radius(point_ids)
+            measurement = {
+                "id": len(measurement_system.measurements),
+                "type": "radius",
+                "points": point_ids,
+                "radius_meters": radius_result["radius_meters"],
+                "center": radius_result["center"],
+                "label": label or f"Radius {len(measurement_system.measurements) + 1}",
+                "scaled": measurement_system.scale_factor != 1.0
+            }
+            measurement_system.measurements.append(measurement)
+        
+        elif measurement_type == "info":
+            # Info: 1 point
+            if point_position:
+                pos = np.array(json.loads(point_position))
+                point_id = measurement_system.find_nearest_point(pos)
+            elif point1_id:
+                point_id = int(point1_id)
+            else:
+                raise HTTPException(status_code=400, detail="Need 1 point for info")
+            
+            info = measurement_system.get_point_info(point_id)
+            measurement = {
+                "id": len(measurement_system.measurements),
+                "type": "info",
+                "point_id": point_id,
+                "position": info["position"],
+                "normal": info["normal"],
+                "label": label or f"Point Info {len(measurement_system.measurements) + 1}",
+                "scaled": measurement_system.scale_factor != 1.0
+            }
+            measurement_system.measurements.append(measurement)
+        
         else:
-            raise HTTPException(status_code=400, detail="Must provide either point IDs or positions")
+            raise HTTPException(status_code=400, detail=f"Unknown measurement type: {measurement_type}")
         
-        # TODO: Load previously saved scale factor
-        
-        measurement = measurement_system.add_measurement(point1_id, point2_id, label)
+        logger.info(f"✅ Added {measurement_type} measurement: {measurement.get('label', 'unnamed')}")
         
         return {
             "status": "success",
