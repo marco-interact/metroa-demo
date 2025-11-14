@@ -483,7 +483,7 @@ export default function ProjectDetailPage() {
             {scans.map((scan) => (
               <Card 
                 key={scan.id}
-                className="cursor-pointer hover:scale-105 transition-transform duration-200 bg-app-card/50 border-app-primary"
+                className="cursor-pointer hover:scale-105 transition-transform duration-200 bg-app-card/50 border-app-primary self-start"
                 onClick={() => router.push(`/projects/${projectId}/scans/${scan.id}`)}
               >
                 {/* Scan Thumbnail */}

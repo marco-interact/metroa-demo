@@ -246,7 +246,7 @@ export default function DashboardPage() {
             {filteredProjects.map((project) => (
               <Card 
                 key={project.id}
-                className="cursor-pointer hover:scale-105 transition-transform duration-200 bg-app-card border-app-primary"
+                className="cursor-pointer hover:scale-105 transition-transform duration-200 bg-app-card border-app-primary self-start"
                 onClick={() => router.push(`/projects/${project.id}`)}
               >
                 {/* Project Thumbnail */}
