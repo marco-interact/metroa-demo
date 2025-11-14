@@ -570,7 +570,7 @@ class Database:
             # Demo scan configurations
             demo_scans = [
                 {
-                    "name": "Dollhouse Scan",
+                    "name": "Dollhouse Interior Scan",
                     "video_filename": "dollhouse-interior.mp4",
                     "video_size": 18432000,  # ~18MB
                     "ply_file": "demoscan-dollhouse/fvtc_firstfloor_processed.ply",
@@ -632,7 +632,7 @@ class Database:
             raise
     
     def cleanup_duplicate_demos(self) -> Dict:
-        """Remove duplicate demo projects and scans, keeping only the most recent one"""
+        """Remove duplicate demo projects and scans, keeping only 'Reconstruction Test Project 1' with 'Dollhouse Scan'"""
         conn = self.get_connection()
         try:
             # Find demo user
@@ -656,38 +656,69 @@ class Database:
                 ORDER BY p.created_at DESC
             ''', (user_id,)).fetchall()
             
-            if len(demo_projects) <= 1:
-                return {"status": "success", "message": "No duplicates to clean", "deleted": 0}
-            
-            # Keep the most recent project, delete all others
-            keep_project_id = demo_projects[0]['id']
-            delete_ids = [proj['id'] for proj in demo_projects[1:]]
-            
             deleted_scans = 0
             deleted_projects = 0
             
-            # Delete scans and related data for duplicate projects
-            for proj_id in delete_ids:
-                # Get scan IDs for this project
-                scan_ids = conn.execute(
-                    'SELECT id FROM scans WHERE project_id = ?',
-                    (proj_id,)
+            # Find the project we want to keep: "Reconstruction Test Project 1"
+            keep_project_id = None
+            for proj in demo_projects:
+                if proj['name'] == "Reconstruction Test Project 1":
+                    keep_project_id = proj['id']
+                    break
+            
+            # If no "Reconstruction Test Project 1" exists, keep the most recent one
+            if not keep_project_id and demo_projects:
+                keep_project_id = demo_projects[0]['id']
+            
+            # Delete all other projects
+            for proj in demo_projects:
+                if proj['id'] != keep_project_id:
+                    # Get scan IDs for this project
+                    scan_ids = conn.execute(
+                        'SELECT id FROM scans WHERE project_id = ?',
+                        (proj['id'],)
+                    ).fetchall()
+                    
+                    for scan_row in scan_ids:
+                        scan_id = scan_row['id']
+                        # Delete related data
+                        conn.execute('DELETE FROM scan_technical_details WHERE scan_id = ?', (scan_id,))
+                        conn.execute('DELETE FROM reconstruction_metrics WHERE scan_id = ?', (scan_id,))
+                        conn.execute('DELETE FROM processing_jobs WHERE scan_id = ?', (scan_id,))
+                        deleted_scans += 1
+                    
+                    # Delete scans
+                    conn.execute('DELETE FROM scans WHERE project_id = ?', (proj['id'],))
+                    
+                    # Delete project
+                    conn.execute('DELETE FROM projects WHERE id = ?', (proj['id'],))
+                    deleted_projects += 1
+            
+            # Now clean up scans in the kept project - remove "Facade Architecture Scan" and keep only "Dollhouse Scan"
+            if keep_project_id:
+                # Get all scans in the kept project
+                all_scans = conn.execute(
+                    'SELECT id, name FROM scans WHERE project_id = ?',
+                    (keep_project_id,)
                 ).fetchall()
                 
-                for scan_row in scan_ids:
-                    scan_id = scan_row['id']
+                # Find scans to delete (anything that's not "Dollhouse Scan" or contains "Facade")
+                scans_to_delete = []
+                for scan in all_scans:
+                    scan_name = scan['name'].lower()
+                    # Delete if: doesn't contain 'dollhouse' OR contains 'facade' or 'fachada'
+                    if 'dollhouse' not in scan_name or 'facade' in scan_name or 'fachada' in scan_name:
+                        scans_to_delete.append((scan['id'], scan['name']))
+                
+                # Delete unwanted scans
+                for scan_id, scan_name in scans_to_delete:
                     # Delete related data
                     conn.execute('DELETE FROM scan_technical_details WHERE scan_id = ?', (scan_id,))
                     conn.execute('DELETE FROM reconstruction_metrics WHERE scan_id = ?', (scan_id,))
                     conn.execute('DELETE FROM processing_jobs WHERE scan_id = ?', (scan_id,))
+                    conn.execute('DELETE FROM scans WHERE id = ?', (scan_id,))
                     deleted_scans += 1
-                
-                # Delete scans
-                conn.execute('DELETE FROM scans WHERE project_id = ?', (proj_id,))
-                
-                # Delete project
-                conn.execute('DELETE FROM projects WHERE id = ?', (proj_id,))
-                deleted_projects += 1
+                    logger.info(f"Deleted scan: {scan_name} (ID: {scan_id})")
             
             conn.commit()
             
