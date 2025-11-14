@@ -705,20 +705,29 @@ class Database:
                 # Find scans to delete (anything that's not "Dollhouse Scan" or contains "Facade")
                 scans_to_delete = []
                 for scan in all_scans:
-                    scan_name = scan['name'].lower()
-                    # Delete if: doesn't contain 'dollhouse' OR contains 'facade' or 'fachada'
-                    if 'dollhouse' not in scan_name or 'facade' in scan_name or 'fachada' in scan_name:
-                        scans_to_delete.append((scan['id'], scan['name']))
+                    try:
+                        scan_name = (scan['name'] or '').lower() if scan['name'] else ''
+                        scan_id = scan['id']
+                        # Delete if: doesn't contain 'dollhouse' OR contains 'facade' or 'fachada'
+                        if 'dollhouse' not in scan_name or 'facade' in scan_name or 'fachada' in scan_name:
+                            scans_to_delete.append((scan_id, scan['name'] or 'Unknown'))
+                    except (KeyError, TypeError) as e:
+                        logger.warning(f"Skipping scan row due to error: {e}")
+                        continue
                 
                 # Delete unwanted scans
                 for scan_id, scan_name in scans_to_delete:
-                    # Delete related data
-                    conn.execute('DELETE FROM scan_technical_details WHERE scan_id = ?', (scan_id,))
-                    conn.execute('DELETE FROM reconstruction_metrics WHERE scan_id = ?', (scan_id,))
-                    conn.execute('DELETE FROM processing_jobs WHERE scan_id = ?', (scan_id,))
-                    conn.execute('DELETE FROM scans WHERE id = ?', (scan_id,))
-                    deleted_scans += 1
-                    logger.info(f"Deleted scan: {scan_name} (ID: {scan_id})")
+                    try:
+                        # Delete related data
+                        conn.execute('DELETE FROM scan_technical_details WHERE scan_id = ?', (scan_id,))
+                        conn.execute('DELETE FROM reconstruction_metrics WHERE scan_id = ?', (scan_id,))
+                        conn.execute('DELETE FROM processing_jobs WHERE scan_id = ?', (scan_id,))
+                        conn.execute('DELETE FROM scans WHERE id = ?', (scan_id,))
+                        deleted_scans += 1
+                        logger.info(f"Deleted scan: {scan_name} (ID: {scan_id})")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete scan {scan_id}: {e}")
+                        continue
             
             conn.commit()
             
