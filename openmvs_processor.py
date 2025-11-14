@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-        logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class OpenMVSProcessor:
@@ -45,7 +45,6 @@ class OpenMVSProcessor:
         # If not found, return the tool name and let subprocess handle the error
         logger.warning(f"⚠️  {tool_name} not found in standard locations, trying PATH")
         return tool_name
-    """OpenMVS 3D Reconstruction Processor"""
     
     def __init__(self, workspace_path: str):
         """
