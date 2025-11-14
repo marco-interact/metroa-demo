@@ -446,7 +446,9 @@ export function SimpleViewer({
             <div className="text-gray-400">
               {selectedPointPositions.length === 0 && "Click on model to place Point A"}
               {selectedPointPositions.length === 1 && "Click on model to place Point B"}
-              {selectedPointPositions.length === 2 && "✅ Ready to calibrate"}
+              {selectedPointPositions.length === 2 && "✅ Ready for 2-point measurement"}
+              {selectedPointPositions.length === 3 && "✅ Ready for 3-point measurement (angle)"}
+              {selectedPointPositions.length > 3 && `✅ ${selectedPointPositions.length} points selected`}
             </div>
           </div>
         </div>
