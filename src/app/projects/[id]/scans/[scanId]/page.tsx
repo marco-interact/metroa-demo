@@ -83,6 +83,9 @@ function Enhanced3DViewer({
 }) {
   const [viewMode, setViewMode] = useState<'pointcloud' | 'mesh'>('pointcloud')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  
+  // Ensure processingProgress always has a default value
+  const safeProcessingProgress = processingProgress || { progress: 0, stage: 'Initializing...' }
 
   // Safety check - don't render if scan is null
   if (!scan) {
@@ -180,9 +183,9 @@ function Enhanced3DViewer({
             <ProcessingStatus
               scanId={scan.id}
               status="processing"
-              progress={processingProgress?.progress || 0}
-              message={processingProgress?.stage || 'Processing...'}
-              currentStage={processingProgress?.stage || 'Processing...'}
+              progress={safeProcessingProgress.progress || 0}
+              message={safeProcessingProgress.stage || 'Processing...'}
+              currentStage={safeProcessingProgress.stage || 'Processing...'}
               className="mt-4"
             />
           </div>
