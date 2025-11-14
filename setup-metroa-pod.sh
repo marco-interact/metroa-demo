@@ -57,6 +57,7 @@ apt-get install -y \
     libgles2-mesa-dev \
     libgl1-mesa-dev \
     libglu1-mesa-dev \
+    libopencv-dev \
     python3-pip \
     sqlite3 \
     unzip \
@@ -111,6 +112,13 @@ cd /workspace
 # Remove any existing OpenMVS
 rm -rf openMVS openmvs-build
 
+# Verify OpenCV is installed (required by OpenMVS)
+if ! pkg-config --exists opencv4 && ! pkg-config --exists opencv; then
+    print_error "OpenCV not found! Installing OpenCV development packages..."
+    apt-get update
+    apt-get install -y libopencv-dev
+fi
+
 # Clone OpenMVS with submodules (VCG library)
 print_info "Cloning OpenMVS repository..."
 git clone --recursive https://github.com/cdcseacave/openMVS.git
@@ -123,10 +131,14 @@ print_info "Building OpenMVS (this may take 10-15 minutes)..."
 OPENMVS_BUILD_DIR="/workspace/openMVS/build"
 mkdir -p "$OPENMVS_BUILD_DIR" && cd "$OPENMVS_BUILD_DIR"
 
+# Find OpenCV path
+OPENCV_DIR=$(pkg-config --variable=prefix opencv4 2>/dev/null || pkg-config --variable=prefix opencv 2>/dev/null || echo "/usr")
+
 cmake /workspace/openMVS \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr/local \
     -DVCG_DIR=/workspace/openMVS/vcg \
+    -DOpenCV_DIR="${OPENCV_DIR}/lib/cmake/opencv4" \
     -DCMAKE_CXX_FLAGS="-O3"
 
 # Build with limited parallelism (prevent OOM)
