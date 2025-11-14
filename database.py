@@ -515,6 +515,11 @@ class Database:
     def setup_demo_data(self) -> Dict:
         """Setup demo data with completed scans"""
         try:
+            # Clean up any duplicate demo data first
+            cleanup_result = self.cleanup_duplicate_demos()
+            if cleanup_result.get("deleted_projects", 0) > 0:
+                logger.info(f"🧹 Cleaned up {cleanup_result.get('deleted_projects')} duplicate projects before setup")
+            
             # Create demo user
             demo_email = "demo@metroa.app"
             user = self.get_user_by_email(demo_email)
@@ -627,40 +632,77 @@ class Database:
             raise
     
     def cleanup_duplicate_demos(self) -> Dict:
-        """Remove duplicate demo projects, keeping only the most recent one"""
+        """Remove duplicate demo projects and scans, keeping only the most recent one"""
         conn = self.get_connection()
         try:
-            # Find all demo projects
+            # Find demo user
+            demo_user = conn.execute(
+                'SELECT id FROM users WHERE email = ?',
+                ('demo@metroa.app',)
+            ).fetchone()
+            
+            if not demo_user:
+                return {"status": "success", "message": "No demo user found", "deleted": 0}
+            
+            user_id = demo_user['id']
+            
+            # Find all demo projects for this user
             demo_projects = conn.execute('''
-                SELECT p.id, p.created_at 
+                SELECT p.id, p.name, p.created_at, COUNT(s.id) as scan_count
                 FROM projects p
-                JOIN users u ON p.user_id = u.id
-                WHERE u.email = 'demo@metroa.app' AND p.name = 'Demo Showcase Project'
+                LEFT JOIN scans s ON p.id = s.project_id
+                WHERE p.user_id = ?
+                GROUP BY p.id
                 ORDER BY p.created_at DESC
-            ''').fetchall()
+            ''', (user_id,)).fetchall()
             
             if len(demo_projects) <= 1:
                 return {"status": "success", "message": "No duplicates to clean", "deleted": 0}
             
-            # Keep the most recent, delete the rest
+            # Keep the most recent project, delete all others
             keep_project_id = demo_projects[0]['id']
             delete_ids = [proj['id'] for proj in demo_projects[1:]]
             
-            # Delete scans for duplicate projects
+            deleted_scans = 0
+            deleted_projects = 0
+            
+            # Delete scans and related data for duplicate projects
             for proj_id in delete_ids:
-                conn.execute('DELETE FROM scan_technical_details WHERE scan_id IN (SELECT id FROM scans WHERE project_id = ?)', (proj_id,))
+                # Get scan IDs for this project
+                scan_ids = conn.execute(
+                    'SELECT id FROM scans WHERE project_id = ?',
+                    (proj_id,)
+                ).fetchall()
+                
+                for scan_row in scan_ids:
+                    scan_id = scan_row['id']
+                    # Delete related data
+                    conn.execute('DELETE FROM scan_technical_details WHERE scan_id = ?', (scan_id,))
+                    conn.execute('DELETE FROM reconstruction_metrics WHERE scan_id = ?', (scan_id,))
+                    conn.execute('DELETE FROM processing_jobs WHERE scan_id = ?', (scan_id,))
+                    deleted_scans += 1
+                
+                # Delete scans
                 conn.execute('DELETE FROM scans WHERE project_id = ?', (proj_id,))
+                
+                # Delete project
                 conn.execute('DELETE FROM projects WHERE id = ?', (proj_id,))
+                deleted_projects += 1
             
             conn.commit()
             
-            logger.info(f"Cleaned up {len(delete_ids)} duplicate demo projects")
+            logger.info(f"Cleaned up {deleted_projects} duplicate projects and {deleted_scans} scans")
             return {
                 "status": "success",
-                "message": f"Removed {len(delete_ids)} duplicate projects",
-                "deleted": len(delete_ids),
+                "message": f"Removed {deleted_projects} duplicate projects and {deleted_scans} scans",
+                "deleted_projects": deleted_projects,
+                "deleted_scans": deleted_scans,
                 "kept_project_id": keep_project_id
             }
+        except Exception as e:
+            logger.error(f"Error cleaning up duplicates: {e}")
+            conn.rollback()
+            return {"status": "error", "message": str(e), "deleted": 0}
         finally:
             conn.close()
     

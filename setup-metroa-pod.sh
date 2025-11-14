@@ -323,12 +323,21 @@ from database import db
 # Create database instance (auto-initializes tables)
 print('✅ Database tables initialized!')
 
+# Clean up duplicate demo data first
+print('🧹 Cleaning up duplicate demo data...')
+cleanup_result = db.cleanup_duplicate_demos()
+if cleanup_result.get('deleted_projects', 0) > 0:
+    print(f"✅ Cleaned up {cleanup_result.get('deleted_projects')} duplicate projects")
+
 # Setup demo data
 result = db.setup_demo_data()
 if result['status'] == 'success':
     print(f"✅ Demo data setup: {result['message']}")
     print(f"   Project: Reconstruction Test Project 1")
-    print(f"   Scans: 1 (Dollhouse Scan)")
+    if result.get('skipped'):
+        print(f"   Scans: {len(result.get('scan_ids', []))} (existing)")
+    else:
+        print(f"   Scans: 1 (Dollhouse Scan)")
 else:
     print(f"⚠️  Demo data setup: {result.get('message', 'Unknown error')}")
 PYEOF

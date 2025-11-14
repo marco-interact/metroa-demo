@@ -1484,9 +1484,15 @@ async def startup_event():
         # Initialize database
         init_database()
         
+        # Clean up duplicate demo data first
+        logger.info("🧹 Cleaning up duplicate demo data...")
+        from database import db
+        cleanup_result = db.cleanup_duplicate_demos()
+        if cleanup_result.get("deleted_projects", 0) > 0:
+            logger.info(f"✅ Cleaned up {cleanup_result.get('deleted_projects')} duplicate projects")
+        
         # Initialize demo data using database class
         logger.info("🔄 Initializing demo data...")
-        from database import db
         result = db.setup_demo_data()
         
         if result.get("status") == "success":
