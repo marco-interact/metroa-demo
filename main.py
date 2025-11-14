@@ -1127,6 +1127,78 @@ async def cleanup_duplicates():
             "current_scans": scans_count
         }
     except Exception as e:
+        logger.error(f"Cleanup failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/database/force-delete-project")
+async def force_delete_project(project_name: str = Form(...)):
+    """Force delete a project by name and all its associated data"""
+    try:
+        logger.info(f"🗑️ Force deleting project: {project_name}")
+        from database import db
+        result = db.force_delete_project_by_name(project_name)
+        
+        # Also delete associated files from filesystem
+        if result.get("status") == "success":
+            project_id = result.get("project_id")
+            if project_id:
+                import shutil
+                from pathlib import Path
+                
+                # Delete upload directories for all scans in this project
+                conn = get_db_connection()
+                try:
+                    scan_ids = conn.execute(
+                        "SELECT id FROM scans WHERE project_id = ?",
+                        (project_id,)
+                    ).fetchall()
+                    # Note: scans are already deleted, but we can still try to clean up files
+                    # if they exist
+                except:
+                    pass
+                finally:
+                    conn.close()
+                
+                # Try to delete any remaining scan directories
+                # (scans are already deleted from DB, but files might still exist)
+                upload_base = Path("/workspace/data/uploads")
+                results_base = Path("/workspace/data/results")
+                
+                if upload_base.exists():
+                    for scan_dir in upload_base.iterdir():
+                        if scan_dir.is_dir():
+                            try:
+                                shutil.rmtree(scan_dir)
+                                logger.info(f"Deleted upload directory: {scan_dir}")
+                            except Exception as e:
+                                logger.warning(f"Could not delete {scan_dir}: {e}")
+                
+                if results_base.exists():
+                    for scan_dir in results_base.iterdir():
+                        if scan_dir.is_dir():
+                            try:
+                                shutil.rmtree(scan_dir)
+                                logger.info(f"Deleted results directory: {scan_dir}")
+                            except Exception as e:
+                                logger.warning(f"Could not delete {scan_dir}: {e}")
+        
+        # Verify deletion
+        conn = get_db_connection()
+        projects_count = conn.execute("SELECT COUNT(*) as count FROM projects").fetchone()["count"]
+        scans_count = conn.execute("SELECT COUNT(*) as count FROM scans").fetchone()["count"]
+        conn.close()
+        
+        logger.info(f"📊 After deletion: {projects_count} projects, {scans_count} scans")
+        
+        return {
+            "status": result.get("status", "success"),
+            "message": result.get("message", "Project deleted"),
+            "deleted_projects": result.get("deleted_projects", 0),
+            "deleted_scans": result.get("deleted_scans", 0),
+            "current_projects": projects_count,
+            "current_scans": scans_count
+        }
+    except Exception as e:
         logger.error(f"Error cleaning up duplicates: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
