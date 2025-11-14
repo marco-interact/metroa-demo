@@ -126,18 +126,46 @@ cd openMVS
 git checkout v2.2.0
 git submodule update --init --recursive
 
+# Verify VCG submodule exists
+if [ ! -d "vcg" ]; then
+    print_error "VCG submodule not found! Initializing submodules..."
+    git submodule update --init --recursive
+fi
+
+# Verify VCG directory structure
+if [ ! -f "vcg/CMakeLists.txt" ] && [ ! -d "libs/vcg" ]; then
+    print_error "VCG directory structure incorrect!"
+    print_info "Checking for VCG in different locations..."
+    find . -name "vcg" -type d | head -5
+    exit 1
+fi
+
 # Build OpenMVS
 print_info "Building OpenMVS (this may take 10-15 minutes)..."
 OPENMVS_BUILD_DIR="/workspace/openMVS/build"
+OPENMVS_SRC_DIR="/workspace/openMVS"
 mkdir -p "$OPENMVS_BUILD_DIR" && cd "$OPENMVS_BUILD_DIR"
 
 # Find OpenCV path
 OPENCV_DIR=$(pkg-config --variable=prefix opencv4 2>/dev/null || pkg-config --variable=prefix opencv 2>/dev/null || echo "/usr")
 
-cmake /workspace/openMVS \
+# Determine VCG path (can be in root or libs directory)
+VCG_PATH=""
+if [ -d "${OPENMVS_SRC_DIR}/vcg" ]; then
+    VCG_PATH="${OPENMVS_SRC_DIR}/vcg"
+elif [ -d "${OPENMVS_SRC_DIR}/libs/vcg" ]; then
+    VCG_PATH="${OPENMVS_SRC_DIR}/libs/vcg"
+else
+    print_error "VCG directory not found! Expected at ${OPENMVS_SRC_DIR}/vcg or ${OPENMVS_SRC_DIR}/libs/vcg"
+    exit 1
+fi
+
+print_info "Using VCG path: ${VCG_PATH}"
+
+cmake "${OPENMVS_SRC_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr/local \
-    -DVCG_DIR=/workspace/openMVS/vcg \
+    -DVCG_DIR="${VCG_PATH}" \
     -DOpenCV_DIR="${OPENCV_DIR}/lib/cmake/opencv4" \
     -DCMAKE_CXX_FLAGS="-O3"
 
