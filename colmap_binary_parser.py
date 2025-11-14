@@ -272,7 +272,7 @@ class MeasurementSystem:
         self.cameras, self.images, self.points3D = COLMAPBinaryParser.load_reconstruction(
             self.sparse_path
         )
-    
+        
     def find_nearest_point(self, target_position, max_distance=1.0):
         """
         Find nearest point in sparse reconstruction to given 3D position

@@ -13,7 +13,8 @@ import {
   Maximize2,
   Eye,
   EyeOff,
-  Trash2
+  Trash2,
+  Camera
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -237,6 +238,20 @@ function Enhanced3DViewer({
           className="bg-app-elevated/80 hover:bg-gray-700"
         >
           <Maximize2 className="w-4 h-4" />
+        </Button>
+        
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            // Trigger capture event
+            window.dispatchEvent(new Event('capture-3d-viewer'))
+          }}
+          className="bg-app-elevated/80 hover:bg-gray-700"
+          disabled={scan.status !== 'completed'}
+          title="Capture screenshot"
+        >
+          <Camera className="w-4 h-4" />
         </Button>
       </div>
 

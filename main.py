@@ -31,6 +31,14 @@ except ImportError:
     HAS_360_SUPPORT = False
     logger.warning("360° video support not available")
 
+# Import GLTF converter
+try:
+    from ply_to_gltf import ply_to_glb, ply_to_gltf_ascii
+    HAS_GLTF_SUPPORT = True
+except ImportError:
+    HAS_GLTF_SUPPORT = False
+    logger.warning("GLTF export support not available")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1303,6 +1311,85 @@ async def export_reconstruction(job_id: str, format: str = "PLY"):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Export failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/scans/{scan_id}/export/{format}")
+async def export_scan_model(scan_id: str, format: str = "glb"):
+    """
+    Export scan point cloud to GLTF/GLB format
+    
+    Formats: glb (binary), gltf (ASCII)
+    """
+    try:
+        if format.lower() not in ["glb", "gltf"]:
+            raise HTTPException(status_code=400, detail="Format must be 'glb' or 'gltf'")
+        
+        if not HAS_GLTF_SUPPORT:
+            raise HTTPException(status_code=503, detail="GLTF export not available")
+        
+        # Get scan info
+        conn = get_db_connection()
+        scan = conn.execute("SELECT * FROM scans WHERE id = ?", (scan_id,)).fetchone()
+        conn.close()
+        
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        scan_dict = dict(scan)
+        ply_file = scan_dict.get('ply_file')
+        
+        if not ply_file:
+            raise HTTPException(status_code=404, detail="Point cloud not available for this scan")
+        
+        # Resolve PLY file path
+        if ply_file.startswith('/workspace/'):
+            ply_path = Path(ply_file)
+        else:
+            # Demo scan
+            ply_path = Path("demo-resources") / ply_file
+        
+        if not ply_path.exists():
+            raise HTTPException(status_code=404, detail="PLY file not found")
+        
+        # Create output directory
+        results_dir = Path(f"/workspace/data/results/{scan_id}")
+        results_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Export to GLTF/GLB
+        output_ext = "glb" if format.lower() == "glb" else "gltf"
+        output_path = results_dir / f"point_cloud.{output_ext}"
+        
+        success = False
+        if format.lower() == "glb":
+            success = ply_to_glb(str(ply_path), str(output_path))
+        else:
+            success = ply_to_gltf_ascii(str(ply_path), str(output_path))
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to convert PLY to GLTF")
+        
+        # Update database with GLB file path
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                "UPDATE scans SET glb_file = ? WHERE id = ?",
+                (str(output_path), scan_id)
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        
+        # Return file for download
+        return FileResponse(
+            str(output_path),
+            media_type="model/gltf-binary" if format.lower() == "glb" else "model/gltf+json",
+            filename=f"{scan_dict.get('name', 'scan')}.{output_ext}"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting scan to GLTF: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/reconstruction/{job_id}/download/{filename}")
