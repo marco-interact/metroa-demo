@@ -361,31 +361,37 @@ function CameraController() {
 }
 
 // Capture component that uses Three.js renderer
-function CaptureButton({ onCapture }: { onCapture: () => void }) {
+function CaptureButton({ onCapture }: { onCapture?: () => void }) {
   const { gl } = useThree()
   
-  const handleCapture = useCallback(() => {
-    const canvas = gl.domElement
-    if (!canvas) return
+  useEffect(() => {
+    // Listen for capture event
+    const handleCaptureEvent = () => {
+      const canvas = gl.domElement
+      if (!canvas) return
+      
+      // Capture with preserveDrawingBuffer enabled
+      canvas.toBlob((blob) => {
+        if (!blob) return
+        
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `scan-capture-${Date.now()}.png`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+        
+        if (onCapture) onCapture()
+      }, 'image/png')
+    }
     
-    // Capture with preserveDrawingBuffer enabled
-    canvas.toBlob((blob) => {
-      if (!blob) return
-      
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `scan-capture-${Date.now()}.png`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-      
-      if (onCapture) onCapture()
-    }, 'image/png')
+    window.addEventListener('capture-3d-viewer', handleCaptureEvent)
+    return () => window.removeEventListener('capture-3d-viewer', handleCaptureEvent)
   }, [gl, onCapture])
   
-  return null // This component doesn't render anything, it's just for the hook
+  return null
 }
 
 export function SimpleViewer({ 
@@ -475,7 +481,7 @@ export function SimpleViewer({
         />
         
         <CameraController />
-        {onCaptureImage && <CaptureButton onCapture={onCaptureImage} />}
+        <CaptureButton onCapture={onCaptureImage} />
       </Canvas>
 
       {/* Controls - only show if no model URL (demo mode) */}
