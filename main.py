@@ -272,12 +272,18 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         if not raw_ply_path:
             update_scan_status(scan_id, "processing", progress=80, stage="Exporting sparse point cloud...")
             logger.info(f"💾 Exporting SPARSE point cloud (no dense reconstruction)")
-            raw_ply_path = processor.export_model(output_format="PLY")
+            raw_ply_path_str = processor.export_model(output_format="PLY")
+            raw_ply_path = Path(raw_ply_path_str) if raw_ply_path_str else None
             logger.info(f"✅ Exported sparse PLY: {raw_ply_path}")
         
         # Step 7: Open3D Post-Processing (clean and optimize point cloud)
         final_ply_path = None
         postprocessing_stats = None
+        
+        # Ensure raw_ply_path is a Path object
+        if raw_ply_path:
+            if isinstance(raw_ply_path, str):
+                raw_ply_path = Path(raw_ply_path)
         
         if raw_ply_path and raw_ply_path.exists():
             update_scan_status(scan_id, "processing", progress=90, stage="Post-processing point cloud with Open3D...")
