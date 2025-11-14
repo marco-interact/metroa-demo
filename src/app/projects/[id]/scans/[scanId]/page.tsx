@@ -286,20 +286,24 @@ export default function ScanDetailPage() {
   const [processingProgress, setProcessingProgress] = useState({ progress: 0, stage: 'Initializing...' })
 
   // Handle point clicks - MUST be at top level (React hooks rule)
+  // Now supports up to 3 points for angle/radius measurements
   const handlePointClick = useCallback((pointIndex: number, position: [number, number, number]) => {
     console.log('✅ Point selected:', { pointIndex, position })
     
-    // Prevent adding more than 2 points
+    // Allow up to 3 points (for angle measurements)
+    // For radius, we'll allow more points, but UI will handle that
+    const maxPoints = 3
+    
     setSelectedPoints(prev => {
-      if (prev.length >= 2) {
-        console.log('⚠️ Already have 2 points, resetting...')
+      if (prev.length >= maxPoints) {
+        console.log(`⚠️ Already have ${maxPoints} points, resetting...`)
         return [pointIndex]
       }
       return [...prev, pointIndex]
     })
     
     setSelectedPointPositions(prev => {
-      if (prev.length >= 2) {
+      if (prev.length >= maxPoints) {
         return [position]
       }
       return [...prev, position]

@@ -231,14 +231,39 @@ function PLYModel({ url, onPointClick, enableSelection }: {
   )
 }
 
-// Visual markers for selected points - Point A (Green) and Point B (Blue)
+// Visual markers for selected points - Supports multiple points with different colors
 function PointMarkers({ positions }: { positions: Array<[number, number, number]> }) {
+  // Color scheme: A=Green, B=Blue, C=Purple, D+=Orange
+  const getPointColor = (index: number) => {
+    const colors = [
+      0x10b981, // Green (A)
+      0x3b82f6, // Blue (B)
+      0xa855f7, // Purple (C)
+      0xf97316, // Orange (D+)
+    ]
+    return colors[Math.min(index, colors.length - 1)]
+  }
+  
+  const getPointLabel = (index: number) => {
+    return String.fromCharCode(65 + index) // A, B, C, D, ...
+  }
+  
+  const getBgColor = (index: number) => {
+    const colors = [
+      "bg-green-500",
+      "bg-blue-500",
+      "bg-purple-500",
+      "bg-orange-500",
+    ]
+    return colors[Math.min(index, colors.length - 1)]
+  }
+  
   return (
     <>
       {positions.map((pos, index) => {
-        const pointLetter = index === 0 ? "A" : "B"
-        const pointColor = index === 0 ? 0x10b981 : 0x3b82f6  // green-500 : blue-500
-        const bgColor = index === 0 ? "bg-green-500" : "bg-blue-500"
+        const pointLetter = getPointLabel(index)
+        const pointColor = getPointColor(index)
+        const bgColor = getBgColor(index)
         
         return (
           <group key={index} position={pos}>
@@ -262,7 +287,7 @@ function PointMarkers({ positions }: { positions: Array<[number, number, number]
               />
             </mesh>
             
-            {/* Label with Point A/B */}
+            {/* Label with Point A/B/C/etc */}
             <Html distanceFactor={10} center>
               <div className={`${bgColor} text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-lg pointer-events-none`}>
                 Point {pointLetter}
