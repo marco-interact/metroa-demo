@@ -23,6 +23,14 @@ from quality_presets import get_preset, map_legacy_quality, QUALITY_PRESETS
 from pointcloud_postprocess import postprocess_pointcloud, get_pointcloud_stats
 from openmvs_processor import OpenMVSProcessor
 
+# Import 360° video detection
+try:
+    from video_360_converter import detect_360_video
+    HAS_360_SUPPORT = True
+except ImportError:
+    HAS_360_SUPPORT = False
+    logger.warning("360° video support not available")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -131,22 +139,30 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         # Initialize COLMAP processor
         processor = COLMAPProcessor(str(results_dir))
         
+        # Check if this is a 360° video
+        conn = get_db_connection()
+        scan_row = conn.execute("SELECT is_360 FROM scans WHERE id = ?", (scan_id,)).fetchone()
+        is_360_video = scan_row and scan_row.get('is_360', 0) == 1
+        conn.close()
+        
         # Step 1: Extract frames from video with AUTO FPS DETECTION
-        update_scan_status(scan_id, "processing", progress=2, stage="Extracting frames from video...")
-        logger.info(f"📹 Extracting frames from {video_path}")
+        stage_msg = "Converting 360° video to perspective frames..." if is_360_video else "Extracting frames from video..."
+        update_scan_status(scan_id, "processing", progress=2, stage=stage_msg)
+        logger.info(f"📹 Extracting frames from {video_path} {'(360° video)' if is_360_video else ''}")
         
         # Progress tracking for frame extraction (0-10%)
         def frame_progress_callback(current, total):
             if total > 0:
                 progress_pct = 2 + int((current / total) * 8)  # 2-10%
-                update_scan_status(scan_id, "processing", progress=progress_pct, 
-                                stage=f"Extracting frames from video... ({current}/{total})")
+                stage = f"Converting 360° video... ({current}/{total})" if is_360_video else f"Extracting frames... ({current}/{total})"
+                update_scan_status(scan_id, "processing", progress=progress_pct, stage=stage)
         
         frame_count = processor.extract_frames(
             video_path=str(video_path),
             target_fps=None,  # Enable auto FPS detection
             quality=quality,
-            progress_callback=frame_progress_callback
+            progress_callback=frame_progress_callback,
+            is_360=is_360_video
         )
         update_scan_status(scan_id, "processing", progress=10, stage=f"Extracted {frame_count} frames")
         logger.info(f"✅ Extracted {frame_count} frames")
@@ -1135,15 +1151,34 @@ async def upload_video_for_reconstruction(
         
         logger.info(f"💾 Saved video to {video_path} ({len(content)} bytes)")
         
+        # Detect 360° video format
+        is_360_video = False
+        video_format_info = {}
+        if HAS_360_SUPPORT:
+            try:
+                video_format_info = detect_360_video(str(video_path))
+                is_360_video = video_format_info.get('is_360', False)
+                if is_360_video:
+                    logger.info(f"🌐 Detected 360° video: {video_format_info.get('format', 'unknown')} ({video_format_info.get('width', 0)}x{video_format_info.get('height', 0)})")
+            except Exception as e:
+                logger.warning(f"Could not detect 360° format: {e}")
+        
         # Map legacy quality to new quality_mode
         quality_mode = map_legacy_quality(quality)
         
         # Create scan record in database for persistence
         conn = get_db_connection()
+        # Add is_360 column if it doesn't exist
+        try:
+            conn.execute("ALTER TABLE scans ADD COLUMN is_360 INTEGER DEFAULT 0")
+            conn.commit()
+        except:
+            pass  # Column already exists
+        
         conn.execute(
-            """INSERT INTO scans (id, project_id, name, video_filename, video_size, processing_quality, quality_mode, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (scan_id, project_id, scan_name, video.filename, len(content), quality, quality_mode, 'processing')
+            """INSERT INTO scans (id, project_id, name, video_filename, video_size, processing_quality, quality_mode, status, is_360)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (scan_id, project_id, scan_name, video.filename, len(content), quality, quality_mode, 'processing', 1 if is_360_video else 0)
         )
         conn.commit()
         conn.close()

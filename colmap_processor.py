@@ -14,6 +14,14 @@ import shutil
 
 logger = logging.getLogger(__name__)
 
+# Import 360° video converter if available
+try:
+    from video_360_converter import detect_360_video, convert_360_video_to_perspective_frames
+    HAS_360_SUPPORT = True
+except ImportError:
+    HAS_360_SUPPORT = False
+    logger.warning("360° video support not available (video_360_converter.py not found)")
+
 
 class COLMAPProcessor:
     """COLMAP 3D Reconstruction Processor"""
@@ -153,7 +161,7 @@ class COLMAPProcessor:
             logger.warning(f"⚠️  Auto-detection failed: {e}, using defaults")
             return 10.0, 20.0, 200  # Safe defaults
     
-    def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = None, quality: str = "medium", progress_callback=None) -> int:
+    def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = None, quality: str = "medium", progress_callback=None, is_360: bool = False) -> int:
         """
         Extract frames from video using ffmpeg with AUTO FPS DETECTION
         
@@ -170,7 +178,37 @@ class COLMAPProcessor:
             max_frames: Maximum number of frames to extract (0 = auto)
             target_fps: Manual FPS override (None = auto-detect)
             quality: Quality preset (low/medium/high) - affects target frame count
+            is_360: If True, treat as 360° video and convert to perspective frames
         """
+        # Check for 360° video if not explicitly set
+        if not is_360 and HAS_360_SUPPORT:
+            try:
+                detection = detect_360_video(video_path)
+                is_360 = detection.get('is_360', False)
+                if is_360:
+                    logger.info(f"🌐 Detected 360° video format: {detection.get('format', 'unknown')}")
+            except Exception as e:
+                logger.warning(f"Could not detect 360° format: {e}")
+        
+        # Handle 360° video conversion
+        if is_360 and HAS_360_SUPPORT:
+            logger.info(f"🌐 Converting 360° video to perspective frames...")
+            try:
+                # Use 360° converter to extract perspective frames
+                num_views = 8  # Extract 8 views per frame (45° apart)
+                frame_count = convert_360_video_to_perspective_frames(
+                    video_path,
+                    self.images_path,
+                    fov=90.0,
+                    num_views=num_views,
+                    progress_callback=progress_callback
+                )
+                logger.info(f"✅ Extracted {frame_count} perspective frames from 360° video")
+                return frame_count
+            except Exception as e:
+                logger.error(f"360° conversion failed, falling back to standard extraction: {e}")
+                # Fall through to standard extraction
+        
         logger.info(f"Extracting frames from {video_path} (quality={quality}, auto_fps={'enabled' if target_fps is None else 'manual'})")
         
         # Auto-detect optimal FPS if not specified
