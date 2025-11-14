@@ -1,87 +1,186 @@
 # Pull and Build Commands for RunPod
 
-## Quick One-Liner
+Quick reference for updating the backend on RunPod after pushing changes to GitHub.
+
+## 🔄 Pull Latest Code
 
 ```bash
-cd /workspace/metroa-demo && git pull origin main && pip install --break-system-packages -r requirements.txt && pkill -f "python.*main.py" || true && sleep 2 && nohup python3 main.py > backend.log 2>&1 &
-```
-
-## Step-by-Step Commands
-
-### Step 1: Pull Latest Code
-```bash
+# Navigate to project directory
 cd /workspace/metroa-demo
+
+# Pull latest changes from GitHub
 git pull origin main
+
+# Or if using 'metroa' remote:
+git pull metroa main
+
+# Force update if needed (use with caution):
+git fetch origin
+git reset --hard origin/main
 ```
 
-### Step 2: Install/Update Dependencies (if needed)
-```bash
-pip install --break-system-packages -r requirements.txt
-```
+## 🔨 Build/Install Dependencies
 
-### Step 3: Restart Backend
-```bash
-# Kill existing backend
-pkill -f "python.*main.py" || true
-sleep 2
+### Python Dependencies
 
-# Start backend
+```bash
 cd /workspace/metroa-demo
-nohup python3 main.py > backend.log 2>&1 &
 
-# Wait for startup
-sleep 5
+# Install/update Python dependencies
+pip install --break-system-packages -r requirements.txt
+
+# Or if using virtual environment:
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### Step 4: Verify Backend is Running
+### Verify Dependencies
+
 ```bash
-# Check process
+# Check key packages
+python3 -c "import cv2; print(f'OpenCV {cv2.__version__}')"
+python3 -c "import open3d as o3d; print(f'Open3D {o3d.__version__}')"
+python3 -c "import fastapi; print(f'FastAPI {fastapi.__version__}')"
+```
+
+## 🚀 Restart Backend
+
+### Option 1: Simple Start (Foreground)
+
+```bash
+cd /workspace/metroa-demo
+python main.py
+```
+
+### Option 2: Background with nohup
+
+```bash
+cd /workspace/metroa-demo
+nohup python main.py > backend.log 2>&1 &
+```
+
+### Option 3: Using screen (Recommended)
+
+```bash
+# Install screen if needed
+apt-get update && apt-get install -y screen
+
+# Start backend in screen session
+cd /workspace/metroa-demo
+screen -S metroa-backend -d -m python main.py
+
+# Attach to screen session to view logs
+screen -r metroa-backend
+
+# Detach: Press Ctrl+A then D
+```
+
+### Option 4: Kill and Restart
+
+```bash
+# Find and kill existing backend process
+ps aux | grep "python.*main.py" | grep -v grep
+kill -9 <PID>
+
+# Or kill all Python processes (use with caution)
+pkill -f "python.*main.py"
+
+# Restart backend
+cd /workspace/metroa-demo
+python main.py
+```
+
+## ✅ Verify Backend is Running
+
+```bash
+# Check if backend is responding
+curl http://localhost:8888/health
+
+# Check backend status endpoint
+curl http://localhost:8888/api/status
+
+# Check running processes
 ps aux | grep "python.*main.py" | grep -v grep
 
-# Check logs
-tail -20 backend.log
-
-# Test endpoint
-curl http://localhost:8888/health || curl http://localhost:8888/api/status
-```
-
-## If Backend Fails to Start
-
-### Check for Errors
-```bash
-tail -50 backend.log | grep -i error
-```
-
-### Common Issues
-
-**1. Missing Dependencies**
-```bash
-pip install --break-system-packages fastapi uvicorn python-multipart aiosqlite opencv-python numpy open3d
-```
-
-**2. Port Already in Use**
-```bash
+# Check if port 8888 is in use
 lsof -i :8888
-kill -9 <PID>
 ```
 
-**3. Database Locked**
+## 🔍 View Logs
+
 ```bash
-# Restart usually fixes this
+# If using nohup
+tail -f /workspace/metroa-demo/backend.log
+
+# If using screen
+screen -r metroa-backend
+
+# Check system logs
+journalctl -u metroa-backend  # If running as service
+```
+
+## 📋 Complete Update Workflow
+
+```bash
+# 1. Pull latest code
+cd /workspace/metroa-demo
+git pull origin main
+
+# 2. Install dependencies (if requirements.txt changed)
+pip install --break-system-packages -r requirements.txt
+
+# 3. Kill existing backend
 pkill -f "python.*main.py"
-sleep 2
-python3 main.py
+
+# 4. Start backend
+cd /workspace/metroa-demo
+screen -S metroa-backend -d -m python main.py
+
+# 5. Verify
+sleep 3
+curl http://localhost:8888/health
 ```
 
-## Frontend Build (Vercel)
+## 🐛 Troubleshooting
 
-On your local machine:
+### Backend won't start
 
 ```bash
-cd /Users/marco.aurelio/Desktop/metroa-demo
+# Check for errors
+python main.py
 
-# Deploy to Vercel
-vercel --prod
+# Check Python version
+python3 --version  # Should be 3.12+
+
+# Check database
+ls -lh /workspace/database.db
+
+# Check disk space
+df -h /workspace
 ```
 
-Or if using GitHub integration, Vercel will auto-deploy on push to main.
+### Port already in use
+
+```bash
+# Find process using port 8888
+lsof -i :8888
+
+# Kill it
+kill -9 <PID>
+
+# Or use different port
+PORT=8000 python main.py
+```
+
+### Dependencies missing
+
+```bash
+# Reinstall all dependencies
+pip install --break-system-packages --force-reinstall -r requirements.txt
+
+# Check specific package
+pip show opencv-python
+pip show open3d
+pip show fastapi
+```
