@@ -150,7 +150,10 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         # Check if this is a 360° video
         conn = get_db_connection()
         scan_row = conn.execute("SELECT is_360 FROM scans WHERE id = ?", (scan_id,)).fetchone()
-        is_360_video = scan_row and dict(scan_row).get('is_360', 0) == 1 if scan_row else False
+        is_360_video = False
+        if scan_row:
+            scan_dict = dict(scan_row)
+            is_360_video = scan_dict.get('is_360', 0) == 1
         conn.close()
         
         # Step 1: Extract frames from video with AUTO FPS DETECTION
