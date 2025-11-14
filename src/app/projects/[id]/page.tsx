@@ -223,7 +223,7 @@ export default function ProjectDetailPage() {
         trackProcessingStatus(scan.id, jobId)
       } else {
         // Real API upload with user email and quality setting
-        const userEmail = localStorage.getItem('user_email') || 'demo@colmap.app'
+        const userEmail = localStorage.getItem('user_email') || 'demo@metroa.app'
         
         // Simulate upload progress
         setUploadProgress(30)
@@ -344,7 +344,7 @@ export default function ProjectDetailPage() {
       ))
 
       // Re-trigger the upload/processing
-      const userEmail = localStorage.getItem('user_email') || 'demo@colmap.app'
+      const userEmail = localStorage.getItem('user_email') || 'demo@metroa.app'
       const result = await apiClient.uploadVideo(newScan.file, projectId, scan.name, userEmail)
       
       // Update job ID

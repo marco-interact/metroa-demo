@@ -516,7 +516,7 @@ class Database:
         """Setup demo data with completed scans"""
         try:
             # Create demo user
-            demo_email = "demo@colmap.app"
+            demo_email = "demo@metroa.app"
             user = self.get_user_by_email(demo_email)
             
             if not user:

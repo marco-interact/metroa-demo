@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     
     // Proxy request to backend
     const backendData = new URLSearchParams({
-      user_email: data.user_email || 'demo@colmap.app',
+      user_email: data.user_email || 'demo@metroa.app',
       name: data.name,
       description: data.description || '',
       location: data.location || '',
