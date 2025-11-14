@@ -33,6 +33,11 @@ interface Scan {
   fileSize?: string
   processingTime?: string
   pointCount?: number
+  results?: {
+    pointCloudUrl?: string
+    meshUrl?: string
+    thumbnailUrl?: string
+  }
   technicalDetails?: {
     point_count: number
     camera_count: number
@@ -42,6 +47,11 @@ interface Scan {
     file_size: string
     reconstruction_error: string
     coverage: string
+    results?: {
+      point_cloud_url?: string
+      mesh_url?: string
+      thumbnail_url?: string
+    }
   }
   processingStages?: Array<{
     name: string
@@ -60,13 +70,15 @@ function Enhanced3DViewer({
   scan, 
   isSelectingPoints = false,
   selectedPointPositions = [],
-  onPointClick
+  onPointClick,
+  processingProgress
 }: { 
   className?: string
   scan: Scan | null
   isSelectingPoints?: boolean
   selectedPointPositions?: Array<[number, number, number]>
   onPointClick?: (pointIndex: number, position: [number, number, number]) => void
+  processingProgress?: { progress: number; stage: string }
 }) {
   const [viewMode, setViewMode] = useState<'pointcloud' | 'mesh'>('pointcloud')
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -144,7 +156,7 @@ function Enhanced3DViewer({
             )}
             {/* Show actual 3D viewer when completed */}
             <SimpleViewer 
-              modelUrl={getModelUrl()}
+              modelUrl={getModelUrl() || undefined}
               className="w-full h-full"
               enablePointSelection={isSelectingPoints}
               selectedPointPositions={selectedPointPositions}
@@ -633,6 +645,7 @@ export default function ScanDetailPage() {
               isSelectingPoints={isSelectingPoints}
               selectedPointPositions={selectedPointPositions}
               onPointClick={handlePointClick}
+              processingProgress={processingProgress}
             />
           </div>
 
