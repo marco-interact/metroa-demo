@@ -142,11 +142,16 @@ if [ ! -d "vcg" ]; then
 fi
 
 # Verify VCG has required files
-if [ ! -f "vcg/CMakeLists.txt" ] && [ ! -d "vcg/vcg" ]; then
+print_info "Verifying VCG structure..."
+if [ ! -d "vcg/vcg" ] && [ ! -f "vcg/CMakeLists.txt" ]; then
     print_error "VCG directory structure incorrect!"
     print_info "VCG contents:"
     ls -la vcg/ | head -10
-    exit 1
+    print_info "Checking if VCG needs to be in vcg/vcg subdirectory..."
+    # Some OpenMVS versions expect vcg/vcg structure
+    if [ -d "vcg" ] && [ ! -d "vcg/vcg" ]; then
+        print_info "VCG might need to be in vcg/vcg, but current structure is flat"
+    fi
 fi
 
 # Build OpenMVS
@@ -158,28 +163,42 @@ mkdir -p "$OPENMVS_BUILD_DIR" && cd "$OPENMVS_BUILD_DIR"
 # Find OpenCV path
 OPENCV_DIR=$(pkg-config --variable=prefix opencv4 2>/dev/null || pkg-config --variable=prefix opencv 2>/dev/null || echo "/usr")
 
-# Determine VCG path (can be in root or libs directory)
+# Determine VCG path - OpenMVS expects VCG_ROOT environment variable
 VCG_PATH=""
-if [ -d "${OPENMVS_SRC_DIR}/vcg" ]; then
+if [ -d "${OPENMVS_SRC_DIR}/vcg/vcg" ]; then
+    # VCG is in vcg/vcg subdirectory
+    VCG_PATH="${OPENMVS_SRC_DIR}/vcg/vcg"
+elif [ -d "${OPENMVS_SRC_DIR}/vcg" ]; then
+    # VCG is directly in vcg directory
     VCG_PATH="${OPENMVS_SRC_DIR}/vcg"
 elif [ -d "${OPENMVS_SRC_DIR}/libs/vcg" ]; then
     VCG_PATH="${OPENMVS_SRC_DIR}/libs/vcg"
 else
-    print_error "VCG directory not found! Expected at ${OPENMVS_SRC_DIR}/vcg or ${OPENMVS_SRC_DIR}/libs/vcg"
+    print_error "VCG directory not found!"
+    print_info "Checking OpenMVS directory structure..."
+    find "${OPENMVS_SRC_DIR}" -name "vcg" -type d | head -5
     exit 1
 fi
 
 print_info "Using VCG path: ${VCG_PATH}"
 print_info "VCG directory contents:"
-ls -la "${VCG_PATH}" | head -5
+ls -la "${VCG_PATH}" | head -10
 
-# Set VCG_ROOT environment variable (some OpenMVS versions use this)
+# Set VCG_ROOT environment variable (REQUIRED by OpenMVS CMake)
 export VCG_ROOT="${VCG_PATH}"
+print_info "Set VCG_ROOT=${VCG_ROOT}"
+
+# Also try parent directory if VCG_ROOT points to vcg/vcg
+if [ -d "${OPENMVS_SRC_DIR}/vcg/vcg" ]; then
+    # If vcg/vcg exists, VCG_ROOT should point to parent (vcg)
+    export VCG_ROOT="${OPENMVS_SRC_DIR}/vcg"
+    print_info "Adjusted VCG_ROOT to parent directory: ${VCG_ROOT}"
+fi
 
 cmake "${OPENMVS_SRC_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr/local \
-    -DVCG_DIR="${VCG_PATH}" \
+    -DVCG_DIR="${VCG_ROOT}" \
     -DOpenCV_DIR="${OPENCV_DIR}/lib/cmake/opencv4" \
     -DCMAKE_CXX_FLAGS="-O3"
 
