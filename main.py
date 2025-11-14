@@ -1099,12 +1099,46 @@ async def create_project(user_email: str, name: str, description: str = "", loca
         logger.error(f"Error creating project: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/database/cleanup-duplicates")
+async def cleanup_duplicates():
+    """Clean up duplicate demo projects and scans"""
+    try:
+        logger.info("🧹 Cleaning up duplicate demo data...")
+        from database import db
+        result = db.cleanup_duplicate_demos()
+        
+        # Verify cleanup
+        conn = get_db_connection()
+        projects_count = conn.execute("SELECT COUNT(*) as count FROM projects").fetchone()["count"]
+        scans_count = conn.execute("SELECT COUNT(*) as count FROM scans").fetchone()["count"]
+        conn.close()
+        
+        logger.info(f"📊 After cleanup: {projects_count} projects, {scans_count} scans")
+        
+        return {
+            "status": result.get("status", "success"),
+            "message": result.get("message", "Cleanup completed"),
+            "deleted_projects": result.get("deleted_projects", 0),
+            "deleted_scans": result.get("deleted_scans", 0),
+            "current_projects": projects_count,
+            "current_scans": scans_count
+        }
+    except Exception as e:
+        logger.error(f"Error cleaning up duplicates: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/database/setup-demo")
 async def setup_demo_data():
     """Setup demo data using database class"""
     try:
         logger.info("🔄 Setting up demo data...")
         from database import db
+        
+        # Clean up duplicates first
+        cleanup_result = db.cleanup_duplicate_demos()
+        if cleanup_result.get("deleted_projects", 0) > 0:
+            logger.info(f"🧹 Cleaned up {cleanup_result.get('deleted_projects')} duplicate projects")
+        
         result = db.setup_demo_data()
         
         # Verify demo data was created
