@@ -166,9 +166,9 @@ function Enhanced3DViewer({
             <ProcessingStatus
               scanId={scan.id}
               status="processing"
-              progress={processingProgress.progress}
-              message={processingProgress.stage}
-              currentStage={processingProgress.stage}
+              progress={processingProgress?.progress || 0}
+              message={processingProgress?.stage || 'Processing...'}
+              currentStage={processingProgress?.stage || 'Processing...'}
               className="mt-4"
             />
           </div>
@@ -325,13 +325,28 @@ export default function ScanDetailPage() {
   
   // Poll for scan updates when status is processing
   useEffect(() => {
-    if (!scan || scan.status !== 'processing') {
+    if (!scan || scan.status !== 'processing' || !scanId) {
       return // Only poll if scan is processing
     }
     
     console.log('⏱️ Starting polling for scan updates...')
-    const pollInterval = setInterval(() => {
+    const pollInterval = setInterval(async () => {
       console.log('🔄 Polling scan status...')
+      
+      // Update processing progress
+      try {
+        const jobStatus = await apiClient.getJobStatus(scanId)
+        if (jobStatus) {
+          setProcessingProgress({
+            progress: jobStatus.progress || 0,
+            stage: jobStatus.currentStage || jobStatus.message || 'Processing...'
+          })
+        }
+      } catch (error) {
+        console.warn('Could not fetch job status:', error)
+      }
+      
+      // Reload scan data
       loadScanData()
     }, 3000) // Poll every 3 seconds
     
@@ -339,7 +354,7 @@ export default function ScanDetailPage() {
       console.log('⏹️ Stopping scan polling')
       clearInterval(pollInterval)
     }
-  }, [scan?.status])
+  }, [scan?.status, scanId])
 
   const handleDeleteScan = async () => {
     if (!confirm(`Are you sure you want to delete "${scan?.name}"? This action cannot be undone.`)) {
@@ -422,6 +437,27 @@ export default function ScanDetailPage() {
       
       console.log('Loaded scan with results:', scan.results)
       setScan(scan)
+      
+      // Update processing progress if scan is processing
+      if (scanDetails.status === 'processing') {
+        try {
+          // Try to get job status for progress
+          const jobStatus = await apiClient.getJobStatus(scanId)
+          if (jobStatus) {
+            setProcessingProgress({
+              progress: jobStatus.progress || 0,
+              stage: jobStatus.currentStage || jobStatus.message || 'Processing...'
+            })
+          }
+        } catch (error) {
+          console.warn('Could not fetch job status:', error)
+          // Use default progress
+          setProcessingProgress({
+            progress: 0,
+            stage: 'Processing...'
+          })
+        }
+      }
     } catch (error) {
       console.error('⚠️ Failed to load scan data:', error)
       
