@@ -86,7 +86,7 @@ def equirectangular_to_perspective(
     output_height: int = 1080
 ) -> np.ndarray:
     """
-    Convert equirectangular 360° image to perspective projection
+    Convert equirectangular 360° image to perspective projection using cv2.remap() for optimal performance
     
     Args:
         equirect_img: Input equirectangular image (H x W x 3)
@@ -111,88 +111,67 @@ def equirectangular_to_perspective(
     # Calculate focal length from FOV
     focal_length = output_width / (2 * np.tan(fov_rad / 2))
     
-    # Create output image
-    output = np.zeros((output_height, output_width, 3), dtype=np.uint8)
-    
     # Generate pixel coordinates in output image
-    x = np.arange(output_width)
-    y = np.arange(output_height)
+    x = np.arange(output_width, dtype=np.float32)
+    y = np.arange(output_height, dtype=np.float32)
     X, Y = np.meshgrid(x, y)
     
-    # Normalize coordinates to [-1, 1]
+    # Normalize coordinates to [-1, 1] range
     x_norm = (X - output_width / 2) / focal_length
     y_norm = (Y - output_height / 2) / focal_length
     
-    # Create direction vectors
+    # Create direction vectors (normalized)
     z = np.ones_like(x_norm)
-    directions = np.stack([x_norm, y_norm, z], axis=-1)
-    directions = directions / np.linalg.norm(directions, axis=-1, keepdims=True)
+    norm = np.sqrt(x_norm**2 + y_norm**2 + z**2)
+    x_3d = x_norm / norm
+    y_3d = y_norm / norm
+    z_3d = z / norm
     
-    # Apply rotations (yaw, pitch, roll)
-    # Rotation matrices
+    # Apply rotations (yaw, pitch, roll) using rotation matrices
     cos_yaw, sin_yaw = np.cos(yaw_rad), np.sin(yaw_rad)
     cos_pitch, sin_pitch = np.cos(pitch_rad), np.sin(pitch_rad)
     cos_roll, sin_roll = np.cos(roll_rad), np.sin(roll_rad)
     
     # Yaw rotation (around Y axis)
-    R_yaw = np.array([
-        [cos_yaw, 0, sin_yaw],
-        [0, 1, 0],
-        [-sin_yaw, 0, cos_yaw]
-    ])
+    x_rot = x_3d * cos_yaw + z_3d * sin_yaw
+    z_rot = -x_3d * sin_yaw + z_3d * cos_yaw
+    x_3d, z_3d = x_rot, z_rot
     
     # Pitch rotation (around X axis)
-    R_pitch = np.array([
-        [1, 0, 0],
-        [0, cos_pitch, -sin_pitch],
-        [0, sin_pitch, cos_pitch]
-    ])
+    y_rot = y_3d * cos_pitch - z_3d * sin_pitch
+    z_rot = y_3d * sin_pitch + z_3d * cos_pitch
+    y_3d, z_3d = y_rot, z_rot
     
     # Roll rotation (around Z axis)
-    R_roll = np.array([
-        [cos_roll, -sin_roll, 0],
-        [sin_roll, cos_roll, 0],
-        [0, 0, 1]
-    ])
+    x_rot = x_3d * cos_roll - y_3d * sin_roll
+    y_rot = x_3d * sin_roll + y_3d * cos_roll
+    x_3d, y_3d = x_rot, y_rot
     
-    # Combined rotation
-    R = R_roll @ R_pitch @ R_yaw
+    # Convert 3D directions to spherical coordinates
+    theta = np.arctan2(x_3d, z_3d)  # Azimuth (longitude) [-π, π]
+    phi = np.arccos(np.clip(y_3d, -1.0, 1.0))  # Elevation (latitude) [0, π]
     
-    # Apply rotation to directions
-    directions_rotated = directions @ R.T
-    
-    # Convert 3D directions to equirectangular coordinates
-    x_3d, y_3d, z_3d = directions_rotated[..., 0], directions_rotated[..., 1], directions_rotated[..., 2]
-    
-    # Convert to spherical coordinates
-    theta = np.arctan2(x_3d, z_3d)  # Azimuth (longitude)
-    phi = np.arccos(y_3d)  # Elevation (latitude)
-    
-    # Convert to pixel coordinates in equirectangular image
-    u = ((theta / np.pi) + 1) * (w / 2)
+    # Convert spherical coordinates to equirectangular pixel coordinates
+    # Longitude: theta [-π, π] -> u [0, w]
+    u = ((theta / np.pi) + 1.0) * (w / 2.0)
+    # Latitude: phi [0, π] -> v [0, h]
     v = (phi / np.pi) * h
     
-    # Sample from equirectangular image using bilinear interpolation
-    u = np.clip(u, 0, w - 1)
-    v = np.clip(v, 0, h - 1)
+    # Ensure coordinates are within valid range for remap
+    # cv2.remap handles out-of-bounds with border interpolation
+    map_x = u.astype(np.float32)
+    map_y = v.astype(np.float32)
     
-    u0 = np.floor(u).astype(int)
-    u1 = np.minimum(u0 + 1, w - 1)
-    v0 = np.floor(v).astype(int)
-    v1 = np.minimum(v0 + 1, h - 1)
-    
-    # Bilinear interpolation weights
-    wu = u - u0
-    wv = v - v0
-    
-    # Sample pixels
-    for c in range(3):
-        output[:, :, c] = (
-            (1 - wu) * (1 - wv) * equirect_img[v0, u0, c] +
-            wu * (1 - wv) * equirect_img[v0, u1, c] +
-            (1 - wu) * wv * equirect_img[v1, u0, c] +
-            wu * wv * equirect_img[v1, u1, c]
-        ).astype(np.uint8)
+    # Use cv2.remap for fast, optimized bilinear interpolation
+    # INTER_LINEAR: bilinear interpolation (default, fastest)
+    # BORDER_WRAP: wrap around for 360° images (handles edge cases)
+    output = cv2.remap(
+        equirect_img,
+        map_x,
+        map_y,
+        interpolation=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_WRAP  # Wrap around for seamless 360° images
+    )
     
     return output
 
