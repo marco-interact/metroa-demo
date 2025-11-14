@@ -17,6 +17,10 @@ import uuid
 import subprocess
 from pathlib import Path
 import asyncio
+# Configure logging FIRST (before any imports that might use logger)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 from colmap_processor import COLMAPProcessor, process_video_to_pointcloud
 from colmap_binary_parser import MeasurementSystem, COLMAPBinaryParser
 from quality_presets import get_preset, map_legacy_quality, QUALITY_PRESETS
@@ -38,10 +42,6 @@ try:
 except ImportError:
     HAS_GLTF_SUPPORT = False
     logger.warning("GLTF export support not available")
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(title="Metroa Labs Backend", version="1.0.0")
