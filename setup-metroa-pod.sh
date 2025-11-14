@@ -30,7 +30,7 @@ print_error() { echo -e "${RED}❌${NC}  $1"; }
 # STEP 1: System Update and Dependencies
 ################################################################################
 
-print_step "Step 1/8: Installing system dependencies..."
+print_step "Step 1/9: Installing system dependencies..."
 
 apt-get update && apt-get upgrade -y
 
@@ -51,9 +51,12 @@ apt-get install -y \
     libsqlite3-dev \
     libglew-dev \
     libcgal-dev \
+    libcgal-qt5-dev \
     libceres-dev \
     libegl1-mesa-dev \
     libgles2-mesa-dev \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
     python3-pip \
     sqlite3 \
     unzip \
@@ -98,10 +101,54 @@ ldconfig
 print_info "✅ COLMAP installed with GPU support"
 
 ################################################################################
-# STEP 3: Clone Application Repository
+# STEP 3: Build OpenMVS (Ultra Quality Densification)
 ################################################################################
 
-print_step "Step 3/8: Cloning metroa-demo repository..."
+print_step "Step 3/9: Building OpenMVS for ultra quality mode..."
+
+cd /workspace
+
+# Remove any existing OpenMVS
+rm -rf openMVS openmvs-build
+
+# Clone OpenMVS with submodules (VCG library)
+print_info "Cloning OpenMVS repository..."
+git clone --recursive https://github.com/cdcseacave/openMVS.git
+cd openMVS
+git checkout v2.2.0
+git submodule update --init --recursive
+
+# Build OpenMVS
+print_info "Building OpenMVS (this may take 10-15 minutes)..."
+OPENMVS_BUILD_DIR="/workspace/openMVS/build"
+mkdir -p "$OPENMVS_BUILD_DIR" && cd "$OPENMVS_BUILD_DIR"
+
+cmake /workspace/openMVS \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DVCG_DIR=/workspace/openMVS/vcg \
+    -DCMAKE_CXX_FLAGS="-O3"
+
+# Build with limited parallelism (prevent OOM)
+make -j8
+make install
+ldconfig
+
+# Verify OpenMVS installation
+if DensifyPointCloud --help > /dev/null 2>&1 && \
+   InterfaceCOLMAP --help > /dev/null 2>&1; then
+    print_info "✅ OpenMVS installed successfully"
+    print_info "   Tools: DensifyPointCloud, InterfaceCOLMAP, ReconstructMesh"
+else
+    print_error "OpenMVS installation verification failed"
+    exit 1
+fi
+
+################################################################################
+# STEP 4: Clone Application Repository
+################################################################################
+
+print_step "Step 4/9: Cloning metroa-demo repository..."
 
 cd /workspace
 
@@ -116,10 +163,10 @@ else
 fi
 
 ################################################################################
-# STEP 4: Setup Python Environment
+# STEP 5: Setup Python Environment
 ################################################################################
 
-print_step "Step 4/8: Setting up Python environment..."
+print_step "Step 5/9: Setting up Python environment..."
 
 cd /workspace/metroa-demo
 
@@ -137,10 +184,10 @@ pip install -r requirements.txt
 print_info "✅ Python dependencies installed"
 
 ################################################################################
-# STEP 5: Setup Persistent Storage and Environment
+# STEP 6: Setup Persistent Storage and Environment
 ################################################################################
 
-print_step "Step 5/8: Configuring persistent storage..."
+print_step "Step 6/9: Configuring persistent storage..."
 
 # Create directory structure on volume
 mkdir -p /workspace/data/results
@@ -178,10 +225,10 @@ source ~/.bashrc
 print_info "✅ Persistent storage configured"
 
 ################################################################################
-# STEP 6: Initialize Database with Demo Data
+# STEP 7: Initialize Database with Demo Data
 ################################################################################
 
-print_step "Step 6/8: Initializing database..."
+print_step "Step 7/9: Initializing database..."
 
 cd /workspace/metroa-demo
 source venv/bin/activate
@@ -205,10 +252,10 @@ PYEOF
 print_info "✅ Database initialized with demo data"
 
 ################################################################################
-# STEP 7: Test COLMAP GPU Functionality
+# STEP 8: Test COLMAP GPU and OpenMVS Functionality
 ################################################################################
 
-print_step "Step 7/8: Testing COLMAP GPU functionality..."
+print_step "Step 8/9: Testing COLMAP GPU and OpenMVS functionality..."
 
 # Test GPU
 if nvidia-smi > /dev/null 2>&1; then
@@ -235,11 +282,18 @@ fi
 
 rm -rf "$TEST_DIR"
 
+# Test OpenMVS
+if DensifyPointCloud --help > /dev/null 2>&1; then
+    print_info "✅ OpenMVS tools available!"
+else
+    print_error "OpenMVS tools not found!"
+fi
+
 ################################################################################
-# STEP 8: Start Backend Server
+# STEP 9: Start Backend Server
 ################################################################################
 
-print_step "Step 8/8: Starting backend server..."
+print_step "Step 9/9: Starting backend server..."
 
 cd /workspace/metroa-demo
 source venv/bin/activate
@@ -314,6 +368,10 @@ echo ""
 echo "COLMAP Version:"
 colmap -h 2>&1 | head -1
 echo ""
+echo "OpenMVS Tools:"
+DensifyPointCloud --help 2>&1 | head -1 || echo "OpenMVS not available"
+InterfaceCOLMAP --help 2>&1 | head -1 || echo "InterfaceCOLMAP not available"
+echo ""
 echo "Python Version:"
 python3 --version
 echo ""
@@ -325,5 +383,8 @@ cat /workspace/metroa-demo/backend.pid
 echo ""
 echo "=================================================="
 echo "✅ READY FOR PRODUCTION!"
+echo "   • COLMAP: GPU-accelerated ✅"
+echo "   • OpenMVS: Ultra quality mode ✅"
+echo "   • Open3D: Post-processing ✅"
 echo "=================================================="
 
