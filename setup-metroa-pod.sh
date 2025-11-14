@@ -124,19 +124,28 @@ print_info "Cloning OpenMVS repository..."
 git clone --recursive https://github.com/cdcseacave/openMVS.git
 cd openMVS
 git checkout v2.2.0
-git submodule update --init --recursive
+
+# Force initialize all submodules (VCG is critical)
+print_info "Initializing VCG submodule..."
+git submodule update --init --recursive --force
 
 # Verify VCG submodule exists
 if [ ! -d "vcg" ]; then
-    print_error "VCG submodule not found! Initializing submodules..."
-    git submodule update --init --recursive
+    print_error "VCG submodule not found after initialization!"
+    print_info "Attempting manual VCG clone..."
+    rm -rf vcg
+    git clone https://github.com/cnr-isti-vclab/vcglib.git vcg
+    if [ ! -d "vcg" ]; then
+        print_error "Failed to get VCG library!"
+        exit 1
+    fi
 fi
 
-# Verify VCG directory structure
-if [ ! -f "vcg/CMakeLists.txt" ] && [ ! -d "libs/vcg" ]; then
+# Verify VCG has required files
+if [ ! -f "vcg/CMakeLists.txt" ] && [ ! -d "vcg/vcg" ]; then
     print_error "VCG directory structure incorrect!"
-    print_info "Checking for VCG in different locations..."
-    find . -name "vcg" -type d | head -5
+    print_info "VCG contents:"
+    ls -la vcg/ | head -10
     exit 1
 fi
 
@@ -161,6 +170,11 @@ else
 fi
 
 print_info "Using VCG path: ${VCG_PATH}"
+print_info "VCG directory contents:"
+ls -la "${VCG_PATH}" | head -5
+
+# Set VCG_ROOT environment variable (some OpenMVS versions use this)
+export VCG_ROOT="${VCG_PATH}"
 
 cmake "${OPENMVS_SRC_DIR}" \
     -DCMAKE_BUILD_TYPE=Release \
