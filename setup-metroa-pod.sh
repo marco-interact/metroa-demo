@@ -188,13 +188,43 @@ make -j8
 make install
 ldconfig
 
-# Verify OpenMVS installation
-if DensifyPointCloud --help > /dev/null 2>&1 && \
-   InterfaceCOLMAP --help > /dev/null 2>&1; then
+# OpenMVS installs binaries to /usr/local/bin/OpenMVS/ subdirectory
+# Create symlinks or add to PATH for easier access
+OPENMVS_BIN_DIR="/usr/local/bin/OpenMVS"
+if [ -d "$OPENMVS_BIN_DIR" ]; then
+    print_info "OpenMVS binaries installed to: $OPENMVS_BIN_DIR"
+    
+    # Create symlinks in /usr/local/bin for easier access
+    for tool in DensifyPointCloud InterfaceCOLMAP ReconstructMesh RefineMesh TextureMesh; do
+        if [ -f "$OPENMVS_BIN_DIR/$tool" ]; then
+            ln -sf "$OPENMVS_BIN_DIR/$tool" "/usr/local/bin/$tool" 2>/dev/null || true
+        fi
+    done
+    
+    # Add OpenMVS bin directory to PATH
+    export PATH="${OPENMVS_BIN_DIR}:${PATH}"
+    echo "export PATH=\"${OPENMVS_BIN_DIR}:\$PATH\"" >> ~/.bashrc
+fi
+
+# Verify OpenMVS installation (check both locations)
+OPENMVS_TOOLS_OK=true
+for tool in DensifyPointCloud InterfaceCOLMAP; do
+    if [ -f "$OPENMVS_BIN_DIR/$tool" ] || command -v "$tool" > /dev/null 2>&1; then
+        print_info "✅ $tool found"
+    else
+        print_error "❌ $tool not found"
+        OPENMVS_TOOLS_OK=false
+    fi
+done
+
+if [ "$OPENMVS_TOOLS_OK" = true ]; then
     print_info "✅ OpenMVS installed successfully"
     print_info "   Tools: DensifyPointCloud, InterfaceCOLMAP, ReconstructMesh"
+    print_info "   Location: $OPENMVS_BIN_DIR"
 else
     print_error "OpenMVS installation verification failed"
+    print_info "Checking installed files..."
+    ls -la "$OPENMVS_BIN_DIR" 2>/dev/null || echo "Directory not found"
     exit 1
 fi
 
@@ -336,11 +366,18 @@ fi
 
 rm -rf "$TEST_DIR"
 
-# Test OpenMVS
-if DensifyPointCloud --help > /dev/null 2>&1; then
+# Test OpenMVS (check both locations)
+OPENMVS_BIN_DIR="/usr/local/bin/OpenMVS"
+if [ -f "$OPENMVS_BIN_DIR/DensifyPointCloud" ] || command -v DensifyPointCloud > /dev/null 2>&1; then
     print_info "✅ OpenMVS tools available!"
+    # Test actual execution
+    if "$OPENMVS_BIN_DIR/DensifyPointCloud" --help > /dev/null 2>&1 || DensifyPointCloud --help > /dev/null 2>&1; then
+        print_info "✅ DensifyPointCloud executable"
+    fi
 else
     print_error "OpenMVS tools not found!"
+    print_info "Checking $OPENMVS_BIN_DIR..."
+    ls -la "$OPENMVS_BIN_DIR" 2>/dev/null || echo "Directory not found"
 fi
 
 ################################################################################

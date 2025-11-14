@@ -12,10 +12,39 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
-logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__name__)
 
 
 class OpenMVSProcessor:
+    """OpenMVS 3D Reconstruction Processor"""
+    
+    @staticmethod
+    def _find_openmvs_tool(tool_name: str) -> str:
+        """Find OpenMVS tool binary in common locations"""
+        # Check common OpenMVS binary locations
+        possible_paths = [
+            tool_name,  # Try PATH first
+            f"/usr/local/bin/{tool_name}",  # Standard install location
+            f"/usr/local/bin/OpenMVS/{tool_name}",  # OpenMVS subdirectory
+        ]
+        
+        for tool_path in possible_paths:
+            try:
+                result = subprocess.run(
+                    [tool_path, "--help"],
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+                if result.returncode == 0 or result.returncode == 1:  # Some tools return 1 for --help
+                    logger.debug(f"Found {tool_name} at: {tool_path}")
+                    return tool_path
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                continue
+        
+        # If not found, return the tool name and let subprocess handle the error
+        logger.warning(f"⚠️  {tool_name} not found in standard locations, trying PATH")
+        return tool_name
     """OpenMVS 3D Reconstruction Processor"""
     
     def __init__(self, workspace_path: str):
@@ -39,18 +68,30 @@ class OpenMVSProcessor:
         self.env['QT_QPA_PLATFORM'] = 'offscreen'
     
     def check_openmvs_available(self) -> bool:
-        """Check if OpenMVS tools are available on PATH"""
-        try:
-            result = subprocess.run(
-                ["InterfaceCOLMAP", "--help"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            return result.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            logger.warning("⚠️  OpenMVS not found on PATH")
-            return False
+        """Check if OpenMVS tools are available on PATH or in standard location"""
+        # Check common OpenMVS binary locations
+        openmvs_paths = [
+            "InterfaceCOLMAP",  # Try PATH first
+            "/usr/local/bin/InterfaceCOLMAP",  # Standard install location
+            "/usr/local/bin/OpenMVS/InterfaceCOLMAP",  # OpenMVS subdirectory
+        ]
+        
+        for tool_path in openmvs_paths:
+            try:
+                result = subprocess.run(
+                    [tool_path, "--help"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    logger.info(f"✅ Found OpenMVS at: {tool_path}")
+                    return True
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                continue
+        
+        logger.warning("⚠️  OpenMVS not found on PATH or standard locations")
+        return False
     
     def export_colmap_to_openmvs(
         self,
@@ -75,10 +116,13 @@ class OpenMVSProcessor:
         if progress_callback:
             progress_callback("Exporting COLMAP to OpenMVS format...", 0)
         
+        # Find InterfaceCOLMAP binary (check multiple locations)
+        interface_colmap_path = self._find_openmvs_tool("InterfaceCOLMAP")
+        
         # InterfaceCOLMAP command
         # Reference: https://github.com/cdcseacave/openMVS/wiki/InterfaceCOLMAP
         cmd = [
-            "InterfaceCOLMAP",
+            interface_colmap_path,
             "--working-folder", str(self.openmvs_path),
             "--input-file", str(self.colmap_sparse_path),
             "--output-file", str(output_mvs),
@@ -175,7 +219,7 @@ class OpenMVSProcessor:
         params = quality_params.get(quality, quality_params["high_quality"])
         
         cmd = [
-            "DensifyPointCloud",
+            self._find_openmvs_tool("DensifyPointCloud"),
             "--working-folder", str(self.openmvs_path),
             "--input-file", str(input_mvs),
             "--output-file", str(output_mvs),
