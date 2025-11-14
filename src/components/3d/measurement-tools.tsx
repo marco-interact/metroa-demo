@@ -4,18 +4,56 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Ruler, Download, Trash2, Check, X } from "lucide-react"
+import { Ruler, Download, Trash2, Check, X, Angle, Layers, Circle, Info } from "lucide-react"
 
-interface Measurement {
+export type MeasurementType = "distance" | "angle" | "thickness" | "radius" | "info"
+
+interface BaseMeasurement {
   id: number
+  type: MeasurementType
+  label: string
+  scaled: boolean
+}
+
+interface DistanceMeasurement extends BaseMeasurement {
+  type: "distance"
   point1_id: number
   point2_id: number
   distance_meters: number
   distance_cm: number
   distance_mm: number
-  label: string
-  scaled: boolean
 }
+
+interface AngleMeasurement extends BaseMeasurement {
+  type: "angle"
+  point1_id: number
+  point2_id: number  // Vertex
+  point3_id: number
+  angle_degrees: number
+}
+
+interface ThicknessMeasurement extends BaseMeasurement {
+  type: "thickness"
+  point1_id: number
+  point2_id: number
+  thickness_meters: number
+}
+
+interface RadiusMeasurement extends BaseMeasurement {
+  type: "radius"
+  points: number[]  // 3+ point IDs
+  radius_meters: number
+  center: [number, number, number]
+}
+
+interface InfoMeasurement extends BaseMeasurement {
+  type: "info"
+  point_id: number
+  position: [number, number, number]
+  normal?: [number, number, number]
+}
+
+type Measurement = DistanceMeasurement | AngleMeasurement | ThicknessMeasurement | RadiusMeasurement | InfoMeasurement
 
 interface MeasurementToolsProps {
   scanId: string
@@ -25,6 +63,44 @@ interface MeasurementToolsProps {
   onSelectionModeChange?: (enabled: boolean) => void
   onClearPoints?: () => void
   className?: string
+}
+
+const MEASUREMENT_TYPE_INFO: Record<MeasurementType, { 
+  name: string
+  icon: typeof Ruler
+  pointsRequired: number
+  description: string
+}> = {
+  distance: {
+    name: "Distance",
+    icon: Ruler,
+    pointsRequired: 2,
+    description: "Measure distance between two points"
+  },
+  angle: {
+    name: "Angle",
+    icon: Angle,
+    pointsRequired: 3,
+    description: "Measure angle between three points (vertex in middle)"
+  },
+  thickness: {
+    name: "Thickness",
+    icon: Layers,
+    pointsRequired: 2,
+    description: "Measure thickness between two surfaces"
+  },
+  radius: {
+    name: "Radius",
+    icon: Circle,
+    pointsRequired: 3,
+    description: "Measure radius of curvature (3+ points on curve)"
+  },
+  info: {
+    name: "Point Info",
+    icon: Info,
+    pointsRequired: 1,
+    description: "Get coordinates and normal of a point"
+  }
 }
 
 export function MeasurementTools({ 
@@ -41,6 +117,7 @@ export function MeasurementTools({
   const [knownDistance, setKnownDistance] = useState("")
   const [measurementLabel, setMeasurementLabel] = useState("")
   const [isScaled, setIsScaled] = useState(false)
+  const [measurementType, setMeasurementType] = useState<MeasurementType>("distance")
   
   // Use external selected points from parent
   const selectedPoints = externalSelectedPoints
@@ -49,9 +126,12 @@ export function MeasurementTools({
   // Prevent infinite loops with ref
   const lastSelectionModeRef = useRef<boolean | undefined>(undefined)
   
+  const currentTypeInfo = MEASUREMENT_TYPE_INFO[measurementType]
+  const pointsRequired = currentTypeInfo.pointsRequired
+  
   // Notify parent when selection mode changes - SAFE VERSION
   useEffect(() => {
-    const needsSelection = isCalibrating || (isScaled && selectedPointPositions.length < 2)
+    const needsSelection = isCalibrating || (isScaled && selectedPointPositions.length < pointsRequired)
     
     // Only call if value actually changed
     if (lastSelectionModeRef.current !== needsSelection && onSelectionModeChange) {
@@ -65,14 +145,7 @@ export function MeasurementTools({
         }
       }, 0)
     }
-  }, [isCalibrating, isScaled, selectedPointPositions.length]) // Removed onSelectionModeChange from deps
-
-  // Point selection is now handled by parent component
-  // const handlePointClick = (pointId: number) => {
-  //   if (selectedPoints.length < 2) {
-  //     onPointSelect?.(pointId)
-  //   }
-  // }
+  }, [isCalibrating, isScaled, selectedPointPositions.length, pointsRequired, onSelectionModeChange])
 
   const handleCalibrateScale = async () => {
     if (externalSelectedPositions.length !== 2 || !knownDistance) {
@@ -83,7 +156,6 @@ export function MeasurementTools({
     try {
       const formData = new FormData()
       formData.append('scan_id', scanId)
-      // Send positions as JSON arrays
       formData.append('point1_position', JSON.stringify(externalSelectedPositions[0]))
       formData.append('point2_position', JSON.stringify(externalSelectedPositions[1]))
       formData.append('known_distance', knownDistance)
@@ -105,7 +177,7 @@ export function MeasurementTools({
         console.log('✅ Calibration success:', result)
         setIsScaled(true)
         setIsCalibrating(false)
-        onClearPoints?.()  // Clear points via parent callback
+        onClearPoints?.()
         setKnownDistance("")
         alert(`Scale calibrated! Factor: ${result.scale_factor.toFixed(6)}`)
       } else {
@@ -127,18 +199,31 @@ export function MeasurementTools({
   }
 
   const handleAddMeasurement = async () => {
-    if (externalSelectedPositions.length !== 2) {
-      alert("Select 2 points to measure")
+    if (externalSelectedPositions.length < pointsRequired) {
+      alert(`Select ${pointsRequired} point(s) to measure ${currentTypeInfo.name.toLowerCase()}`)
       return
     }
 
     try {
       const formData = new FormData()
       formData.append('scan_id', scanId)
-      // Send positions as JSON arrays
-      formData.append('point1_position', JSON.stringify(externalSelectedPositions[0]))
-      formData.append('point2_position', JSON.stringify(externalSelectedPositions[1]))
-      formData.append('label', measurementLabel || `Measurement ${measurements.length + 1}`)
+      formData.append('measurement_type', measurementType)
+      formData.append('label', measurementLabel || `${currentTypeInfo.name} ${measurements.length + 1}`)
+      
+      // Add point positions based on measurement type
+      if (measurementType === "distance" || measurementType === "thickness") {
+        formData.append('point1_position', JSON.stringify(externalSelectedPositions[0]))
+        formData.append('point2_position', JSON.stringify(externalSelectedPositions[1]))
+      } else if (measurementType === "angle") {
+        formData.append('point1_position', JSON.stringify(externalSelectedPositions[0]))
+        formData.append('point2_position', JSON.stringify(externalSelectedPositions[1]))  // Vertex
+        formData.append('point3_position', JSON.stringify(externalSelectedPositions[2]))
+      } else if (measurementType === "radius") {
+        // For radius, send all points
+        formData.append('points', JSON.stringify(externalSelectedPositions))
+      } else if (measurementType === "info") {
+        formData.append('point_position', JSON.stringify(externalSelectedPositions[0]))
+      }
 
       const response = await fetch('/api/backend/measurements/add', {
         method: 'POST',
@@ -148,14 +233,16 @@ export function MeasurementTools({
       if (response.ok) {
         const result = await response.json()
         setMeasurements([...measurements, result.measurement])
-        onClearPoints?.()  // Clear points via parent callback
+        onClearPoints?.()
         setMeasurementLabel("")
       } else {
-        alert('Failed to add measurement')
+        const errorText = await response.text()
+        console.error('❌ Measurement failed:', errorText)
+        alert(`Failed to add measurement: ${errorText}`)
       }
     } catch (error) {
       console.error('Measurement error:', error)
-      alert('Failed to add measurement')
+      alert(`Failed to add measurement: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -178,6 +265,52 @@ export function MeasurementTools({
 
   const handleDeleteMeasurement = (id: number) => {
     setMeasurements(measurements.filter(m => m.id !== id))
+  }
+
+  const renderMeasurementValue = (m: Measurement) => {
+    switch (m.type) {
+      case "distance":
+        return (
+          <div className="space-y-1 text-gray-400">
+            <div>{m.distance_meters.toFixed(3)} m</div>
+            <div>{m.distance_cm.toFixed(2)} cm</div>
+            <div>{m.distance_mm.toFixed(1)} mm</div>
+          </div>
+        )
+      case "angle":
+        return (
+          <div className="text-gray-400">
+            <div className="text-lg font-semibold">{m.angle_degrees.toFixed(2)}°</div>
+          </div>
+        )
+      case "thickness":
+        return (
+          <div className="space-y-1 text-gray-400">
+            <div>{m.thickness_meters.toFixed(3)} m</div>
+            <div>{(m.thickness_meters * 100).toFixed(2)} cm</div>
+          </div>
+        )
+      case "radius":
+        return (
+          <div className="space-y-1 text-gray-400">
+            <div>Radius: {m.radius_meters.toFixed(3)} m</div>
+            <div className="text-xs">Points: {m.points.length}</div>
+          </div>
+        )
+      case "info":
+        return (
+          <div className="space-y-1 text-gray-400 text-xs">
+            <div>X: {m.position[0].toFixed(3)}</div>
+            <div>Y: {m.position[1].toFixed(3)}</div>
+            <div>Z: {m.position[2].toFixed(3)}</div>
+            {m.normal && (
+              <div className="mt-1 pt-1 border-t border-gray-600">
+                <div>Normal: [{m.normal[0].toFixed(2)}, {m.normal[1].toFixed(2)}, {m.normal[2].toFixed(2)}]</div>
+              </div>
+            )}
+          </div>
+        )
+    }
   }
 
   return (
@@ -258,33 +391,66 @@ export function MeasurementTools({
           </div>
         )}
 
-        {/* Measurement Section */}
+        {/* Measurement Type Selector */}
         {isScaled && (
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-green-400">
               ✓ Scale Calibrated
             </h3>
             
-            <div className="space-y-2">
-              <Input
-                placeholder="Measurement label (optional)"
-                value={measurementLabel}
-                onChange={(e) => setMeasurementLabel(e.target.value)}
-                className="bg-app-elevated border-app-secondary"
-              />
-              <div className="text-xs text-gray-400">
-                Selected points: {selectedPointPositions.length}/2
-              </div>
-              <Button
-                onClick={handleAddMeasurement}
-                disabled={selectedPointPositions.length !== 2}
-                size="sm"
-                className="w-full"
-              >
-                <Ruler className="w-4 h-4 mr-1" />
-                Add Measurement
-              </Button>
+            <div className="grid grid-cols-2 gap-2">
+              {(Object.keys(MEASUREMENT_TYPE_INFO) as MeasurementType[]).map((type) => {
+                const info = MEASUREMENT_TYPE_INFO[type]
+                const Icon = info.icon
+                const isSelected = measurementType === type
+                
+                return (
+                  <Button
+                    key={type}
+                    onClick={() => {
+                      setMeasurementType(type)
+                      onClearPoints?.()
+                    }}
+                    variant={isSelected ? "default" : "outline"}
+                    size="sm"
+                    className={`flex flex-col items-center gap-1 h-auto py-2 ${
+                      isSelected ? "bg-primary-500" : ""
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="text-xs">{info.name}</span>
+                  </Button>
+                )
+              })}
             </div>
+            
+            <div className="bg-app-elevated border border-app-secondary rounded p-2 text-xs text-gray-400">
+              {currentTypeInfo.description}
+            </div>
+          </div>
+        )}
+
+        {/* Measurement Input Section */}
+        {isScaled && (
+          <div className="space-y-2">
+            <Input
+              placeholder={`${currentTypeInfo.name} label (optional)`}
+              value={measurementLabel}
+              onChange={(e) => setMeasurementLabel(e.target.value)}
+              className="bg-app-elevated border-app-secondary"
+            />
+            <div className="text-xs text-gray-400">
+              Selected points: {selectedPointPositions.length}/{pointsRequired}
+            </div>
+            <Button
+              onClick={handleAddMeasurement}
+              disabled={selectedPointPositions.length < pointsRequired}
+              size="sm"
+              className="w-full"
+            >
+              <currentTypeInfo.icon className="w-4 h-4 mr-1" />
+              Add {currentTypeInfo.name}
+            </Button>
           </div>
         )}
 
@@ -312,29 +478,34 @@ export function MeasurementTools({
             </div>
             
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {measurements.map((m) => (
-                <div
-                  key={m.id}
-                  className="bg-app-elevated border border-app-secondary rounded p-2 text-xs"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-white font-semibold">{m.label}</span>
-                    <Button
-                      onClick={() => handleDeleteMeasurement(m.id)}
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                    >
-                      <Trash2 className="w-3 h-3 text-red-400" />
-                    </Button>
+              {measurements.map((m) => {
+                const typeInfo = MEASUREMENT_TYPE_INFO[m.type]
+                const Icon = typeInfo.icon
+                
+                return (
+                  <div
+                    key={m.id}
+                    className="bg-app-elevated border border-app-secondary rounded p-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-3 h-3" />
+                        <span className="text-white font-semibold">{m.label}</span>
+                        <span className="text-gray-500 text-[10px]">({m.type})</span>
+                      </div>
+                      <Button
+                        onClick={() => handleDeleteMeasurement(m.id)}
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                      >
+                        <Trash2 className="w-3 h-3 text-red-400" />
+                      </Button>
+                    </div>
+                    {renderMeasurementValue(m)}
                   </div>
-                  <div className="space-y-1 text-gray-400">
-                    <div>{m.distance_meters.toFixed(3)} m</div>
-                    <div>{m.distance_cm.toFixed(2)} cm</div>
-                    <div>{m.distance_mm.toFixed(1)} mm</div>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
@@ -343,10 +514,14 @@ export function MeasurementTools({
         <div className="text-xs text-gray-500 space-y-1">
           <p>Click on points in the 3D viewer to select</p>
           {!isScaled && <p>• First: Calibrate scale with known distance</p>}
-          {isScaled && <p>• Then: Add measurements between any points</p>}
+          {isScaled && (
+            <>
+              <p>• Select measurement type above</p>
+              <p>• Click {pointsRequired} point(s) for {currentTypeInfo.name.toLowerCase()}</p>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>
   )
 }
-
