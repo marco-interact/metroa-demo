@@ -162,6 +162,7 @@ function Enhanced3DViewer({
               enablePointSelection={isSelectingPoints}
               selectedPointPositions={selectedPointPositions}
               onPointClick={onPointClick}
+              onCaptureImage={() => console.log('Image captured from 3D viewer')}
             />
           </div>
         ) : scan.status === 'processing' ? (
