@@ -192,18 +192,22 @@ class COLMAPProcessor:
         
         # Handle 360° video conversion
         if is_360 and HAS_360_SUPPORT:
-            logger.info(f"🌐 Converting 360° video to perspective frames...")
+            logger.info(f"🌐 Converting 360° video to perspective frames (optimized: 1 fps extraction)...")
             try:
-                # Use 360° converter to extract perspective frames
+                # OPTIMIZED: Extract only 1 frame per second, then generate multiple perspective views
+                # This is much more efficient than processing every frame
                 num_views = 8  # Extract 8 views per frame (45° apart)
+                extraction_fps = 1.0  # Extract 1 frame per second (optimized)
+                
                 frame_count = convert_360_video_to_perspective_frames(
                     video_path,
                     self.images_path,
                     fov=90.0,
                     num_views=num_views,
+                    extraction_fps=extraction_fps,  # 1 fps extraction
                     progress_callback=progress_callback
                 )
-                logger.info(f"✅ Extracted {frame_count} perspective frames from 360° video")
+                logger.info(f"✅ Extracted {frame_count} perspective frames from 360° video (1 fps extraction, {num_views} views per frame)")
                 return frame_count
             except Exception as e:
                 logger.error(f"360° conversion failed, falling back to standard extraction: {e}")

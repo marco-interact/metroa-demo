@@ -181,69 +181,114 @@ def convert_360_video_to_perspective_frames(
     output_dir: Path,
     fov: float = 90.0,
     num_views: int = 8,
+    extraction_fps: float = 1.0,
     progress_callback=None
 ) -> int:
     """
     Extract perspective frames from 360° video
+    
+    OPTIMIZED: Extracts only 1 frame per second, then generates multiple perspective views
+    from each frame. This is much more efficient than processing every frame.
     
     Args:
         video_path: Path to 360° video
         output_dir: Directory to save perspective frames
         fov: Field of view for perspective projection
         num_views: Number of perspective views to extract per frame (evenly spaced yaw angles)
+        extraction_fps: FPS for frame extraction (default: 1.0 = 1 frame per second)
         progress_callback: Optional callback(progress, total)
     
     Returns:
-        Number of frames extracted
+        Number of perspective frames generated (extraction_fps * video_duration * num_views)
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Open video
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        raise ValueError(f"Could not open video: {video_path}")
+    # Get video duration using ffprobe
+    try:
+        probe_cmd = [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(video_path)
+        ]
+        probe_result = subprocess.run(probe_cmd, check=True, capture_output=True, text=True)
+        video_duration = float(probe_result.stdout.strip())
+        estimated_frames = int(video_duration * extraction_fps)
+        logger.info(f"📹 Video duration: {video_duration:.1f}s → extracting {estimated_frames} frames at {extraction_fps} fps")
+    except Exception as e:
+        logger.warning(f"Could not detect video duration: {e}, using default")
+        video_duration = 60.0
+        estimated_frames = int(video_duration * extraction_fps)
     
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    # Step 1: Extract frames at 1 fps using FFmpeg (much faster than OpenCV)
+    temp_frames_dir = output_dir / "temp_equirectangular"
+    temp_frames_dir.mkdir(parents=True, exist_ok=True)
     
-    frame_count = 0
-    frame_idx = 0
+    temp_frame_pattern = temp_frames_dir / "frame_%06d.jpg"
+    
+    logger.info(f"🌐 Step 1: Extracting {extraction_fps} fps from 360° video...")
+    extract_cmd = [
+        "ffmpeg",
+        "-i", str(video_path),
+        "-vf", f"fps={extraction_fps}",
+        "-q:v", "2",  # High quality JPEG
+        "-y",  # Overwrite
+        str(temp_frame_pattern)
+    ]
     
     try:
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            
-            # Generate multiple perspective views from this 360° frame
-            yaw_step = 360.0 / num_views
-            
-            for view_idx in range(num_views):
-                yaw = view_idx * yaw_step
-                perspective_frame = equirectangular_to_perspective(
-                    frame,
-                    fov=fov,
-                    yaw=yaw,
-                    pitch=0.0,
-                    roll=0.0
-                )
-                
-                # Save perspective frame
-                output_filename = output_dir / f"frame_{frame_idx:06d}_view_{view_idx:02d}.jpg"
-                cv2.imwrite(str(output_filename), perspective_frame)
-            
-            frame_idx += 1
-            frame_count += num_views
-            
-            if progress_callback:
-                progress_callback(frame_idx, total_frames)
-        
-        logger.info(f"Extracted {frame_count} perspective frames from {frame_idx} 360° frames")
-        return frame_count
+        subprocess.run(extract_cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Frame extraction failed: {e.stderr}")
+        raise RuntimeError(f"Failed to extract frames: {e.stderr}")
     
-    finally:
-        cap.release()
+    # Count extracted frames
+    extracted_frames = sorted(temp_frames_dir.glob("frame_*.jpg"))
+    logger.info(f"✅ Extracted {len(extracted_frames)} equirectangular frames")
+    
+    # Step 2: Generate perspective views from each extracted frame
+    logger.info(f"🌐 Step 2: Generating {num_views} perspective views per frame...")
+    frame_count = 0
+    yaw_step = 360.0 / num_views
+    
+    for frame_idx, equirect_frame_path in enumerate(extracted_frames):
+        # Load equirectangular frame
+        equirect_frame = cv2.imread(str(equirect_frame_path))
+        if equirect_frame is None:
+            logger.warning(f"Could not load frame: {equirect_frame_path}")
+            continue
+        
+        # Generate multiple perspective views from this frame
+        for view_idx in range(num_views):
+            yaw = view_idx * yaw_step
+            perspective_frame = equirectangular_to_perspective(
+                equirect_frame,
+                fov=fov,
+                yaw=yaw,
+                pitch=0.0,
+                roll=0.0
+            )
+            
+            # Save perspective frame
+            output_filename = output_dir / f"frame_{frame_idx:06d}_view_{view_idx:02d}.jpg"
+            cv2.imwrite(str(output_filename), perspective_frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            frame_count += 1
+        
+        # Update progress
+        if progress_callback:
+            progress_callback(frame_idx + 1, len(extracted_frames))
+    
+    # Cleanup temporary equirectangular frames
+    try:
+        import shutil
+        shutil.rmtree(temp_frames_dir)
+        logger.info(f"🧹 Cleaned up temporary frames")
+    except Exception as e:
+        logger.warning(f"Could not cleanup temp frames: {e}")
+    
+    logger.info(f"✅ Generated {frame_count} perspective frames from {len(extracted_frames)} equirectangular frames ({num_views} views each)")
+    return frame_count
 
 
 def extract_360_frame(
