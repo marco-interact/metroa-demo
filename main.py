@@ -1823,6 +1823,88 @@ async def startup_event():
     except Exception as e:
         logger.error(f"❌ Startup failed: {e}")
 
+@app.post("/api/point-cloud/compare")
+async def compare_point_clouds_api(
+    scan_id1: str = Form(...),
+    scan_id2: str = Form(None),
+    ply_path1: str = Form(None),
+    ply_path2: str = Form(None)
+):
+    """
+    Compare two point clouds and return distance metrics
+    
+    Either provide two scan_ids, or two ply_paths, or one of each.
+    
+    Returns:
+        Chamfer distance, Hausdorff distance, and detailed statistics
+    """
+    try:
+        from open3d_utils import compare_point_clouds, compute_chamfer_distance, compute_hausdorff_distance
+        import open3d as o3d
+        
+        # Determine file paths
+        file1_path = None
+        file2_path = None
+        
+        if scan_id1:
+            conn = get_db_connection()
+            scan1 = conn.execute("SELECT pointcloud_final_path, ply_file FROM scans WHERE id = ?", (scan_id1,)).fetchone()
+            conn.close()
+            
+            if scan1:
+                scan1_dict = dict(scan1)
+                file1_path = scan1_dict.get('pointcloud_final_path') or scan1_dict.get('ply_file')
+        
+        if scan_id2:
+            conn = get_db_connection()
+            scan2 = conn.execute("SELECT pointcloud_final_path, ply_file FROM scans WHERE id = ?", (scan_id2,)).fetchone()
+            conn.close()
+            
+            if scan2:
+                scan2_dict = dict(scan2)
+                file2_path = scan2_dict.get('pointcloud_final_path') or scan2_dict.get('ply_file')
+        
+        # Use provided paths if available
+        if ply_path1:
+            file1_path = ply_path1
+        if ply_path2:
+            file2_path = ply_path2
+        
+        if not file1_path or not file2_path:
+            raise HTTPException(status_code=400, detail="Must provide either two scan_ids or two ply_paths")
+        
+        file1_path = Path(file1_path)
+        file2_path = Path(file2_path)
+        
+        if not file1_path.exists():
+            raise HTTPException(status_code=404, detail=f"Point cloud 1 not found: {file1_path}")
+        if not file2_path.exists():
+            raise HTTPException(status_code=404, detail=f"Point cloud 2 not found: {file2_path}")
+        
+        # Load and compare
+        pcd1 = o3d.io.read_point_cloud(str(file1_path))
+        pcd2 = o3d.io.read_point_cloud(str(file2_path))
+        
+        if not pcd1.has_points():
+            raise HTTPException(status_code=400, detail=f"Point cloud 1 is empty: {file1_path}")
+        if not pcd2.has_points():
+            raise HTTPException(status_code=400, detail=f"Point cloud 2 is empty: {file2_path}")
+        
+        # Compute metrics
+        comparison = compare_point_clouds(str(file1_path), str(file2_path), visualize=False)
+        
+        return {
+            "status": "success",
+            "comparison": comparison
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error comparing point clouds: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8888)
