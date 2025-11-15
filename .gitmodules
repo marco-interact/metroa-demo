@@ -1,0 +1,3 @@
+[submodule "colmap_utils"]
+	path = colmap_utils
+	url = https://github.com/uzh-rpg/colmap_utils.git
