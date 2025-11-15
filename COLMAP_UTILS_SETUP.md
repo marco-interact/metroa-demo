@@ -2,7 +2,7 @@
 
 ## Overview
 
-The [colmap_utils](https://github.com/uzh-rpg/colmap_utils) repository has been cloned and integrated into the metroa-demo project. This provides additional utilities for working with COLMAP, including:
+The [colmap_utils](https://github.com/uzh-rpg/colmap_utils) repository has been integrated into the metroa-demo project as a **git submodule**. This provides additional utilities for working with COLMAP, including:
 
 - Reconstructing SfM models from posed images
 - Registering/localizing images against existing SfM models
@@ -12,9 +12,36 @@ The [colmap_utils](https://github.com/uzh-rpg/colmap_utils) repository has been 
 
 ## Installation Status
 
-✅ **Repository cloned**: `colmap_utils/` directory  
+✅ **Repository cloned**: `colmap_utils/` directory (git submodule)  
 ✅ **Dependencies added**: `tqdm` and `torch` added to `requirements.txt`  
 ✅ **Python path**: Can be imported as `from colmap_utils.utils import colmap_utils`
+
+## Initial Setup
+
+### Clone with Submodule
+
+If you're cloning the repository fresh:
+
+```bash
+git clone --recursive https://github.com/marco-interact/metroa-demo.git
+```
+
+Or if you already cloned without submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
+### Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+This will install:
+- `numpy` - Array operations
+- `torch` - PyTorch for custom feature matching  
+- `tqdm` - Progress bars
 
 ## Usage
 
@@ -55,13 +82,15 @@ database_path = "/workspace/data/results/scan_id/database.db"
 img_name_to_id = getImgNameToImgIdMap(database_path)
 ```
 
-## Dependencies
+## RunPod Setup
 
-The following dependencies are required (already in `requirements.txt`):
+When setting up on RunPod, make sure to initialize submodules:
 
-- `numpy` - Array operations
-- `torch` - PyTorch for custom feature matching
-- `tqdm` - Progress bars
+```bash
+cd /workspace/metroa-demo
+git submodule update --init --recursive
+pip install --break-system-packages -r requirements.txt
+```
 
 ## Documentation
 
@@ -71,8 +100,7 @@ For detailed usage instructions, see:
 
 ## Integration Notes
 
-- The `colmap_utils` directory is at the project root
+- The `colmap_utils` directory is a git submodule at the project root
 - Scripts can be run directly: `python colmap_utils/reconstruct_from_known_poses.py --help`
 - Utils can be imported in Python code: `from colmap_utils.utils import colmap_utils`
 - Compatible with existing COLMAP installation
-
