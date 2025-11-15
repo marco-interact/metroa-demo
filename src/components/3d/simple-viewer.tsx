@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { OrbitControls, Html } from "@react-three/drei"
 import * as THREE from "three"
 import { PLYLoader } from "three-stdlib"
+import { SplineLoader } from "@/components/ui/spline-loader"
 
 interface SimpleViewerProps {
   modelUrl?: string
@@ -182,8 +183,8 @@ function PLYModel({ url, onPointClick, enableSelection }: {
   if (loading) {
     return (
       <Html center>
-        <div className="text-white text-sm bg-app-elevated/90 px-4 py-2 rounded">
-          Loading 3D model...
+        <div className="w-96 h-64 bg-app-elevated/90 rounded-lg overflow-hidden">
+          <SplineLoader className="w-full h-full" />
         </div>
       </Html>
     )

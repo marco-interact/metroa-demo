@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { SplineLoader } from "@/components/ui/spline-loader"
 import { 
   Play, 
   Pause, 
@@ -113,6 +114,13 @@ export function ProcessingStatus({
 
   return (
     <Card className={`p-4 ${getStatusColor()} ${className}`}>
+      {/* Spline Loader for Processing State */}
+      {status === 'processing' && (
+        <div className="mb-4 h-64 rounded-lg overflow-hidden bg-app-primary">
+          <SplineLoader className="w-full h-full" />
+        </div>
+      )}
+      
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
           {getStatusIcon()}

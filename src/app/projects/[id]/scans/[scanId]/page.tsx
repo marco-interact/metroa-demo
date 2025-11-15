@@ -21,6 +21,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ProcessingStatus } from "@/components/processing-status"
 import { SimpleViewer } from "@/components/3d/simple-viewer"
 import { MeasurementTools } from "@/components/3d/measurement-tools"
+import { SplineLoader } from "@/components/ui/spline-loader"
 import { apiClient } from "@/lib/api"
 
 interface Scan {
@@ -169,16 +170,10 @@ function Enhanced3DViewer({
             />
           </div>
         ) : scan.status === 'processing' ? (
-          // Show processing indicator with progress bar
-          <div className="text-center space-y-4">
-            <div className="w-32 h-32 mx-auto bg-app-elevated rounded-lg flex items-center justify-center relative">
-              <div className="w-16 h-16 bg-white/20 rounded-lg animate-spin"></div>
-              <div className="absolute inset-0 border-2 border-yellow-300/50 rounded-lg animate-pulse"></div>
-            </div>
-            <p className="text-yellow-400 font-medium">Processing Video</p>
-            <p className="text-gray-400 text-sm">Metroa Labs reconstruction in progress...</p>
-            <div className="w-48 bg-gray-700 rounded-full h-2 mx-auto">
-              <div className="bg-yellow-400 h-2 rounded-full w-3/4 animate-pulse"></div>
+          // Show processing indicator with Spline loader
+          <div className="w-full h-full flex flex-col items-center justify-center space-y-4">
+            <div className="w-full max-w-2xl h-96 rounded-lg overflow-hidden bg-app-elevated">
+              <SplineLoader className="w-full h-full" />
             </div>
             <ProcessingStatus
               scanId={scan.id}
@@ -186,7 +181,7 @@ function Enhanced3DViewer({
               progress={safeProcessingProgress.progress || 0}
               message={safeProcessingProgress.stage || 'Processing...'}
               currentStage={safeProcessingProgress.stage || 'Processing...'}
-              className="mt-4"
+              className="w-full max-w-2xl"
             />
           </div>
         ) : scan.status === 'failed' ? (
