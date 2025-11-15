@@ -27,6 +27,19 @@ from quality_presets import get_preset, map_legacy_quality, QUALITY_PRESETS
 from pointcloud_postprocess import postprocess_pointcloud, get_pointcloud_stats
 from openmvs_processor import OpenMVSProcessor
 
+# Import OpenCV SfM for complementary reconstruction
+try:
+    from opencv_sfm import OpenCVSfM, sfm_pipeline, CameraIntrinsics
+    from opencv_sfm_integration import (
+        run_opencv_preview,
+        run_opencv_fallback,
+        compare_reconstructions
+    )
+    HAS_OPENCV_SFM = True
+except ImportError:
+    HAS_OPENCV_SFM = False
+    logger.warning("OpenCV SfM not available")
+
 # Import 360° video detection
 try:
     from video_360_converter import detect_360_video
