@@ -1825,7 +1825,7 @@ async def startup_event():
 
 @app.post("/api/point-cloud/compare")
 async def compare_point_clouds_api(
-    scan_id1: str = Form(...),
+    scan_id1: str = Form(None),
     scan_id2: str = Form(None),
     ply_path1: str = Form(None),
     ply_path2: str = Form(None)
