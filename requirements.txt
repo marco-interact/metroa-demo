@@ -13,6 +13,8 @@ aiosqlite==0.20.0
 opencv-python==4.10.0.84
 numpy==1.26.4
 open3d==0.19.0  # Point cloud post-processing (cleaning, outlier removal, downsampling)
+tqdm==4.66.5  # Progress bars (required by colmap_utils)
+torch==2.1.2  # PyTorch (required by colmap_utils for custom feature matching)
 
 # Enhanced 3D Processing (Open3D sufficient for backend processing)
 # Real-time streaming handled via FastAPI WebSocket if needed
