@@ -245,3 +245,95 @@ def convert_360_video_to_perspective_frames(
     finally:
         cap.release()
 
+
+def extract_360_frame(
+    video_path: str,
+    output_path: Path,
+    time_seconds: float = 0.0,
+    keep_equirectangular: bool = True,
+    perspective_fov: float = 90.0,
+    perspective_yaw: float = 0.0,
+    perspective_pitch: float = 0.0
+) -> Path:
+    """
+    Extract a single frame from 360° video using FFmpeg v360 filter
+    
+    This is more efficient than loading entire video into OpenCV for single frame extraction.
+    Uses FFmpeg's hardware-accelerated v360 filter when available.
+    
+    Args:
+        video_path: Input 360° video file path
+        output_path: Output image path (will be created)
+        time_seconds: Time position in video (default: 0.0 = first frame)
+        keep_equirectangular: If True, keep equirectangular format (no conversion).
+                             If False, convert to perspective projection.
+        perspective_fov: Field of view in degrees (if converting to perspective)
+        perspective_yaw: Yaw angle in degrees (if converting to perspective)
+        perspective_pitch: Pitch angle in degrees (if converting to perspective)
+    
+    Returns:
+        Path to extracted frame
+    
+    Example:
+        # Extract equirectangular frame at 5 seconds
+        frame = extract_360_frame(
+            "video.mp4", 
+            Path("frame.jpg"), 
+            time_seconds=5.0,
+            keep_equirectangular=True
+        )
+        
+        # Extract perspective frame (converted)
+        frame = extract_360_frame(
+            "video.mp4",
+            Path("frame_perspective.jpg"),
+            time_seconds=5.0,
+            keep_equirectangular=False,
+            perspective_yaw=45.0  # Look 45° to the right
+        )
+    """
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    if keep_equirectangular:
+        # Use v360 filter to keep equirectangular format (no conversion)
+        # input=e:output=e means equirectangular to equirectangular
+        cmd = [
+            "ffmpeg",
+            "-ss", str(time_seconds),  # Seek to time position
+            "-i", str(video_path),
+            "-vf", "v360=input=e:output=e",  # Keep equirectangular format
+            "-frames:v", "1",  # Extract only 1 frame
+            "-y",  # Overwrite output file
+            str(output_path)
+        ]
+    else:
+        # Convert to perspective projection
+        # v360 filter: equirectangular input → perspective output
+        cmd = [
+            "ffmpeg",
+            "-ss", str(time_seconds),
+            "-i", str(video_path),
+            "-vf", f"v360=input=e:output=perspective:pitch={perspective_pitch}:yaw={perspective_yaw}:fov={perspective_fov}",
+            "-frames:v", "1",
+            "-y",
+            str(output_path)
+        ]
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30  # 30 second timeout
+        )
+        logger.info(f"✅ Extracted 360° frame at {time_seconds}s to {output_path}")
+        return output_path
+    except subprocess.CalledProcessError as e:
+        logger.error(f"❌ FFmpeg frame extraction failed: {e.stderr}")
+        raise RuntimeError(f"Failed to extract frame: {e.stderr}")
+    except subprocess.TimeoutExpired:
+        logger.error(f"❌ Frame extraction timed out after 30s")
+        raise RuntimeError("Frame extraction timed out")
+
