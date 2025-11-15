@@ -194,6 +194,29 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         if frame_count < 3:
             raise Exception(f"Not enough frames extracted: {frame_count}. Need at least 3.")
         
+        # Optional: Run OpenCV SfM preview (quick reconstruction before COLMAP)
+        opencv_preview_path = None
+        if HAS_OPENCV_SFM and quality_mode == "fast":
+            try:
+                logger.info("🔍 Running OpenCV SfM preview (quick reconstruction)...")
+                update_scan_status(scan_id, "processing", progress=10, stage="OpenCV SfM preview...")
+                
+                opencv_preview_path = results_dir / "opencv_preview.ply"
+                result = run_opencv_preview(
+                    images_dir=processor.images_path,
+                    output_path=opencv_preview_path,
+                    max_images=20,  # Limit for speed
+                    feature_type="SIFT"
+                )
+                
+                if result:
+                    opencv_points, opencv_poses = result
+                    logger.info(f"✅ OpenCV SfM preview complete: {len(opencv_points)} points")
+                    logger.info(f"📁 Preview saved to: {opencv_preview_path}")
+            except Exception as e:
+                logger.warning(f"⚠️  OpenCV SfM preview failed (non-critical): {e}")
+                opencv_preview_path = None
+        
         # Step 2: Extract SIFT features
         update_scan_status(scan_id, "processing", progress=10, stage="Extracting SIFT features...")
         logger.info(f"🔍 Extracting SIFT features")
@@ -433,8 +456,73 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         logger.info(f"✅ Reconstruction complete for scan {scan_id} ({processing_time:.1f}s)")
         logger.info(f"📊 Quality mode: {quality_mode}, Points: {dense_points:,}")
         
+        # Optional: Compare COLMAP result with OpenCV SfM preview if available
+        if HAS_OPENCV_SFM and opencv_preview_path and opencv_preview_path.exists():
+            try:
+                # Get final PLY path from database
+                conn = get_db_connection()
+                scan_row = conn.execute("SELECT pointcloud_final_path, ply_file FROM scans WHERE id = ?", (scan_id,)).fetchone()
+                conn.close()
+                
+                if scan_row:
+                    scan_dict = dict(scan_row)
+                    final_ply_path = scan_dict.get('pointcloud_final_path') or scan_dict.get('ply_file')
+                    
+                    if final_ply_path and Path(final_ply_path).exists():
+                        comparison = compare_reconstructions(
+                            opencv_preview_path,
+                            Path(final_ply_path)
+                        )
+                        if comparison:
+                            logger.info(f"📊 Comparison: Chamfer distance = {comparison['chamfer_distance']:.6f}")
+                            logger.info(f"   OpenCV points: {comparison['point_cloud_1']['point_count']:,}")
+                            logger.info(f"   COLMAP points: {comparison['point_cloud_2']['point_count']:,}")
+            except Exception as e:
+                logger.warning(f"⚠️  Point cloud comparison failed (non-critical): {e}")
+        
     except Exception as e:
         logger.error(f"❌ COLMAP reconstruction failed for scan {scan_id}: {e}")
+        
+        # Fallback: Try OpenCV SfM if COLMAP fails
+        if HAS_OPENCV_SFM:
+            try:
+                logger.warning("⚠️  Attempting OpenCV SfM fallback reconstruction...")
+                update_scan_status(scan_id, "processing", progress=50, stage="OpenCV SfM fallback...")
+                
+                fallback_ply_path = results_dir / "opencv_fallback.ply"
+                result = run_opencv_fallback(
+                    images_dir=processor.images_path,
+                    output_path=fallback_ply_path,
+                    feature_type="SIFT"
+                )
+                
+                if result:
+                    opencv_points, opencv_poses = result
+                    
+                    if len(opencv_points) > 0:
+                        # Update database with fallback result
+                        conn = get_db_connection()
+                        try:
+                            conn.execute(
+                                """UPDATE scans SET 
+                                   status = ?,
+                                   ply_file = ?,
+                                   pointcloud_final_path = ?,
+                                   point_count_raw = ?,
+                                   quality_mode = ?
+                                   WHERE id = ?""",
+                                ("completed", str(fallback_ply_path), str(fallback_ply_path), len(opencv_points), "opencv_fallback", scan_id)
+                            )
+                            conn.commit()
+                        finally:
+                            conn.close()
+                        
+                        logger.info(f"✅ OpenCV SfM fallback successful: {len(opencv_points)} points")
+                        update_scan_status(scan_id, "completed", progress=100, stage="OpenCV SfM fallback complete")
+                        return
+            except Exception as fallback_error:
+                logger.error(f"❌ OpenCV SfM fallback also failed: {fallback_error}")
+        
         update_scan_status(scan_id, "failed", str(e))
 
 def get_db_connection():
