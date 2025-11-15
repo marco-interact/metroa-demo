@@ -1,21 +1,7 @@
 "use client"
 
-import dynamic from 'next/dynamic'
-import { Suspense } from 'react'
-
-// Dynamically import Spline to avoid SSR issues
-// Note: @splinetool/react-spline exports Spline as default
-const Spline = dynamic(
-  () => import('@splinetool/react-spline'),
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    )
-  }
-)
+// Simple spinner loader (Spline integration temporarily disabled due to package export issues)
+// TODO: Re-enable Spline when @splinetool/react-spline package exports are fixed
 
 interface SplineLoaderProps {
   className?: string
@@ -25,18 +11,23 @@ interface SplineLoaderProps {
 
 export function SplineLoader({ 
   className = "",
-  scene = "https://prod.spline.design/EbRg3AA-HXokBWoZ/scene.splinecode",
+  scene,
   style
 }: SplineLoaderProps) {
+  // Return elegant spinner loader
   return (
     <div className={`w-full h-full ${className}`} style={style}>
-      <Suspense fallback={
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary-900/20 to-primary-800/10">
+        <div className="relative">
+          {/* Outer spinning ring */}
+          <div className="w-20 h-20 border-4 border-primary-500/30 border-t-primary-500 rounded-full animate-spin"></div>
+          {/* Inner pulsing dot */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-3 h-3 bg-primary-500 rounded-full animate-pulse"></div>
+          </div>
         </div>
-      }>
-        <Spline scene={scene} />
-      </Suspense>
+        <p className="mt-4 text-sm text-gray-400 font-mono">Loading...</p>
+      </div>
     </div>
   )
 }
