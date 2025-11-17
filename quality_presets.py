@@ -68,102 +68,102 @@ class QualityPreset:
 QUALITY_PRESETS: Dict[str, QualityPreset] = {
     "fast": QualityPreset(
         name="fast",
-        description="Quick processing with mesh generation",
-        estimated_time="60-90 seconds",
-        target_points="100K-300K",
+        description="Dense reconstruction for complete room capture",
+        estimated_time="2-3 minutes",
+        target_points="1M-3M",
         
-        # Frame extraction: Optimized for 40s videos
-        fps_range=(3, 5),  # Increased from (2, 4) for better coverage
-        max_resolution=1920,  # Increased from 1600 for better quality
+        # Frame extraction: MORE frames for better coverage
+        fps_range=(5, 7),  # Increased significantly for 40s video = 200-280 frames
+        max_resolution=2560,  # Higher resolution for better features
         
-        # Feature extraction: Improved settings
-        max_num_features=12000,  # Increased from 10000
-        estimate_affine_shape=False,
-        domain_size_pooling=False,
+        # Feature extraction: MUCH more features
+        max_num_features=16384,  # Doubled for better matching
+        estimate_affine_shape=True,  # Enable for better matching
+        domain_size_pooling=True,  # Enable for better features
         
-        # Feature matching: Improved overlap
+        # Feature matching: HIGH overlap for complete coverage
         matching_strategy="sequential",
-        overlap=30,  # Increased from 20 for better matching
+        overlap=50,  # Increased significantly for dense matching
         
-        # Sparse reconstruction: Balanced settings
-        min_num_matches=20,  # Increased from 15
-        init_min_num_inliers=120,  # Increased from 100
-        filter_max_reproj_error=4.0,  # Reduced from 6.0 for better accuracy
+        # Sparse reconstruction: More points
+        min_num_matches=15,  # Lower threshold for more matches
+        init_min_num_inliers=100,
+        filter_max_reproj_error=4.0,
         
-        # Dense reconstruction: Improved settings
+        # Dense reconstruction: MAXIMUM density settings
         enable_dense=True,
-        max_image_size=2400,  # Increased from 2000
-        window_radius=7,  # Increased from 5
-        num_samples=20,  # Increased from 15
-        num_iterations=6,  # Increased from 5
-        geom_consistency_max_cost=0.8,  # Reduced from 1.0
-        filter_min_ncc=0.15,  # Increased from 0.1
+        max_image_size=3200,  # Much higher resolution
+        window_radius=11,  # Larger window for better stereo matching
+        num_samples=30,  # More samples per pixel
+        num_iterations=10,  # More iterations for convergence
+        geom_consistency_max_cost=0.3,  # Stricter consistency for quality
+        filter_min_ncc=0.1,  # Lower threshold for MORE points
         
-        # Fusion: Improved thresholds
-        fusion_max_reproj_error=1.5,  # Reduced from 2.0
-        fusion_max_depth_error=0.012,  # Reduced from 0.015
-        fusion_max_normal_error=10,  # Reduced from 12
-        fusion_min_num_pixels=3,  # Reduced from 4
+        # Fusion: RELAXED thresholds for MAXIMUM point density
+        fusion_max_reproj_error=2.5,  # Relaxed to include more points
+        fusion_max_depth_error=0.02,  # Relaxed
+        fusion_max_normal_error=15,  # Relaxed
+        fusion_min_num_pixels=2,  # Lower minimum for more points
         
         # OpenMVS: Not used
         use_openmvs=False,
         
-        # Open3D: Moderate cleanup
+        # Open3D: MINIMAL cleanup to preserve density
         open3d_outlier_removal=True,
-        open3d_statistical_nb_neighbors=25,  # Increased from 20
-        open3d_statistical_std_ratio=2.5,  # Increased from 2.0
-        open3d_downsample_threshold=2000000,  # Downsample if >2M points
-        open3d_voxel_size=0.008,  # Reduced from 0.01 for finer sampling
+        open3d_statistical_nb_neighbors=30,
+        open3d_statistical_std_ratio=3.0,  # More lenient to keep points
+        open3d_downsample_threshold=5000000,  # Only downsample if >5M points
+        open3d_voxel_size=0.005,  # Finer voxel size
     ),
     
     "high_quality": QualityPreset(
         name="high_quality",
-        description="High quality reconstruction with mesh generation",
-        estimated_time="2-3 minutes",
-        target_points="500K-2M",
+        description="Maximum density for complete room reconstruction",
+        estimated_time="3-5 minutes",
+        target_points="3M-8M",
         
-        # Frame extraction: Optimized for 40s videos
-        fps_range=(5, 7),  # Reduced from (6, 8) for balance
-        max_resolution=2560,  # Reduced from 3200 for performance
+        # Frame extraction: MAXIMUM frames for 40s video
+        fps_range=(7, 10),  # 280-400 frames for complete coverage
+        max_resolution=3200,  # Maximum resolution
         
-        # Feature extraction: Enhanced SIFT
-        max_num_features=14000,  # Reduced from 16384 for performance
-        estimate_affine_shape=True,  # Enable affine shape estimation
-        domain_size_pooling=True,     # Enable domain size pooling
+        # Feature extraction: MAXIMUM features
+        max_num_features=16384,  # Maximum SIFT features
+        estimate_affine_shape=True,
+        domain_size_pooling=True,
         
-        # Feature matching: Sequential with high overlap
-        matching_strategy="sequential",
-        overlap=60,  # Reduced from 100 for performance
+        # Feature matching: EXHAUSTIVE for complete coverage
+        matching_strategy="exhaustive",  # Changed to exhaustive for maximum matching
+        overlap=100,  # Maximum overlap
         
-        # Sparse reconstruction: Balanced settings
-        min_num_matches=25,  # Reduced from 30
-        init_min_num_inliers=150,  # Reduced from 200
-        filter_max_reproj_error=2.5,  # Increased from 2.0 for more points
+        # Sparse reconstruction: More lenient for MORE points
+        min_num_matches=15,  # Lower for more matches
+        init_min_num_inliers=100,
+        filter_max_reproj_error=3.0,  # More lenient
         
-        # Dense reconstruction: Balanced quality settings
+        # Dense reconstruction: ABSOLUTE MAXIMUM settings
         enable_dense=True,
-        max_image_size=3200,  # Reduced from 4096
-        window_radius=9,  # Reduced from 11
-        num_samples=35,  # Reduced from 50
-        num_iterations=8,  # Reduced from 10
-        geom_consistency_max_cost=0.5,  # Increased from 0.4
-        filter_min_ncc=0.25,  # Reduced from 0.3
+        max_image_size=4096,  # Maximum resolution
+        window_radius=13,  # Maximum window size
+        num_samples=50,  # Maximum samples
+        num_iterations=15,  # Maximum iterations
+        geom_consistency_max_cost=0.2,  # Very strict for quality
+        filter_min_ncc=0.05,  # Very low threshold for MAXIMUM points
         
-        # Fusion: Balanced for good point density
-        fusion_max_reproj_error=1.0,  # Reduced from 1.2
-        fusion_max_depth_error=0.008,  # Reduced from 0.01
-        fusion_max_normal_error=10,  # Increased from 8
-        fusion_min_num_pixels=2,
+        # Fusion: VERY RELAXED for MAXIMUM point density
+        fusion_max_reproj_error=3.0,  # Very relaxed
+        fusion_max_depth_error=0.03,  # Very relaxed
+        fusion_max_normal_error=20,  # Very relaxed
+        fusion_min_num_pixels=1,  # Minimum threshold for maximum points
         
         # OpenMVS: Not used
         use_openmvs=False,
         
-        # Open3D: Strong cleanup
+        # Open3D: MINIMAL cleanup - preserve ALL points
         open3d_outlier_removal=True,
-        open3d_statistical_nb_neighbors=30,  # Increased from 20
-        open3d_statistical_std_ratio=2.0,
-        open3d_downsample_threshold=3000000,  # Downsample if >3M points
-        open3d_voxel_size=0.004,  # Reduced from 0.005
+        open3d_statistical_nb_neighbors=40,
+        open3d_statistical_std_ratio=3.5,  # Very lenient
+        open3d_downsample_threshold=10000000,  # Only downsample if >10M points
+        open3d_voxel_size=0.003,  # Very fine voxel size
     ),
     
     "ultra_openmvs": QualityPreset(
