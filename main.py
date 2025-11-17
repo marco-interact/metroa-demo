@@ -420,12 +420,79 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         except Exception as e:
             logger.warning(f"Could not save reconstruction metrics: {e}")
         
-        # Step 10: Update database with final PLY path and statistics
-        update_scan_status(scan_id, "processing", progress=98, stage="Finalizing reconstruction...")
+        # Step 10: Generate Mesh from Point Cloud
+        mesh_path = None
+        mesh_stats = None
+        
+        if final_ply_path and final_ply_path.exists() and dense_points > 10000:
+            try:
+                from mesh_generator import generate_mesh_from_pointcloud
+                
+                update_scan_status(scan_id, "processing", progress=98, stage="Generating 3D mesh...")
+                logger.info(f"🔨 Generating mesh from point cloud: {final_ply_path}")
+                
+                # Determine mesh quality based on reconstruction quality
+                mesh_depth = 9  # Default
+                decimation_target = None
+                
+                if quality_mode == "fast":
+                    mesh_depth = 8
+                    decimation_target = 300000  # 300K triangles
+                elif quality_mode == "high_quality":
+                    mesh_depth = 9
+                    decimation_target = 500000  # 500K triangles
+                else:  # ultra_openmvs
+                    mesh_depth = 10
+                    decimation_target = 1000000  # 1M triangles
+                
+                mesh_output_path = results_dir / "mesh.glb"
+                
+                mesh_result = generate_mesh_from_pointcloud(
+                    input_ply_path=str(final_ply_path),
+                    output_mesh_path=str(mesh_output_path),
+                    method="poisson",
+                    depth=mesh_depth,
+                    decimation_target=decimation_target,
+                    quality_mode=quality_mode
+                )
+                
+                if mesh_result.get("status") == "success":
+                    mesh_path = mesh_output_path
+                    mesh_stats = {
+                        "vertices": mesh_result.get("vertices", 0),
+                        "triangles": mesh_result.get("triangles", 0),
+                        "method": mesh_result.get("method", "poisson"),
+                        "is_watertight": mesh_result.get("is_watertight", False)
+                    }
+                    logger.info(f"✅ Mesh generated: {mesh_result['vertices']:,} vertices, {mesh_result['triangles']:,} triangles")
+                else:
+                    logger.warning(f"⚠️ Mesh generation failed: {mesh_result.get('error')}")
+                    
+            except Exception as e:
+                logger.error(f"❌ Mesh generation error: {e}")
+                # Don't fail the entire reconstruction if mesh generation fails
+        
+        # Step 11: Update database with final PLY path, mesh, and statistics
+        update_scan_status(scan_id, "processing", progress=99, stage="Finalizing reconstruction...")
         conn = get_db_connection()
         try:
+            # Ensure mesh columns exist
+            try:
+                conn.execute("ALTER TABLE scans ADD COLUMN mesh_file TEXT")
+            except:
+                pass
+            try:
+                conn.execute("ALTER TABLE scans ADD COLUMN mesh_triangles INTEGER")
+            except:
+                pass
+            try:
+                conn.execute("ALTER TABLE scans ADD COLUMN mesh_vertices INTEGER")
+            except:
+                pass
+            
             # Prepare postprocessing stats JSON
             postprocessing_stats_json = json.dumps(postprocessing_stats) if postprocessing_stats else None
+            mesh_stats_json = json.dumps(mesh_stats) if mesh_stats else None
             
             conn.execute(
                 """UPDATE scans SET 
@@ -435,6 +502,9 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                     point_count_raw = ?,
                     point_count_final = ?,
                     postprocessing_stats = ?,
+                    mesh_file = ?,
+                    mesh_triangles = ?,
+                    mesh_vertices = ?,
                     progress = 100, 
                     current_stage = ? 
                    WHERE id = ?""",
@@ -445,6 +515,9 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                     postprocessing_stats.get("point_count_before", 0) if postprocessing_stats else 0,
                     postprocessing_stats.get("point_count_after", 0) if postprocessing_stats else dense_points,
                     postprocessing_stats_json,
+                    str(mesh_path) if mesh_path else None,
+                    mesh_stats.get("triangles", 0) if mesh_stats else None,
+                    mesh_stats.get("vertices", 0) if mesh_stats else None,
                     "Reconstruction complete!",
                     scan_id
                 )
@@ -716,9 +789,25 @@ async def get_scan_details(scan_id: str):
                 # Demo scan - serve from demo-resources
                 point_cloud_url = f"/demo-resources/{ply_path}"
             
+            # Handle mesh URL
+            mesh_url = None
+            if scan_dict.get('mesh_file'):
+                mesh_file = scan_dict['mesh_file']
+                if mesh_file.startswith('/workspace/'):
+                    # User-generated mesh
+                    mesh_url = f"/api/scans/{scan_id}/mesh"
+                else:
+                    # Demo mesh
+                    mesh_url = f"/demo-resources/{mesh_file}"
+            elif scan_dict.get('glb_file'):
+                # Fallback to glb_file if mesh_file not set
+                glb_file = scan_dict['glb_file']
+                if not glb_file.startswith('/'):
+                    mesh_url = f"/demo-resources/{glb_file}"
+            
             scan_dict['results'] = {
                 'point_cloud_url': point_cloud_url,
-                'mesh_url': f"/demo-resources/{scan_dict['glb_file']}" if scan_dict.get('glb_file') and not scan_dict['glb_file'].startswith('/') else None,
+                'mesh_url': mesh_url,
                 'thumbnail_url': f"/demo-resources/{scan_dict['thumbnail']}" if scan_dict.get('thumbnail') and not scan_dict['thumbnail'].startswith('/') else None
             }
         
@@ -1698,6 +1787,41 @@ async def export_scan_model(scan_id: str, format: str = "glb"):
         raise
     except Exception as e:
         logger.error(f"Error exporting scan to GLTF: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/scans/{scan_id}/mesh")
+async def get_scan_mesh(scan_id: str):
+    """
+    Download mesh file (GLB format) for a scan
+    """
+    try:
+        conn = get_db_connection()
+        scan = conn.execute("SELECT mesh_file, name FROM scans WHERE id = ?", (scan_id,)).fetchone()
+        conn.close()
+        
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        scan_dict = dict(scan)
+        mesh_file = scan_dict.get('mesh_file')
+        
+        if not mesh_file:
+            raise HTTPException(status_code=404, detail="Mesh not available for this scan")
+        
+        mesh_path = Path(mesh_file)
+        if not mesh_path.exists():
+            raise HTTPException(status_code=404, detail="Mesh file not found")
+        
+        # Return mesh file for download
+        return FileResponse(
+            str(mesh_path),
+            media_type="model/gltf-binary",
+            filename=f"{scan_dict.get('name', 'scan')}_mesh.glb"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting mesh: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/reconstruction/{job_id}/download/{filename}")
