@@ -1,183 +1,249 @@
-# Deployment Commands
+# 🚀 Deployment Commands
 
-## GitHub Push (Already Done ✅)
+## ✅ Changes Pushed to GitHub
 
-Latest commit: `5cba2d66` - FEAT: Integrate Spline animation loader for all loading states
+Repository: `https://github.com/marco-interact/metroa-demo.git`
 
-## RunPod: Pull Latest Code
+**Latest commit:** Storage optimization (removed build artifacts, cleaned git history)
 
-### Quick One-Liner
+---
 
-```bash
-cd /workspace/metroa-demo && git pull origin main && echo "✅ Code updated"
-```
+## 📦 RunPod Backend - Pull & Update
 
-### Full Update with Backend Restart
+### Option 1: Update Existing Pod
 
 ```bash
-cd /workspace/metroa-demo && \
-git pull origin main && \
-lsof -ti :8888 | xargs kill -9 2>/dev/null || true && \
-sleep 2 && \
-screen -S metroa-backend -d -m bash -c "cd /workspace/metroa-demo && python main.py" && \
-sleep 3 && \
-curl http://localhost:8888/health && \
-echo "✅ Backend restarted"
-```
+# SSH into RunPod pod
+ssh root@<POD_IP> -p <PORT> -i ~/.ssh/id_ed25519
 
-### Step-by-Step
-
-```bash
-# 1. Navigate to project
+# Navigate to project directory
 cd /workspace/metroa-demo
 
-# 2. Pull latest code
+# Pull latest changes
+git pull metroa main
+# or if using origin:
 git pull origin main
 
-# 3. Verify update
-git log --oneline -1
+# If you have local changes, stash them first:
+git stash
+git pull metroa main
+git stash pop
 
-# 4. (Optional) Restart backend if needed
-lsof -ti :8888 | xargs kill -9 2>/dev/null
-sleep 2
-screen -S metroa-backend -d -m bash -c "cd /workspace/metroa-demo && python main.py"
+# Restart backend (if running)
+pkill -f "python.*main.py" || pkill -f "uvicorn.*main:app"
+cd /workspace/metroa-demo
+source venv/bin/activate
+QT_QPA_PLATFORM=offscreen nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8888 --reload > backend.log 2>&1 &
+echo $! > backend.pid
+
+# Verify backend is running
+curl http://localhost:8888/health
 ```
 
-## Mac Terminal: Vercel Build
-
-### Prerequisites
+### Option 2: Fresh Setup (New Pod)
 
 ```bash
-# Install Vercel CLI (if not already installed)
-npm install -g vercel
+# SSH into RunPod pod
+ssh root@<POD_IP> -p <PORT> -i ~/.ssh/id_ed25519
 
-# Login to Vercel (if not already logged in)
-vercel login
+# Clone repository
+cd /workspace
+git clone https://github.com/marco-interact/metroa-demo.git
+cd metroa-demo
+
+# Run setup script (installs dependencies, builds COLMAP, starts backend)
+bash setup-metroa-pod.sh
+
+# Verify backend is running
+curl http://localhost:8888/health
 ```
 
-### Link Project (First Time Only)
+### Option 3: Quick Update (No Backend Restart Needed)
 
 ```bash
+# SSH into RunPod pod
+cd /workspace/metroa-demo
+
+# Pull latest code
+git pull metroa main
+
+# Backend will auto-reload if --reload flag is used
+# Check logs to verify
+tail -f backend.log
+```
+
+---
+
+## 🌐 Vercel Frontend - Deploy
+
+### Option 1: Deploy from Local Machine
+
+```bash
+# Navigate to project directory
 cd /Users/marco.aurelio/Desktop/metroa-demo
-vercel link
-```
 
-### Deploy to Production
-
-```bash
-cd /Users/marco.aurelio/Desktop/metroa-demo
-
-# Option 1: Deploy with prompts
-vercel --prod
-
-# Option 2: Deploy without prompts (if already linked)
-vercel --prod --yes
-
-# Option 3: Deploy specific environment
-vercel --prod --env NEXT_PUBLIC_BACKEND_URL=https://your-runpod-url.com
-```
-
-### Quick Deploy One-Liner
-
-```bash
-cd /Users/marco.aurelio/Desktop/metroa-demo && vercel --prod --yes
-```
-
-### Build Locally (Test Before Deploy)
-
-```bash
-cd /Users/marco.aurelio/Desktop/metroa-demo
-
-# Install dependencies (if needed)
+# Install dependencies (if not already installed)
 npm install
 
-# Build locally
+# Set backend URL (replace with your RunPod pod URL)
+echo 'NEXT_PUBLIC_API_URL="https://<POD_ID>-8888.proxy.runpod.net"' > .env.production
+
+# Deploy to Vercel
+vercel --prod
+
+# When prompted:
+# - Scope: interact-hq
+# - Link to existing: Yes (if updating existing project)
+# - Project name: metroa-demo
+# - Directory: ./
+# - Override settings: No
+```
+
+### Option 2: Deploy via Vercel Dashboard
+
+1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
+2. Select project: `metroa-demo`
+3. Go to **Settings** → **Environment Variables**
+4. Add/Update: `NEXT_PUBLIC_API_URL` = `https://<POD_ID>-8888.proxy.runpod.net`
+5. Go to **Deployments** → Click **Redeploy** on latest deployment
+6. Or push to GitHub (Vercel will auto-deploy if connected)
+
+### Option 3: Auto-Deploy from GitHub (Recommended)
+
+If Vercel is connected to GitHub:
+
+1. **Push changes trigger auto-deploy:**
+   ```bash
+   git push metroa main
+   ```
+
+2. **Vercel will automatically:**
+   - Detect the push
+   - Install dependencies (`npm install`)
+   - Build the project (`npm run build`)
+   - Deploy to production
+
+3. **Set Environment Variable in Vercel Dashboard:**
+   - Go to: Settings → Environment Variables
+   - Add: `NEXT_PUBLIC_API_URL` = `https://<POD_ID>-8888.proxy.runpod.net`
+   - Apply to: Production, Preview, Development
+
+---
+
+## 🔍 Verify Deployment
+
+### Backend Health Check
+
+```bash
+# Replace <POD_ID> with your actual RunPod pod ID
+curl https://<POD_ID>-8888.proxy.runpod.net/health
+
+# Expected response:
+# {"status":"healthy","message":"Backend is running","database_path":"/workspace/data/database.db"}
+```
+
+### Frontend Check
+
+1. Open: `https://metroa-demo.vercel.app`
+2. Login with demo credentials:
+   - Email: `demo@metroa.app`
+   - Password: `demo123`
+3. Verify features:
+   - ✅ Dashboard loads
+   - ✅ 3D viewer displays point clouds
+   - ✅ Measurement tool works
+   - ✅ Video upload works
+
+---
+
+## 📝 Quick Reference
+
+### RunPod Pod Details
+- **Repository**: `https://github.com/marco-interact/metroa-demo.git`
+- **Remote name**: `metroa` (or `origin`)
+- **Branch**: `main`
+- **Backend port**: `8888`
+- **Backend URL format**: `https://<POD_ID>-8888.proxy.runpod.net`
+
+### Vercel Project Details
+- **Project name**: `metroa-demo`
+- **Team**: `interact-hq`
+- **Frontend URL**: `https://metroa-demo.vercel.app`
+- **Environment variable**: `NEXT_PUBLIC_API_URL`
+
+### Common Commands
+
+```bash
+# RunPod - Check backend status
+curl http://localhost:8888/health
+
+# RunPod - View backend logs
+tail -f /workspace/metroa-demo/backend.log
+
+# RunPod - Restart backend
+pkill -f "uvicorn.*main:app"
+cd /workspace/metroa-demo && source venv/bin/activate
+QT_QPA_PLATFORM=offscreen nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8888 --reload > backend.log 2>&1 &
+echo $! > backend.pid
+
+# Local - Build frontend (for testing)
 npm run build
 
-# Test production build locally
-npm start
+# Local - Run frontend dev server
+npm run dev
 ```
 
-### Check Deployment Status
+---
 
+## 🆘 Troubleshooting
+
+### RunPod Issues
+
+**Backend not responding:**
 ```bash
-# List deployments
-vercel ls
+# Check if process is running
+ps aux | grep uvicorn
 
-# View deployment logs
-vercel logs
+# Check logs
+tail -50 /workspace/metroa-demo/backend.log
 
-# View specific deployment
-vercel inspect [deployment-url]
-```
-
-## Complete Deployment Workflow
-
-### 1. RunPod (Backend)
-
-```bash
-ssh root@your-runpod-ip -p PORT -i ~/.ssh/id_ed25519
-
-# Once connected:
-cd /workspace/metroa-demo && \
-git pull origin main && \
-lsof -ti :8888 | xargs kill -9 2>/dev/null || true && \
-sleep 2 && \
-screen -S metroa-backend -d -m bash -c "cd /workspace/metroa-demo && python main.py" && \
-sleep 3 && \
-curl http://localhost:8888/health
-```
-
-### 2. Mac Terminal (Frontend)
-
-```bash
-cd /Users/marco.aurelio/Desktop/metroa-demo
-vercel --prod --yes
-```
-
-## Verify Deployment
-
-### Check Backend
-
-```bash
-# From RunPod terminal
-curl http://localhost:8888/health
-curl http://localhost:8888/api/status
-```
-
-### Check Frontend
-
-Visit your Vercel deployment URL (usually shown after `vercel --prod`)
-
-## Troubleshooting
-
-### Backend Not Updating
-
-```bash
-# Force pull
+# Restart backend
 cd /workspace/metroa-demo
-git fetch origin
-git reset --hard origin/main
+source venv/bin/activate
+pkill -f "uvicorn.*main:app"
+QT_QPA_PLATFORM=offscreen nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8888 --reload > backend.log 2>&1 &
 ```
 
-### Vercel Build Fails
-
+**Git pull conflicts:**
 ```bash
-# Check build logs
-vercel logs
+# Stash local changes
+git stash
 
-# Build locally to see errors
-npm run build
+# Pull latest
+git pull metroa main
 
-# Check for TypeScript errors
-npx tsc --noEmit
+# Apply stashed changes
+git stash pop
+
+# Resolve conflicts if any
 ```
 
-### Backend Connection Issues
+### Vercel Issues
 
-```bash
-# Update frontend backend URL in Vercel
-vercel env add NEXT_PUBLIC_BACKEND_URL production
-# Enter: https://your-runpod-url.com
-```
+**Build fails:**
+- Check Vercel build logs in dashboard
+- Ensure `NEXT_PUBLIC_API_URL` is set correctly
+- Verify `package.json` dependencies are correct
 
+**Environment variable not working:**
+- Ensure variable name is exactly: `NEXT_PUBLIC_API_URL`
+- Redeploy after adding/updating variable
+- Check variable is set for Production environment
+
+---
+
+## 📚 Additional Resources
+
+- [README.md](./README.md) - Full project documentation
+- [QUICKSTART.md](./QUICKSTART.md) - Quick start guide
+- [setup-metroa-pod.sh](./setup-metroa-pod.sh) - RunPod setup script
