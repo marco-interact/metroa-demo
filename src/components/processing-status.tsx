@@ -3,10 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { SplineLoader } from "@/components/ui/spline-loader"
 import { 
-  Play, 
-  Pause, 
   Square, 
   RotateCcw, 
   CheckCircle, 
@@ -114,13 +111,6 @@ export function ProcessingStatus({
 
   return (
     <Card className={`p-4 ${getStatusColor()} ${className}`}>
-      {/* Spline Loader for Processing State */}
-      {status === 'processing' && (
-        <div className="mb-4 h-64 rounded-lg overflow-hidden bg-app-primary">
-          <SplineLoader className="w-full h-full" />
-        </div>
-      )}
-      
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
           {getStatusIcon()}
@@ -181,8 +171,8 @@ export function ProcessingStatus({
                                  isActive ? ((progress - stage.min) / (stage.max - stage.min)) * 100 : 0
             
             return (
-              <div key={index} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
+              <div key={index}>
+                <div className="flex items-center justify-between text-xs py-1">
                   <div className="flex items-center space-x-2">
                     <span className={isCompleted ? 'text-green-400' : isActive ? 'text-blue-400' : 'text-gray-500'}>
                       {isCompleted ? '✓' : isActive ? '⟳' : '○'}
@@ -191,20 +181,12 @@ export function ProcessingStatus({
                       {stage.name}
                     </span>
                   </div>
-                  {isActive && (
-                    <span className="text-xs text-gray-400">{Math.round(stageProgress)}%</span>
-                  )}
+                  <span className={`text-xs font-medium ${
+                    isCompleted ? 'text-green-400' : isActive ? 'text-blue-400' : 'text-gray-500'
+                  }`}>
+                    {isCompleted ? '100%' : isActive ? `${Math.round(stageProgress)}%` : '—'}
+                  </span>
                 </div>
-                {isActive && (
-                  <div className="ml-5 w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        isCompleted ? 'bg-green-500' : 'bg-blue-500'
-                      }`}
-                      style={{ width: `${Math.max(0, Math.min(100, stageProgress))}%` }}
-                    />
-                  </div>
-                )}
               </div>
             )
           })}
