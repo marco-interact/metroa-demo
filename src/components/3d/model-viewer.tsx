@@ -278,7 +278,7 @@ function PointCloud({ points, visible }: { points: Float32Array; visible: boolea
   
   const material = new THREE.PointsMaterial({
     color: 0x88ccee,
-    size: 0.01,
+    size: 0.005,
     sizeAttenuation: true
   })
 

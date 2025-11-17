@@ -222,11 +222,11 @@ function PLYModel({ url, onPointClick, enableSelection }: {
       onPointerOut={pointerOutHandler}
     >
       <pointsMaterial
-        size={enableSelection ? 0.025 : 0.015}
+        size={enableSelection ? 0.01 : 0.005}
         vertexColors
         sizeAttenuation
         transparent
-        opacity={0.9}
+        opacity={0.95}
       />
     </points>
   )
