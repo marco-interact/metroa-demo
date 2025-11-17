@@ -143,13 +143,19 @@ function PLYModel({ url, onPointClick, enableSelection }: {
     loader.load(
       url,
       (loadedGeometry) => {
-        // Center the geometry
+        // Compute bounding box
         loadedGeometry.computeBoundingBox()
+        const bbox = loadedGeometry.boundingBox!
         const center = new THREE.Vector3()
-        loadedGeometry.boundingBox?.getCenter(center)
-        loadedGeometry.translate(-center.x, -center.y, -center.z)
+        bbox.getCenter(center)
         
-        // Normalize scale
+        // Align bottom of model to Z=0 (grid plane)
+        // Instead of centering, we translate so the minimum Z is at 0
+        const minZ = bbox.min.z
+        loadedGeometry.translate(-center.x, -center.y, -minZ)
+        
+        // Recompute bounding box after alignment
+        loadedGeometry.computeBoundingBox()
         const box = new THREE.Box3().setFromBufferAttribute(
           loadedGeometry.attributes.position as THREE.BufferAttribute
         )
@@ -160,7 +166,8 @@ function PLYModel({ url, onPointClick, enableSelection }: {
         
         setGeometry(loadedGeometry)
         setLoading(false)
-        console.log('PLY loaded successfully:', url)
+        console.log('✅ PLY loaded and aligned to grid (base at Z=0):', url)
+        console.log('📏 Model size:', size, 'Scale:', scale)
       },
       (progress) => {
         console.log('Loading progress:', (progress.loaded / progress.total * 100).toFixed(2) + '%')
@@ -222,11 +229,11 @@ function PLYModel({ url, onPointClick, enableSelection }: {
       onPointerOut={pointerOutHandler}
     >
       <pointsMaterial
-        size={enableSelection ? 0.01 : 0.005}
+        size={enableSelection ? 0.005 : 0.002}
         vertexColors
         sizeAttenuation
         transparent
-        opacity={0.95}
+        opacity={0.98}
       />
     </points>
   )

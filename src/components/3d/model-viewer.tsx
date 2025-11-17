@@ -144,11 +144,11 @@ function PLYModel({ url }: { url: string }) {
     <points>
       <bufferGeometry attach="geometry" {...geometry} />
       <pointsMaterial
-        size={0.01}
+        size={0.002}
         vertexColors
         sizeAttenuation
         transparent
-        opacity={0.8}
+        opacity={0.95}
       />
     </points>
   )
