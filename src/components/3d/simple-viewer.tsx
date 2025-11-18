@@ -1,11 +1,46 @@
 "use client"
 
-import { useRef, useEffect, useState, useCallback } from "react"
+import { useRef, useEffect, useState, useCallback, Component, ReactNode } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { OrbitControls, Html } from "@react-three/drei"
 import * as THREE from "three"
 import { PLYLoader } from "three-stdlib"
 import { SplineLoader } from "@/components/ui/spline-loader"
+
+// Error Boundary for Canvas
+class CanvasErrorBoundary extends Component<
+  { children: ReactNode; onError: (error: Error) => void },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; onError: (error: Error) => void }) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('❌ Canvas Error Boundary caught error:', error, errorInfo)
+    this.props.onError(error)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-app-primary">
+          <div className="text-red-400 text-sm text-center p-4">
+            <div className="font-bold mb-2">3D Viewer Error</div>
+            <div>Please try refreshing the page</div>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
 
 interface SimpleViewerProps {
   modelUrl?: string
@@ -31,7 +66,11 @@ function PLYModel({ url, onPointClick, enableSelection }: {
   // Handle point cloud clicks for measurement - SAFE VERSION
   const handleClick = useCallback((event: any) => {
     // Guard clauses
-    if (!enableSelection || !geometry || !onPointClick || !pointsRef.current) return
+    if (!enableSelection || !geometry || !onPointClick || !pointsRef.current) {
+      console.log('⚠️ Click ignored - missing dependencies:', { enableSelection, hasGeometry: !!geometry, hasCallback: !!onPointClick, hasRef: !!pointsRef.current })
+      return
+    }
+    
     if (isProcessingRef.current) {
       console.log('⏳ Already processing click, ignoring...')
       return
@@ -48,31 +87,12 @@ function PLYModel({ url, onPointClick, enableSelection }: {
         event.preventDefault()
       }
       
-      // React Three Fiber provides event data differently
-      // Get mouse position from event or use raycaster directly
-      let mouseX = 0
-      let mouseY = 0
-      
-      if (event && event.clientX !== undefined && event.clientY !== undefined) {
-        // Standard DOM event
-        const canvas = gl.domElement
-        if (!canvas) {
-          isProcessingRef.current = false
-          return
-        }
-        const rect = canvas.getBoundingClientRect()
-        mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1
-        mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1
-      } else if (event && event.pointer) {
-        // React Three Fiber event format
-        mouseX = event.pointer.x
-        mouseY = event.pointer.y
-      } else {
-        // Fallback: use intersection point directly
-        if (event && event.point) {
+      // PRIORITY 1: R3F direct intersection (most reliable)
+      if (event && event.point && typeof event.point.toArray === 'function') {
+        try {
           const position = event.point.toArray().slice(0, 3) as [number, number, number]
           const pointIndex = event.index ?? 0
-          console.log('✅ Point clicked (direct):', { pointIndex, position })
+          console.log('✅ Point clicked (R3F direct):', { pointIndex, position })
           setTimeout(() => {
             try {
               onPointClick(pointIndex, position)
@@ -83,8 +103,38 @@ function PLYModel({ url, onPointClick, enableSelection }: {
             }
           }, 0)
           return
+        } catch (err) {
+          console.warn('⚠️ Error extracting point from event:', err)
+          // Fall through to manual raycasting
         }
-        console.warn('⚠️ Unknown event format:', event)
+      }
+      
+      // PRIORITY 2: Manual raycasting
+      let mouseX = 0
+      let mouseY = 0
+      let hasMousePosition = false
+      
+      if (event && event.pointer) {
+        // React Three Fiber event format (normalized -1 to 1)
+        mouseX = event.pointer.x
+        mouseY = event.pointer.y
+        hasMousePosition = true
+      } else if (event && event.clientX !== undefined && event.clientY !== undefined) {
+        // Standard DOM event - need to normalize
+        if (!gl || !gl.domElement) {
+          console.error('❌ No canvas element available')
+          isProcessingRef.current = false
+          return
+        }
+        const canvas = gl.domElement
+        const rect = canvas.getBoundingClientRect()
+        mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1
+        mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1
+        hasMousePosition = true
+      }
+      
+      if (!hasMousePosition) {
+        console.warn('⚠️ No valid mouse position found in event')
         isProcessingRef.current = false
         return
       }
@@ -436,6 +486,40 @@ export function SimpleViewer({
   onCaptureImage
 }: SimpleViewerProps & { onCaptureImage?: () => void }) {
   const [viewMode, setViewMode] = useState<'pointcloud' | 'mesh'>('pointcloud')
+  const [error, setError] = useState<string | null>(null)
+
+  // Safety check - ensure modelUrl is valid
+  if (!modelUrl || typeof modelUrl !== 'string') {
+    return (
+      <div className={`relative bg-app-card rounded-lg overflow-hidden ${className} flex items-center justify-center`}>
+        <div className="text-red-400 text-sm">
+          Invalid model URL
+        </div>
+      </div>
+    )
+  }
+
+  // Handle errors from child components
+  if (error) {
+    return (
+      <div className={`relative bg-app-card rounded-lg overflow-hidden ${className} flex items-center justify-center`}>
+        <div className="text-red-400 text-sm">
+          Error loading 3D model: {error}
+        </div>
+      </div>
+    )
+  }
+
+  // Wrap onPointClick with error handling
+  const safeOnPointClick = onPointClick ? (pointIndex: number, position: [number, number, number]) => {
+    try {
+      console.log('🖱️ Point click wrapper called:', { pointIndex, position })
+      onPointClick(pointIndex, position)
+    } catch (err) {
+      console.error('❌ Error in onPointClick handler:', err)
+      setError(err instanceof Error ? err.message : 'Unknown error handling point click')
+    }
+  } : undefined
 
   return (
     <div className={`relative bg-app-card rounded-lg overflow-hidden ${className}`}>
@@ -462,12 +546,13 @@ export function SimpleViewer({
         </div>
       )}
       
-      <Canvas
-        camera={{ position: [5, 5, 5], fov: 75 }}
-        className="bg-app-card"
-        gl={{ antialias: false, powerPreference: "low-power", preserveDrawingBuffer: true }}
-        dpr={[1, 1.5]}
-      >
+      <CanvasErrorBoundary onError={(err) => setError(err.message)}>
+        <Canvas
+          camera={{ position: [5, 5, 5], fov: 75 }}
+          className="bg-app-card"
+          gl={{ antialias: false, powerPreference: "low-power", preserveDrawingBuffer: true }}
+          dpr={[1, 1.5]}
+        >
         <ambientLight intensity={0.6} />
         <pointLight position={[10, 10, 10]} intensity={0.5} />
         <directionalLight position={[-10, -10, -10]} intensity={0.3} />
@@ -479,7 +564,7 @@ export function SimpleViewer({
         {modelUrl ? (
           <PLYModel 
             url={modelUrl} 
-            onPointClick={onPointClick}
+            onPointClick={safeOnPointClick}
             enableSelection={enablePointSelection}
           />
         ) : (
@@ -518,6 +603,7 @@ export function SimpleViewer({
         <CameraController />
         <CaptureButton onCapture={onCaptureImage} />
       </Canvas>
+      </CanvasErrorBoundary>
 
       {/* Controls - only show if no model URL (demo mode) */}
       {!modelUrl && (
