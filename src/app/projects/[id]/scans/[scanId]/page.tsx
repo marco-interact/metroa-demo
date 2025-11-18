@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ProcessingStatus } from "@/components/processing-status"
 import { SimpleViewer } from "@/components/3d/simple-viewer"
+import { FirstPersonViewer } from "@/components/3d/FirstPersonViewer"
 import { MeasurementTools } from "@/components/3d/measurement-tools"
 import { SplineLoader } from "@/components/ui/spline-loader"
 import { apiClient } from "@/lib/api"
@@ -159,15 +160,47 @@ function Enhanced3DViewer({
                 ⚠️ Showing demo model - Re-upload to generate actual 3D reconstruction
               </div>
             )}
-            {/* Show actual 3D viewer when completed */}
-            <SimpleViewer 
-              modelUrl={getModelUrl() || undefined}
-              className="w-full h-full"
-              enablePointSelection={isSelectingPoints}
-              selectedPointPositions={selectedPointPositions}
-              onPointClick={onPointClick}
-              onCaptureImage={() => console.log('Image captured from 3D viewer')}
-            />
+            {/* Mode toggle button */}
+            <div className="absolute top-4 right-4 z-20">
+              <button
+                onClick={() => setViewerMode(viewerMode === 'orbit' ? 'fps' : 'orbit')}
+                className="flex items-center gap-2 bg-app-elevated/95 backdrop-blur-sm border border-app-secondary hover:border-blue-500 px-4 py-2 rounded-lg text-white text-sm font-medium transition-all hover:bg-app-elevated shadow-lg"
+                title={viewerMode === 'fps' ? 'Switch to Orbit View' : 'Switch to First-Person View'}
+              >
+                {viewerMode === 'fps' ? (
+                  <>
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Orbit View</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="w-4 h-4" />
+                    <span>🎮 First Person</span>
+                  </>
+                )}
+              </button>
+            </div>
+            
+            {/* Conditional viewer based on mode */}
+            {viewerMode === 'fps' ? (
+              <FirstPersonViewer
+                plyUrl={getModelUrl() || ''}
+                scanId={scan.id}
+                initialSpeed={5.0}
+                initialPosition={[0, 1.6, 5]}
+                className="w-full h-full"
+                showStats={false}
+              />
+            ) : (
+              <SimpleViewer 
+                modelUrl={getModelUrl() || undefined}
+                className="w-full h-full"
+                enablePointSelection={isSelectingPoints}
+                selectedPointPositions={selectedPointPositions}
+                onPointClick={onPointClick}
+                onCaptureImage={() => console.log('Image captured from 3D viewer')}
+              />
+            )}
           </div>
         ) : scan.status === 'processing' ? (
           // Show processing indicator with Spline loader
@@ -279,6 +312,7 @@ export default function ScanDetailPage() {
   const [selectedPointPositions, setSelectedPointPositions] = useState<Array<[number, number, number]>>([])
   const [isSelectingPoints, setIsSelectingPoints] = useState(false)
   const [processingProgress, setProcessingProgress] = useState({ progress: 0, stage: 'Initializing...' })
+  const [viewerMode, setViewerMode] = useState<'orbit' | 'fps'>('orbit')
 
   // Handle point clicks - MUST be at top level (React hooks rule)
   // Now supports up to 3 points for angle/radius measurements
