@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState, useCallback, useMemo, Suspense } from "react"
+import { useRef, useEffect, useState, useCallback, useMemo } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { PointerLockControls, Stats } from "@react-three/drei"
 import * as THREE from "three"
@@ -717,17 +717,15 @@ export default function FirstPersonViewer({
           })
         }}
       >
-        <Suspense fallback={null}>
-          <SceneContent
-            plyUrl={plyUrl}
-            speed={speed}
-            controlsEnabled={controlsEnabled}
-            onGeometryLoad={handleGeometryLoad}
-            onPointCount={setPointCount}
-            onPositionUpdate={handlePositionUpdate}
-            octree={octree}
-          />
-        </Suspense>
+        <SceneContent
+          plyUrl={plyUrl}
+          speed={speed}
+          controlsEnabled={controlsEnabled}
+          onGeometryLoad={handleGeometryLoad}
+          onPointCount={setPointCount}
+          onPositionUpdate={handlePositionUpdate}
+          octree={octree}
+        />
         {showStats && <Stats />}
       </Canvas>
 
