@@ -53,8 +53,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     # Video processing
     ffmpeg \
-    # OpenGL/Graphics libraries
-    libgl1-mesa-glx \
+    # OpenGL/Graphics libraries (Ubuntu 24.04)
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
