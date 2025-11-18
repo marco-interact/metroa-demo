@@ -7,6 +7,7 @@ import * as THREE from "three"
 import { PLYLoader } from "three-stdlib"
 import { RotateCcw, Maximize2, Minimize2, Eye, EyeOff, Info, X } from "lucide-react"
 import { Octree } from "@/utils/octree"
+import { getDeviceType, getOptimalPointCloudSize, getCanvasConfig, shouldEnableCollision, getPointSize } from "@/utils/mobile"
 
 // ==================== TYPES ====================
 
@@ -280,6 +281,8 @@ interface PointCloudProps {
 function PointCloud({ url, onLoad, onPointCount }: PointCloudProps) {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
   const pointsRef = useRef<THREE.Points>(null)
+  const deviceType = useMemo(() => getDeviceType(), [])
+  const pointSize = useMemo(() => getPointSize(deviceType), [deviceType])
 
   useEffect(() => {
     let mounted = true
@@ -310,10 +313,16 @@ function PointCloud({ url, onLoad, onPointCount }: PointCloudProps) {
         const count = loadedGeometry.getAttribute('position').count
         onPointCount?.(count)
 
-        // Optimize for large point clouds
-        if (count > 5_000_000) {
-          console.log(`⚡ Large point cloud detected (${(count / 1_000_000).toFixed(1)}M points), applying downsampling...`)
-          const downsampleFactor = Math.ceil(count / 5_000_000)
+        // Get optimal point cloud size for device
+        const optimalSize = getOptimalPointCloudSize(count)
+        const needsDownsampling = count > optimalSize
+
+        if (needsDownsampling) {
+          const deviceName = deviceType === 'mobile' ? '📱 Mobile' : deviceType === 'tablet' ? '📱 Tablet' : '💻 Desktop'
+          console.log(`${deviceName} detected - Optimizing point cloud...`)
+          console.log(`⚡ ${(count / 1_000_000).toFixed(1)}M → ${(optimalSize / 1_000_000).toFixed(1)}M points`)
+          
+          const downsampleFactor = Math.ceil(count / optimalSize)
           const positions = loadedGeometry.getAttribute('position')
           const colors = loadedGeometry.getAttribute('color')
           
@@ -338,7 +347,7 @@ function PointCloud({ url, onLoad, onPointCount }: PointCloudProps) {
           // Dispose original geometry to free memory
           loadedGeometry.dispose()
           
-          console.log(`✅ Downsampled to ${(newPositions.length / 3 / 1_000_000).toFixed(1)}M points`)
+          console.log(`✅ Optimized for ${deviceType}`)
           
           if (mounted) {
             setGeometry(optimizedGeometry)
@@ -373,14 +382,14 @@ function PointCloud({ url, onLoad, onPointCount }: PointCloudProps) {
         geometry.dispose()
       }
     }
-  }, [url])
+  }, [url, deviceType])
 
   if (!geometry) return null
 
   return (
     <points ref={pointsRef} geometry={geometry}>
       <pointsMaterial
-        size={0.002}
+        size={pointSize}
         vertexColors
         sizeAttenuation
         transparent
@@ -605,6 +614,12 @@ export default function FirstPersonViewer({
   }, [onPositionChange, onRotationChange])
 
   const handleGeometryLoad = useCallback((geometry: THREE.BufferGeometry) => {
+    // Check if collision should be enabled for this device
+    if (!shouldEnableCollision()) {
+      console.log('📱 Mobile device - Collision detection disabled for performance')
+      return
+    }
+
     console.log('🌳 Building octree for collision detection...')
     const start = performance.now()
     
@@ -659,6 +674,9 @@ export default function FirstPersonViewer({
     }
   }, [])
 
+  const deviceType = useMemo(() => getDeviceType(), [])
+  const canvasConfig = useMemo(() => getCanvasConfig(deviceType), [deviceType])
+
   return (
     <div className={`relative w-full h-full bg-app-primary ${className}`}>
       {/* 3D Canvas */}
@@ -670,10 +688,11 @@ export default function FirstPersonViewer({
           far: 1000,
         }}
         className="w-full h-full"
+        dpr={canvasConfig.pixelRatio}
         gl={{
-          antialias: false, // Disable AA to save memory
-          powerPreference: 'high-performance',
-          preserveDrawingBuffer: false,
+          antialias: canvasConfig.antialias,
+          powerPreference: canvasConfig.powerPreference,
+          preserveDrawingBuffer: canvasConfig.preserveDrawingBuffer,
         }}
       >
         <Suspense fallback={null}>
@@ -709,44 +728,44 @@ export default function FirstPersonViewer({
       <ControlsHelp visible={showHelp} onClose={() => setShowHelp(false)} />
 
       {/* Top Bar UI */}
-      <div className="absolute top-4 left-4 flex items-center gap-3">
+      <div className="absolute top-4 left-4 flex items-center gap-2 md:gap-3">
         <button
           onClick={() => setShowHelp(!showHelp)}
-          className="bg-surface-elevated/90 backdrop-blur-sm hover:bg-surface-elevated border border-app-primary text-white p-2.5 rounded-lg transition-all shadow-lg hover:border-primary-400"
+          className="bg-surface-elevated/90 backdrop-blur-sm hover:bg-surface-elevated border border-app-primary text-white p-2 md:p-2.5 rounded-lg transition-all shadow-lg hover:border-primary-400 active:scale-95"
           title="Toggle Help"
         >
-          <Info className="w-4 h-4" />
+          <Info className="w-5 h-5 md:w-4 md:h-4" />
         </button>
 
         <button
           onClick={() => setShowHUD(!showHUD)}
-          className="bg-surface-elevated/90 backdrop-blur-sm hover:bg-surface-elevated border border-app-primary text-white p-2.5 rounded-lg transition-all shadow-lg hover:border-primary-400"
+          className="bg-surface-elevated/90 backdrop-blur-sm hover:bg-surface-elevated border border-app-primary text-white p-2 md:p-2.5 rounded-lg transition-all shadow-lg hover:border-primary-400 active:scale-95"
           title="Toggle HUD"
         >
-          {showHUD ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+          {showHUD ? <Eye className="w-5 h-5 md:w-4 md:h-4" /> : <EyeOff className="w-5 h-5 md:w-4 md:h-4" />}
         </button>
 
         <button
           onClick={handleReset}
-          className="bg-surface-elevated/90 backdrop-blur-sm hover:bg-surface-elevated border border-app-primary text-white p-2.5 rounded-lg transition-all shadow-lg hover:border-primary-400"
+          className="bg-surface-elevated/90 backdrop-blur-sm hover:bg-surface-elevated border border-app-primary text-white p-2 md:p-2.5 rounded-lg transition-all shadow-lg hover:border-primary-400 active:scale-95"
           title="Reset Position"
         >
-          <RotateCcw className="w-4 h-4" />
+          <RotateCcw className="w-5 h-5 md:w-4 md:h-4" />
         </button>
 
-        {/* Point Count Badge */}
+        {/* Point Count Badge - Hide text on mobile */}
         {pointCount > 0 && (
-          <div className="bg-surface-elevated/90 backdrop-blur-sm border border-app-primary px-3 py-2 rounded-lg text-xs font-mono shadow-lg">
-            <span className="text-gray-400">Points:</span>{' '}
+          <div className="bg-surface-elevated/90 backdrop-blur-sm border border-app-primary px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs font-mono shadow-lg">
+            <span className="text-gray-400 hidden md:inline">Points: </span>
             <span className="text-primary-400 font-semibold">
               {(pointCount / 1_000_000).toFixed(1)}M
             </span>
           </div>
         )}
 
-        {/* Octree Stats Badge */}
+        {/* Octree Stats Badge - Hide on mobile */}
         {octreeStats && (
-          <div className="bg-surface-elevated/90 backdrop-blur-sm border border-app-primary px-3 py-2 rounded-lg text-xs font-mono shadow-lg">
+          <div className="hidden md:block bg-surface-elevated/90 backdrop-blur-sm border border-app-primary px-3 py-2 rounded-lg text-xs font-mono shadow-lg">
             <span className="text-gray-400">Octree:</span>{' '}
             <span className="text-green-400 font-semibold">
               {octreeStats.nodes.toLocaleString()} nodes
@@ -755,14 +774,14 @@ export default function FirstPersonViewer({
         )}
       </div>
 
-      {/* Bottom Controls */}
-      <div className="absolute bottom-4 right-4 bg-surface-elevated/90 backdrop-blur-sm border border-app-primary rounded-lg p-4 shadow-xl">
-        <div className="flex items-center gap-3">
-          <Gauge className="w-4 h-4 text-primary-400" />
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between gap-4">
+      {/* Bottom Controls - Responsive for mobile */}
+      <div className="absolute bottom-4 right-4 bg-surface-elevated/90 backdrop-blur-sm border border-app-primary rounded-lg p-3 md:p-4 shadow-xl">
+        <div className="flex items-center gap-2 md:gap-3">
+          <Gauge className="w-5 h-5 md:w-4 md:h-4 text-primary-400" />
+          <div className="flex flex-col gap-1.5 md:gap-1">
+            <div className="flex items-center justify-between gap-3 md:gap-4">
               <span className="text-xs text-gray-400">Speed</span>
-              <span className="text-xs font-mono text-white tabular-nums">{speed.toFixed(1)}</span>
+              <span className="text-xs md:text-xs font-mono text-white tabular-nums">{speed.toFixed(1)}</span>
             </div>
             <input
               type="range"
@@ -771,7 +790,7 @@ export default function FirstPersonViewer({
               step="0.5"
               value={speed}
               onChange={(e) => setSpeed(parseFloat(e.target.value))}
-              className="w-32 accent-primary-400"
+              className="w-24 md:w-32 h-2 accent-primary-400"
             />
           </div>
         </div>

@@ -23,6 +23,7 @@ import { SimpleViewer } from "@/components/3d/simple-viewer"
 import { FirstPersonViewer } from "@/components/3d/FirstPersonViewer"
 import { MeasurementTools } from "@/components/3d/measurement-tools"
 import { SplineLoader } from "@/components/ui/spline-loader"
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav"
 import { apiClient } from "@/lib/api"
 
 interface Scan {
@@ -164,13 +165,13 @@ function Enhanced3DViewer({
                 ⚠️ Showing demo model - Re-upload to generate actual 3D reconstruction
               </div>
             )}
-            {/* Viewer Mode Toggle - Clean Segmented Control */}
+            {/* Viewer Mode Toggle - Clean Segmented Control - Responsive */}
             <div className="absolute top-4 right-4 z-50">
               <div className="bg-app-elevated/95 backdrop-blur-sm border border-app-secondary rounded-lg p-1 shadow-xl">
                 <div className="flex gap-1">
                   <button
                     onClick={() => setViewerMode('orbit')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    className={`flex items-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-all active-scale ${
                       viewerMode === 'orbit'
                         ? 'bg-blue-500 text-white shadow-lg'
                         : 'text-gray-400 hover:text-white hover:bg-app-card/50'
@@ -178,11 +179,11 @@ function Enhanced3DViewer({
                     title="Orbit View - Standard 3D viewer with mouse controls"
                   >
                     <RotateCcw className="w-4 h-4" />
-                    <span>Orbit</span>
+                    <span className="hidden sm:inline">Orbit</span>
                   </button>
                   <button
                     onClick={() => setViewerMode('fps')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    className={`flex items-center gap-1 md:gap-2 px-2 md:px-4 py-2 rounded-md text-xs md:text-sm font-medium transition-all active-scale ${
                       viewerMode === 'fps'
                         ? 'bg-blue-500 text-white shadow-lg'
                         : 'text-gray-400 hover:text-white hover:bg-app-card/50'
@@ -190,7 +191,7 @@ function Enhanced3DViewer({
                     title="First Person - Walk through the 3D space with WASD controls"
                   >
                     <Eye className="w-4 h-4" />
-                    <span>First Person</span>
+                    <span className="hidden sm:inline">First Person</span>
                   </button>
                 </div>
               </div>
@@ -662,7 +663,7 @@ export default function ScanDetailPage() {
         {/* Header */}
         <header className="border-b border-app-secondary/30 bg-app-primary flex-shrink-0">
           <div className="flex items-center justify-between px-8 py-6">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 md:space-x-4">
               <Button
                 variant="ghost"
                 size="sm"
@@ -673,40 +674,43 @@ export default function ScanDetailPage() {
                   // Use window.location for reliable navigation when JS is blocked
                   window.location.href = targetUrl
                 }}
-                className="hover:bg-gray-700/50"
+                className="hover:bg-gray-700/50 active-scale"
               >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Scans
+                <ArrowLeft className="w-4 h-4 md:mr-2" />
+                <span className="hidden md:inline">Back to Scans</span>
               </Button>
-              <h1 className="text-2xl font-bold text-white font-mono">
+              <h1 className="text-lg md:text-2xl font-bold text-white font-mono truncate">
                 {scan?.name || 'Loading...'}
               </h1>
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 md:space-x-4">
               <Button 
                 variant="outline"
+                size="sm"
                 onClick={() => handleDownload('ply')}
+                className="active-scale"
               >
-                <Download className="w-4 h-4 mr-2" />
-                Download
+                <Download className="w-4 h-4 md:mr-2" />
+                <span className="hidden md:inline">Download</span>
               </Button>
               <Button 
                 variant="outline"
+                size="sm"
                 onClick={handleDeleteScan}
                 disabled={deleting}
-                className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300 active-scale"
               >
-                <Trash2 className="w-4 h-4 mr-2" />
-                {deleting ? 'Deleting...' : 'Delete'}
+                <Trash2 className="w-4 h-4 md:mr-2" />
+                <span className="hidden md:inline">{deleting ? 'Deleting...' : 'Delete'}</span>
               </Button>
             </div>
           </div>
         </header>
 
         {/* Main Viewer Area */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* 3D Viewer - Full viewport height */}
+        <div className="flex-1 flex overflow-hidden pb-16 md:pb-0">
+          {/* 3D Viewer - Full viewport height, full width on mobile */}
           <div className="flex-1 flex flex-col">
             <Enhanced3DViewer 
               scan={scan} 
@@ -720,8 +724,8 @@ export default function ScanDetailPage() {
             />
           </div>
 
-          {/* Sidebar Info Panel */}
-          <aside className="w-80 border-l border-app-secondary/30 bg-app-tertiary overflow-y-auto">
+          {/* Sidebar Info Panel - Hidden on mobile */}
+          <aside className="hidden md:block w-80 border-l border-app-secondary/30 bg-app-tertiary overflow-y-auto">
             <div className="space-y-6 p-6">
               {/* Scan Information */}
               <Card className="bg-app-card/50 border-app-primary">
@@ -886,6 +890,9 @@ export default function ScanDetailPage() {
           </aside>
         </div>
       </main>
+      
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav />
     </div>
     </ErrorBoundary>
   )
