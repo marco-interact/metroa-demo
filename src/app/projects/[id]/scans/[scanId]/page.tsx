@@ -164,25 +164,36 @@ function Enhanced3DViewer({
                 ⚠️ Showing demo model - Re-upload to generate actual 3D reconstruction
               </div>
             )}
-            {/* Mode toggle button */}
-            <div className="absolute top-4 right-4 z-20">
-              <button
-                onClick={() => setViewerMode(viewerMode === 'orbit' ? 'fps' : 'orbit')}
-                className="flex items-center gap-2 bg-app-elevated/95 backdrop-blur-sm border border-app-secondary hover:border-blue-500 px-4 py-2 rounded-lg text-white text-sm font-medium transition-all hover:bg-app-elevated shadow-lg"
-                title={viewerMode === 'fps' ? 'Switch to Orbit View' : 'Switch to First-Person View'}
-              >
-                {viewerMode === 'fps' ? (
-                  <>
+            {/* Viewer Mode Toggle - Clean Segmented Control */}
+            <div className="absolute top-4 right-4 z-50">
+              <div className="bg-app-elevated/95 backdrop-blur-sm border border-app-secondary rounded-lg p-1 shadow-xl">
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setViewerMode('orbit')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      viewerMode === 'orbit'
+                        ? 'bg-blue-500 text-white shadow-lg'
+                        : 'text-gray-400 hover:text-white hover:bg-app-card/50'
+                    }`}
+                    title="Orbit View - Standard 3D viewer with mouse controls"
+                  >
                     <RotateCcw className="w-4 h-4" />
-                    <span>Orbit View</span>
-                  </>
-                ) : (
-                  <>
+                    <span>Orbit</span>
+                  </button>
+                  <button
+                    onClick={() => setViewerMode('fps')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      viewerMode === 'fps'
+                        ? 'bg-blue-500 text-white shadow-lg'
+                        : 'text-gray-400 hover:text-white hover:bg-app-card/50'
+                    }`}
+                    title="First Person - Walk through the 3D space with WASD controls"
+                  >
                     <Eye className="w-4 h-4" />
                     <span>First Person</span>
-                  </>
-                )}
-              </button>
+                  </button>
+                </div>
+              </div>
             </div>
             
             {/* Conditional viewer based on mode */}

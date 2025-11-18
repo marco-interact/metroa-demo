@@ -452,37 +452,6 @@ function SpeedControl({
   )
 }
 
-// ==================== MODE TOGGLE BUTTON ====================
-
-function ModeToggle({
-  mode,
-  onModeChange,
-}: {
-  mode: ControlMode
-  onModeChange: (mode: ControlMode) => void
-}) {
-  return (
-    <div className="absolute top-4 right-4 z-30">
-      <button
-        onClick={() => onModeChange(mode === 'orbit' ? 'firstperson' : 'orbit')}
-        className="flex items-center gap-2 bg-app-elevated/95 backdrop-blur-sm border border-app-secondary hover:border-blue-500 px-4 py-2 rounded-lg text-white text-sm font-medium transition-all hover:bg-app-elevated"
-        title={mode === 'firstperson' ? 'Switch to Orbit View' : 'Switch to First-Person View'}
-      >
-        {mode === 'firstperson' ? (
-          <>
-            <Eye className="w-4 h-4" />
-            <span>First Person</span>
-          </>
-        ) : (
-          <>
-            <RotateCcw className="w-4 h-4" />
-            <span>Orbit View</span>
-          </>
-        )}
-      </button>
-    </div>
-  )
-}
 
 // ==================== MAIN COMPONENT ====================
 
@@ -494,7 +463,6 @@ export function FirstPersonViewer({
   className = "",
   showStats = false,
 }: FirstPersonViewerProps) {
-  const [mode, setMode] = useState<ControlMode>('firstperson')
   const [speed, setSpeed] = useState(initialSpeed)
   const [isLocked, setIsLocked] = useState(false)
   const [showHelp, setShowHelp] = useState(true)
@@ -527,19 +495,13 @@ export function FirstPersonViewer({
         {/* Grid helper */}
         <gridHelper args={[50, 50, '#444444', '#222222']} />
 
-        {/* Controls - Conditional based on mode */}
-        {mode === 'firstperson' ? (
-          <>
-            <PointerLockControls
-              makeDefault
-              onLock={() => setIsLocked(true)}
-              onUnlock={() => setIsLocked(false)}
-            />
-            <FirstPersonController speed={speed} enabled={mode === 'firstperson'} />
-          </>
-        ) : (
-          <></>
-        )}
+        {/* First-Person Controls */}
+        <PointerLockControls
+          makeDefault
+          onLock={() => setIsLocked(true)}
+          onUnlock={() => setIsLocked(false)}
+        />
+        <FirstPersonController speed={speed} enabled={true} />
 
         {/* Point Cloud */}
         <OptimizedPointCloud url={plyUrl} />
@@ -552,22 +514,21 @@ export function FirstPersonViewer({
       </Canvas>
 
       {/* UI Overlays */}
-      <Crosshair visible={mode === 'firstperson' && isLocked} />
-      <PointerLockPrompt visible={mode === 'firstperson' && !isLocked} />
+      <Crosshair visible={isLocked} />
+      <PointerLockPrompt visible={!isLocked} />
       
-      {showHelp && mode === 'firstperson' && (
+      {showHelp && (
         <ControlsHelp onClose={() => setShowHelp(false)} />
       )}
 
       <PositionHUD position={cameraData.position} rotation={cameraData.rotation} />
       <SpeedControl speed={speed} onSpeedChange={setSpeed} />
-      <ModeToggle mode={mode} onModeChange={setMode} />
 
       {/* Help button to re-show controls */}
-      {!showHelp && mode === 'firstperson' && (
+      {!showHelp && (
         <button
           onClick={() => setShowHelp(true)}
-          className="absolute top-4 left-4 bg-app-elevated/95 backdrop-blur-sm border border-app-secondary hover:border-blue-500 p-2 rounded-lg text-white transition-all z-30"
+          className="absolute top-20 left-4 bg-app-elevated/95 backdrop-blur-sm border border-app-secondary hover:border-blue-500 p-2 rounded-lg text-white transition-all z-30"
           title="Show controls"
         >
           <Info className="w-4 h-4" />
