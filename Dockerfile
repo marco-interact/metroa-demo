@@ -77,8 +77,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Cleanup
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN python3.12 -m pip install --upgrade pip setuptools wheel
+# Upgrade pip (--break-system-packages is safe in Docker containers)
+RUN python3.12 -m pip install --break-system-packages --upgrade pip setuptools wheel
 
 # ----------------------------------------------------------------------------
 # Stage 2: Build COLMAP with CUDA Support
@@ -194,7 +194,7 @@ COPY requirements.txt .
 
 # Install Python dependencies (including Open3D)
 # Open3D Version: 0.19.0 (pinned in requirements.txt)
-RUN python3.12 -m pip install --no-cache-dir -r requirements.txt && \
+RUN python3.12 -m pip install --break-system-packages --no-cache-dir -r requirements.txt && \
     python3.12 -c "import open3d; print(f'✅ Open3D {open3d.__version__} installed')" && \
     python3.12 -c "import fastapi; print(f'✅ FastAPI {fastapi.__version__} installed')"
 
