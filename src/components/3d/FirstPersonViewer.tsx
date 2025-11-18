@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState, useCallback, useMemo } from "react"
+import { useRef, useEffect, useState, useCallback, useMemo, Suspense } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { PointerLockControls, Stats } from "@react-three/drei"
 import * as THREE from "three"
@@ -707,6 +707,14 @@ export default function FirstPersonViewer({
           antialias: canvasConfig.antialias,
           powerPreference: canvasConfig.powerPreference,
           preserveDrawingBuffer: canvasConfig.preserveDrawingBuffer,
+          failIfMajorPerformanceCaveat: false, // Don't fail on low-end devices
+        }}
+        onCreated={({ gl }) => {
+          console.log('✅ WebGL Context Created:', {
+            renderer: gl.capabilities.renderer,
+            maxTextures: gl.capabilities.maxTextures,
+            maxVertexAttributes: gl.capabilities.maxVertexAttributes,
+          })
         }}
       >
         <Suspense fallback={null}>

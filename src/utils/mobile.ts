@@ -57,14 +57,14 @@ export function getOptimalPointCloudSize(totalPoints: number): number {
   
   switch (deviceType) {
     case 'mobile':
-      // Mobile: max 1M points for smooth performance
-      return Math.min(totalPoints, 1_000_000)
+      // Mobile: max 500K points for smooth performance and stability
+      return Math.min(totalPoints, 500_000)
     case 'tablet':
-      // Tablet: max 2.5M points
-      return Math.min(totalPoints, 2_500_000)
+      // Tablet: max 1.5M points
+      return Math.min(totalPoints, 1_500_000)
     case 'desktop':
-      // Desktop: max 5M points
-      return Math.min(totalPoints, 5_000_000)
+      // Desktop: max 3M points (reduced to prevent WebGL context loss)
+      return Math.min(totalPoints, 3_000_000)
     default:
       return totalPoints
   }
