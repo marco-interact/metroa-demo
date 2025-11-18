@@ -24,13 +24,33 @@ echo ""
 # Check Docker daemon
 if ! docker info > /dev/null 2>&1; then
     echo "⚠️  Docker daemon not running. Starting it..."
-    pkill dockerd 2>/dev/null || true
-    sleep 2
-    dockerd > /var/log/dockerd.log 2>&1 &
-    sleep 5
+    
+    # Run the fix script if it exists
+    if [ -f "README/scripts/fix-docker-daemon.sh" ]; then
+        echo "Using fix script..."
+        bash README/scripts/fix-docker-daemon.sh
+    else
+        # Fallback: Start manually
+        pkill -9 dockerd containerd 2>/dev/null || true
+        rm -f /var/run/docker.sock /var/run/docker.pid 2>/dev/null || true
+        sleep 2
+        mkdir -p /var/run /var/lib/docker
+        
+        # Try overlay2, fallback to vfs
+        dockerd --storage-driver=overlay2 > /var/log/dockerd.log 2>&1 &
+        sleep 5
+        
+        if grep -q "operation not permitted.*overlay2\|driver not supported: overlay2" /var/log/dockerd.log 2>/dev/null; then
+            pkill -9 dockerd 2>/dev/null || true
+            sleep 2
+            dockerd --storage-driver=vfs > /var/log/dockerd.log 2>&1 &
+            sleep 5
+        fi
+    fi
     
     if ! docker info > /dev/null 2>&1; then
         echo "❌ Failed to start Docker daemon"
+        echo "Run: bash README/scripts/fix-docker-daemon.sh"
         exit 1
     fi
     echo "✅ Docker daemon started"

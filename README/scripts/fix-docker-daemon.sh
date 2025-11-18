@@ -37,12 +37,38 @@ echo "4️⃣ Starting Docker daemon..."
 echo ""
 echo "This may take 10-15 seconds..."
 
+# Try overlay2 first, fallback to vfs if permission denied
+# overlay2 is faster but needs permissions, vfs works everywhere but slower
+echo "Attempting with overlay2 storage driver..."
+
 # Start dockerd in background with logging
 nohup dockerd \
     --host=unix:///var/run/docker.sock \
     --storage-driver=overlay2 \
     --data-root=/var/lib/docker \
     > /var/log/dockerd.log 2>&1 &
+
+sleep 5
+
+# Check if it failed due to overlay2 permissions
+if grep -q "operation not permitted.*overlay2" /var/log/dockerd.log 2>/dev/null || \
+   grep -q "driver not supported: overlay2" /var/log/dockerd.log 2>/dev/null; then
+    
+    echo "⚠️  overlay2 not permitted, switching to vfs driver..."
+    
+    # Kill the failed dockerd
+    pkill -9 dockerd 2>/dev/null || true
+    sleep 2
+    
+    # Restart with vfs driver (slower but works without special permissions)
+    nohup dockerd \
+        --host=unix:///var/run/docker.sock \
+        --storage-driver=vfs \
+        --data-root=/var/lib/docker \
+        > /var/log/dockerd.log 2>&1 &
+    
+    echo "Using vfs storage driver (note: builds will be slower)"
+fi
 
 DOCKERD_PID=$!
 echo "Docker daemon started with PID: $DOCKERD_PID"

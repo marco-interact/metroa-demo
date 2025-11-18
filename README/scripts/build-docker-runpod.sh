@@ -118,11 +118,27 @@ if ! docker info > /dev/null 2>&1; then
     
     # Start Docker daemon with proper configuration
     mkdir -p /var/run /var/lib/docker
+    
+    # Try overlay2 first
     nohup dockerd \
         --host=unix:///var/run/docker.sock \
         --storage-driver=overlay2 \
         --data-root=/var/lib/docker \
         > /var/log/dockerd.log 2>&1 &
+    
+    sleep 5
+    
+    # Check if overlay2 failed, switch to vfs
+    if grep -q "operation not permitted.*overlay2\|driver not supported: overlay2" /var/log/dockerd.log 2>/dev/null; then
+        echo "  overlay2 not permitted, using vfs driver..."
+        pkill -9 dockerd 2>/dev/null || true
+        sleep 2
+        nohup dockerd \
+            --host=unix:///var/run/docker.sock \
+            --storage-driver=vfs \
+            --data-root=/var/lib/docker \
+            > /var/log/dockerd.log 2>&1 &
+    fi
     
     echo "Waiting for Docker daemon to start (up to 30 seconds)..."
     MAX_WAIT=30
