@@ -281,7 +281,15 @@ interface PointCloudProps {
 function PointCloud({ url, onLoad, onPointCount }: PointCloudProps) {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
   const pointsRef = useRef<THREE.Points>(null)
-  const deviceType = useMemo(() => getDeviceType(), [])
+  const [deviceType, setDeviceType] = useState<'mobile' | 'tablet' | 'desktop'>('desktop')
+  
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window !== 'undefined') {
+      setDeviceType(getDeviceType())
+    }
+  }, [])
+  
   const pointSize = useMemo(() => getPointSize(deviceType), [deviceType])
 
   useEffect(() => {
@@ -615,7 +623,7 @@ export default function FirstPersonViewer({
 
   const handleGeometryLoad = useCallback((geometry: THREE.BufferGeometry) => {
     // Check if collision should be enabled for this device
-    if (!shouldEnableCollision()) {
+    if (typeof window !== 'undefined' && !shouldEnableCollision()) {
       console.log('📱 Mobile device - Collision detection disabled for performance')
       return
     }
@@ -674,7 +682,13 @@ export default function FirstPersonViewer({
     }
   }, [])
 
-  const deviceType = useMemo(() => getDeviceType(), [])
+  const [deviceType, setDeviceType] = useState<'mobile' | 'tablet' | 'desktop'>('desktop')
+  
+  useEffect(() => {
+    // Only run on client side
+    setDeviceType(getDeviceType())
+  }, [])
+  
   const canvasConfig = useMemo(() => getCanvasConfig(deviceType), [deviceType])
 
   return (

@@ -148,8 +148,14 @@ export function MeasurementTools({
   }, [isCalibrating, isScaled, selectedPointPositions.length, pointsRequired, onSelectionModeChange])
 
   const handleCalibrateScale = async () => {
-    if (externalSelectedPositions.length !== 2 || !knownDistance) {
-      alert("Select 2 points and enter known distance")
+    // Safety checks
+    if (!externalSelectedPositions || externalSelectedPositions.length !== 2) {
+      alert("❌ Please select exactly 2 points in the 3D model.\n\nMake sure you're in Orbit mode and click directly on the model.")
+      return
+    }
+    
+    if (!knownDistance || parseFloat(knownDistance) <= 0) {
+      alert("❌ Please enter a valid known distance (must be greater than 0)")
       return
     }
 
@@ -199,8 +205,9 @@ export function MeasurementTools({
   }
 
   const handleAddMeasurement = async () => {
-    if (externalSelectedPositions.length < pointsRequired) {
-      alert(`Select ${pointsRequired} point(s) to measure ${currentTypeInfo.name.toLowerCase()}`)
+    // Safety checks
+    if (!externalSelectedPositions || externalSelectedPositions.length < pointsRequired) {
+      alert(`❌ Please select ${pointsRequired} point(s) to measure ${currentTypeInfo.name.toLowerCase()}.\n\nMake sure you're in Orbit mode and click directly on the model.\n\nCurrent points: ${externalSelectedPositions?.length || 0}/${pointsRequired}`)
       return
     }
 
@@ -323,6 +330,19 @@ export function MeasurementTools({
       </CardHeader>
       
       <CardContent className="space-y-4">
+        {/* Important: Switch to Orbit Mode Notice */}
+        <div className="bg-primary-400/10 border border-primary-400/30 rounded p-3 space-y-2">
+          <p className="text-xs text-primary-400 font-semibold">📍 Measurement Tool Instructions:</p>
+          <ol className="text-xs text-gray-300 space-y-1 list-decimal list-inside">
+            <li><strong>Switch to "Orbit" mode</strong> using the toggle in the 3D viewer</li>
+            <li>Click "Start Calibration" below</li>
+            <li>Click points directly on the 3D model</li>
+          </ol>
+          <p className="text-xs text-yellow-400 italic">
+            ⚠️ Point selection only works in Orbit mode, not First Person mode
+          </p>
+        </div>
+
         {/* Scale Calibration Section */}
         {!isScaled && (
           <div className="space-y-3">
@@ -361,8 +381,13 @@ export function MeasurementTools({
                   onChange={(e) => setKnownDistance(e.target.value)}
                   className="bg-app-elevated border-app-secondary"
                 />
-                <div className="text-xs text-gray-400">
-                  Selected points: {selectedPointPositions.length}/2
+                <div className={`text-xs font-mono ${selectedPointPositions.length === 2 ? 'text-green-400' : 'text-gray-400'}`}>
+                  <span className="font-semibold">Selected points: {selectedPointPositions.length}/2</span>
+                  {selectedPointPositions.length === 0 && (
+                    <span className="block text-yellow-400 mt-1">
+                      ⚠️ Switch to Orbit mode and click on the model
+                    </span>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -439,8 +464,18 @@ export function MeasurementTools({
               onChange={(e) => setMeasurementLabel(e.target.value)}
               className="bg-app-elevated border-app-secondary"
             />
-            <div className="text-xs text-gray-400">
-              Selected points: {selectedPointPositions.length}/{pointsRequired}
+            <div className={`text-xs font-mono ${selectedPointPositions.length >= pointsRequired ? 'text-green-400' : 'text-gray-400'}`}>
+              <span className="font-semibold">Selected points: {selectedPointPositions.length}/{pointsRequired}</span>
+              {selectedPointPositions.length === 0 && (
+                <span className="block text-yellow-400 mt-1">
+                  ⚠️ Switch to Orbit mode to select points
+                </span>
+              )}
+              {selectedPointPositions.length > 0 && selectedPointPositions.length < pointsRequired && (
+                <span className="block text-primary-400 mt-1">
+                  ➡️ Select {pointsRequired - selectedPointPositions.length} more point(s)
+                </span>
+              )}
             </div>
             <Button
               onClick={handleAddMeasurement}

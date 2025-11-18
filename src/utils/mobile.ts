@@ -3,33 +3,47 @@
  */
 
 export function isMobileDevice(): boolean {
-  if (typeof window === 'undefined') return false
+  // Server-side rendering safety
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false
+  }
   
-  // Check user agent
-  const userAgent = navigator.userAgent.toLowerCase()
-  const mobileKeywords = ['android', 'webos', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone']
-  const isMobileUA = mobileKeywords.some(keyword => userAgent.includes(keyword))
-  
-  // Check screen size
-  const isSmallScreen = window.innerWidth < 768
-  
-  // Check touch support
-  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
-  
-  return isMobileUA || (isSmallScreen && hasTouch)
+  try {
+    // Check user agent
+    const userAgent = navigator.userAgent.toLowerCase()
+    const mobileKeywords = ['android', 'webos', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone']
+    const isMobileUA = mobileKeywords.some(keyword => userAgent.includes(keyword))
+    
+    // Check screen size
+    const isSmallScreen = window.innerWidth < 768
+    
+    // Check touch support
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+    
+    return isMobileUA || (isSmallScreen && hasTouch)
+  } catch {
+    return false
+  }
 }
 
 export function isTablet(): boolean {
-  if (typeof window === 'undefined') return false
+  // Server-side rendering safety
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false
+  }
   
-  const userAgent = navigator.userAgent.toLowerCase()
-  const isIPad = userAgent.includes('ipad') || (userAgent.includes('macintosh') && navigator.maxTouchPoints > 1)
-  const isAndroidTablet = userAgent.includes('android') && !userAgent.includes('mobile')
-  
-  const width = window.innerWidth
-  const isTabletSize = width >= 768 && width < 1024
-  
-  return isIPad || isAndroidTablet || isTabletSize
+  try {
+    const userAgent = navigator.userAgent.toLowerCase()
+    const isIPad = userAgent.includes('ipad') || (userAgent.includes('macintosh') && navigator.maxTouchPoints > 1)
+    const isAndroidTablet = userAgent.includes('android') && !userAgent.includes('mobile')
+    
+    const width = window.innerWidth
+    const isTabletSize = width >= 768 && width < 1024
+    
+    return isIPad || isAndroidTablet || isTabletSize
+  } catch {
+    return false
+  }
 }
 
 export function getDeviceType(): 'mobile' | 'tablet' | 'desktop' {
