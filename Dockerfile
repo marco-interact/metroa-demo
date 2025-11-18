@@ -77,8 +77,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Cleanup
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip (--break-system-packages is safe in Docker containers)
-RUN python3.12 -m pip install --break-system-packages --upgrade pip setuptools wheel
+# Note: Ubuntu 24.04 comes with pip 24.0, setuptools 68.1.2, wheel 0.42.0
+# These versions are recent enough, skip upgrade to avoid Debian package conflicts
 
 # ----------------------------------------------------------------------------
 # Stage 2: Build COLMAP with CUDA Support
