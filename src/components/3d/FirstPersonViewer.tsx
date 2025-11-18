@@ -1,11 +1,12 @@
 "use client"
 
-import { useRef, useEffect, useState, useCallback } from "react"
+import { useRef, useEffect, useState, useCallback, useMemo } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { PointerLockControls, Stats } from "@react-three/drei"
 import * as THREE from "three"
 import { PLYLoader } from "three-stdlib"
 import { RotateCcw, Maximize2, Minimize2, Eye, EyeOff, Info, X } from "lucide-react"
+import { Octree } from "@/utils/octree"
 
 // ==================== TYPES ====================
 
@@ -23,11 +24,13 @@ interface FirstPersonViewerProps {
 interface FirstPersonControllerProps {
   speed: number
   enabled: boolean
+  octree: Octree | null
+  collisionRadius?: number
+  acceleration?: number
+  deceleration?: number
   minPolarAngle?: number
   maxPolarAngle?: number
 }
-
-type ControlMode = 'orbit' | 'firstperson'
 
 interface KeyboardState {
   forward: boolean
@@ -39,10 +42,24 @@ interface KeyboardState {
   sprint: boolean
 }
 
-// ==================== FIRST PERSON CONTROLLER ====================
+interface VelocityState {
+  forward: number
+  right: number
+  vertical: number
+}
 
-function FirstPersonController({ speed, enabled }: FirstPersonControllerProps) {
+// ==================== FIRST PERSON CONTROLLER (WITH COLLISION) ====================
+
+function FirstPersonController({ 
+  speed, 
+  enabled, 
+  octree,
+  collisionRadius = 0.3,
+  acceleration = 8,
+  deceleration = 10,
+}: FirstPersonControllerProps) {
   const { camera } = useThree()
+  
   const keysPressed = useRef<KeyboardState>({
     forward: false,
     backward: false,
@@ -51,6 +68,12 @@ function FirstPersonController({ speed, enabled }: FirstPersonControllerProps) {
     up: false,
     down: false,
     sprint: false,
+  })
+
+  const velocity = useRef<VelocityState>({
+    forward: 0,
+    right: 0,
+    vertical: 0,
   })
 
   // Keyboard input handler
@@ -132,12 +155,55 @@ function FirstPersonController({ speed, enabled }: FirstPersonControllerProps) {
     }
   }, [enabled])
 
-  // Movement physics in animation loop
+  // Movement physics with smooth acceleration and collision detection
   useFrame((state, delta) => {
     if (!enabled) return
 
     const actualSpeed = speed * (keysPressed.current.sprint ? 2 : 1)
-    const moveDistance = actualSpeed * delta
+    const accel = acceleration * delta
+    const decel = deceleration * delta
+
+    // Smooth acceleration/deceleration for forward/backward
+    if (keysPressed.current.forward) {
+      velocity.current.forward = Math.min(velocity.current.forward + accel, 1)
+    } else if (keysPressed.current.backward) {
+      velocity.current.forward = Math.max(velocity.current.forward - accel, -1)
+    } else {
+      // Decelerate to zero
+      if (velocity.current.forward > 0) {
+        velocity.current.forward = Math.max(0, velocity.current.forward - decel)
+      } else if (velocity.current.forward < 0) {
+        velocity.current.forward = Math.min(0, velocity.current.forward + decel)
+      }
+    }
+
+    // Smooth acceleration/deceleration for left/right
+    if (keysPressed.current.right) {
+      velocity.current.right = Math.min(velocity.current.right + accel, 1)
+    } else if (keysPressed.current.left) {
+      velocity.current.right = Math.max(velocity.current.right - accel, -1)
+    } else {
+      // Decelerate to zero
+      if (velocity.current.right > 0) {
+        velocity.current.right = Math.max(0, velocity.current.right - decel)
+      } else if (velocity.current.right < 0) {
+        velocity.current.right = Math.min(0, velocity.current.right + decel)
+      }
+    }
+
+    // Smooth acceleration/deceleration for vertical
+    if (keysPressed.current.up) {
+      velocity.current.vertical = Math.min(velocity.current.vertical + accel, 1)
+    } else if (keysPressed.current.down) {
+      velocity.current.vertical = Math.max(velocity.current.vertical - accel, -1)
+    } else {
+      // Decelerate to zero
+      if (velocity.current.vertical > 0) {
+        velocity.current.vertical = Math.max(0, velocity.current.vertical - decel)
+      } else if (velocity.current.vertical < 0) {
+        velocity.current.vertical = Math.min(0, velocity.current.vertical + decel)
+      }
+    }
 
     // Get camera direction (forward vector)
     const direction = new THREE.Vector3()
@@ -149,403 +215,506 @@ function FirstPersonController({ speed, enabled }: FirstPersonControllerProps) {
     const right = new THREE.Vector3()
     right.crossVectors(camera.up, direction).normalize()
 
-    // Apply movement
-    if (keysPressed.current.forward) {
-      camera.position.addScaledVector(direction, moveDistance)
-    }
-    if (keysPressed.current.backward) {
-      camera.position.addScaledVector(direction, -moveDistance)
-    }
-    if (keysPressed.current.right) {
-      camera.position.addScaledVector(right, moveDistance)
-    }
-    if (keysPressed.current.left) {
-      camera.position.addScaledVector(right, -moveDistance)
-    }
-    if (keysPressed.current.up) {
-      camera.position.y += moveDistance
-    }
-    if (keysPressed.current.down) {
-      camera.position.y -= moveDistance
+    // Calculate desired movement
+    const moveVector = new THREE.Vector3()
+    moveVector.addScaledVector(direction, velocity.current.forward * actualSpeed * delta)
+    moveVector.addScaledVector(right, velocity.current.right * actualSpeed * delta)
+    moveVector.y = velocity.current.vertical * actualSpeed * delta
+
+    // Apply collision detection if octree is available
+    if (octree && (velocity.current.forward !== 0 || velocity.current.right !== 0 || velocity.current.vertical !== 0)) {
+      const newPosition = camera.position.clone().add(moveVector)
+      
+      // Check for nearby points
+      const nearbyPoints = octree.findPointsInSphere(newPosition, collisionRadius)
+      
+      if (nearbyPoints.length === 0) {
+        // No collision, move freely
+        camera.position.copy(newPosition)
+      } else {
+        // Collision detected - slide along the surface
+        // Find average collision normal
+        const collisionNormal = new THREE.Vector3()
+        for (const point of nearbyPoints) {
+          const toCamera = newPosition.clone().sub(point).normalize()
+          collisionNormal.add(toCamera)
+        }
+        collisionNormal.normalize()
+        
+        // Project movement vector along the collision surface
+        const dot = moveVector.dot(collisionNormal)
+        if (dot < 0) {
+          // Only slide if moving toward the collision
+          moveVector.addScaledVector(collisionNormal, -dot)
+        }
+        
+        // Apply adjusted movement
+        const adjustedPosition = camera.position.clone().add(moveVector)
+        
+        // Final check - ensure we're not inside geometry
+        const finalCheck = octree.findPointsInSphere(adjustedPosition, collisionRadius * 0.8)
+        if (finalCheck.length === 0) {
+          camera.position.copy(adjustedPosition)
+        } else {
+          // Push out of geometry
+          camera.position.addScaledVector(collisionNormal, collisionRadius * 0.1)
+        }
+      }
+    } else {
+      // No octree - move without collision detection
+      camera.position.add(moveVector)
     }
   })
 
   return null
 }
 
-// ==================== POINT CLOUD WITH OPTIMIZATION ====================
+// ==================== POINT CLOUD LOADER ====================
 
-function OptimizedPointCloud({ url }: { url: string }) {
+interface PointCloudProps {
+  url: string
+  onLoad?: (geometry: THREE.BufferGeometry) => void
+  onPointCount?: (count: number) => void
+}
+
+function PointCloud({ url, onLoad, onPointCount }: PointCloudProps) {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const pointsRef = useRef<THREE.Points>(null)
 
   useEffect(() => {
-    if (!url) return
-
-    setLoading(true)
-    setError(null)
-
     const loader = new PLYLoader()
-
     loader.load(
       url,
       (loadedGeometry) => {
         loadedGeometry.computeBoundingBox()
         loadedGeometry.computeBoundingSphere()
 
-        // Optimize: Downsample if > 5M points for smooth 60fps
-        const posCount = loadedGeometry.getAttribute('position').count
-        
-        if (posCount > 5_000_000) {
-          console.log(`🔄 Downsampling ${posCount.toLocaleString()} points to 5M for performance...`)
-          const decimated = decimatePointCloud(loadedGeometry, 5_000_000)
-          setGeometry(decimated)
+        // Align to Z=0 base
+        if (loadedGeometry.boundingBox) {
+          const minZ = loadedGeometry.boundingBox.min.z
+          const positions = loadedGeometry.getAttribute('position')
+          for (let i = 0; i < positions.count; i++) {
+            positions.setZ(i, positions.getZ(i) - minZ)
+          }
+          positions.needsUpdate = true
+          loadedGeometry.computeBoundingBox()
+        }
+
+        const count = loadedGeometry.getAttribute('position').count
+        onPointCount?.(count)
+
+        // Optimize for large point clouds
+        if (count > 5_000_000) {
+          console.log(`⚡ Large point cloud detected (${(count / 1_000_000).toFixed(1)}M points), applying downsampling...`)
+          const downsampleFactor = Math.ceil(count / 5_000_000)
+          const positions = loadedGeometry.getAttribute('position')
+          const colors = loadedGeometry.getAttribute('color')
+          
+          const newPositions = []
+          const newColors = []
+          
+          for (let i = 0; i < positions.count; i += downsampleFactor) {
+            newPositions.push(positions.getX(i), positions.getY(i), positions.getZ(i))
+            if (colors) {
+              newColors.push(colors.getX(i), colors.getY(i), colors.getZ(i))
+            }
+          }
+          
+          const optimizedGeometry = new THREE.BufferGeometry()
+          optimizedGeometry.setAttribute('position', new THREE.Float32BufferAttribute(newPositions, 3))
+          if (newColors.length > 0) {
+            optimizedGeometry.setAttribute('color', new THREE.Float32BufferAttribute(newColors, 3))
+          }
+          optimizedGeometry.computeBoundingBox()
+          optimizedGeometry.computeBoundingSphere()
+          
+          console.log(`✅ Downsampled to ${(newPositions.length / 3 / 1_000_000).toFixed(1)}M points`)
+          setGeometry(optimizedGeometry)
+          onLoad?.(optimizedGeometry)
         } else {
           setGeometry(loadedGeometry)
+          onLoad?.(loadedGeometry)
         }
-
-        setLoading(false)
-        console.log(`✅ Point cloud loaded: ${posCount.toLocaleString()} points`)
       },
       (progress) => {
-        if (progress.total > 0) {
-          const percent = (progress.loaded / progress.total) * 100
-          if (percent % 20 < 1) {
-            console.log(`Loading: ${percent.toFixed(0)}%`)
-          }
+        const percent = (progress.loaded / progress.total) * 100
+        if (percent % 20 === 0) {
+          console.log(`Loading point cloud: ${percent.toFixed(0)}%`)
         }
       },
-      (err) => {
-        console.error('❌ Error loading PLY:', err)
-        setError('Failed to load 3D model')
-        setLoading(false)
+      (error) => {
+        console.error('Error loading PLY:', error)
       }
     )
-  }, [url])
+  }, [url, onLoad, onPointCount])
 
-  if (loading || !geometry) return null
-  if (error) return null
+  if (!geometry) return null
 
   return (
-    <points geometry={geometry}>
+    <points ref={pointsRef} geometry={geometry}>
       <pointsMaterial
         size={0.002}
         vertexColors
         sizeAttenuation
         transparent
         opacity={0.95}
+        depthWrite={false}
       />
     </points>
   )
 }
 
-// Downsample point cloud using random sampling
-function decimatePointCloud(
-  geo: THREE.BufferGeometry,
-  targetCount: number
-): THREE.BufferGeometry {
-  const positions = geo.getAttribute('position')
-  const colors = geo.getAttribute('color')
-  const ratio = targetCount / positions.count
+// ==================== POSITION HUD TRACKER ====================
 
-  const newPos: number[] = []
-  const newCol: number[] = []
-
-  for (let i = 0; i < positions.count; i++) {
-    if (Math.random() < ratio) {
-      newPos.push(positions.getX(i), positions.getY(i), positions.getZ(i))
-      if (colors) {
-        newCol.push(colors.getX(i), colors.getY(i), colors.getZ(i))
-      }
-    }
-  }
-
-  const newGeo = new THREE.BufferGeometry()
-  newGeo.setAttribute('position', new THREE.Float32BufferAttribute(newPos, 3))
-  if (newCol.length) {
-    newGeo.setAttribute('color', new THREE.Float32BufferAttribute(newCol, 3))
-  }
-
-  return newGeo
+interface PositionHUDTrackerProps {
+  onUpdate: (position: THREE.Vector3, rotation: THREE.Euler) => void
 }
 
-// ==================== CROSSHAIR OVERLAY ====================
-
-function Crosshair({ visible }: { visible: boolean }) {
-  if (!visible) return null
-
-  return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-      <div className="relative">
-        {/* Horizontal line */}
-        <div className="absolute w-8 h-0.5 bg-white/70 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
-        {/* Vertical line */}
-        <div className="absolute w-0.5 h-8 bg-white/70 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
-        {/* Center dot */}
-        <div className="absolute w-1.5 h-1.5 bg-white/90 rounded-full left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
-      </div>
-    </div>
-  )
-}
-
-// ==================== POINTER LOCK PROMPT ====================
-
-function PointerLockPrompt({ visible }: { visible: boolean }) {
-  if (!visible) return null
-
-  return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10 pointer-events-none">
-      <div className="bg-app-elevated/95 border border-app-secondary p-8 rounded-lg shadow-2xl pointer-events-auto text-center max-w-md">
-        <div className="text-6xl mb-4">🎮</div>
-        <h3 className="text-white text-xl font-bold mb-2">First-Person Mode</h3>
-        <p className="text-gray-300 mb-4">Click anywhere to enable mouse look</p>
-        <p className="text-gray-500 text-sm">Press <kbd className="px-2 py-1 bg-gray-700 rounded">ESC</kbd> to exit</p>
-      </div>
-    </div>
-  )
-}
-
-// ==================== CONTROLS HELP PANEL ====================
-
-function ControlsHelp({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="absolute top-4 left-4 bg-app-elevated/95 backdrop-blur-sm border border-app-secondary p-4 rounded-lg text-white text-sm max-w-xs z-30">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-base flex items-center gap-2">
-          <Info className="w-4 h-4" />
-          Controls
-        </h3>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-white transition-colors"
-          title="Close"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400">Move Forward</span>
-          <kbd className="px-2 py-0.5 bg-gray-700 rounded text-xs">W</kbd>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400">Move Backward</span>
-          <kbd className="px-2 py-0.5 bg-gray-700 rounded text-xs">S</kbd>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400">Strafe Left</span>
-          <kbd className="px-2 py-0.5 bg-gray-700 rounded text-xs">A</kbd>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400">Strafe Right</span>
-          <kbd className="px-2 py-0.5 bg-gray-700 rounded text-xs">D</kbd>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400">Move Up</span>
-          <kbd className="px-2 py-0.5 bg-gray-700 rounded text-xs">Space</kbd>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400">Move Down</span>
-          <kbd className="px-2 py-0.5 bg-gray-700 rounded text-xs">Ctrl</kbd>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400">Sprint (2x)</span>
-          <kbd className="px-2 py-0.5 bg-gray-700 rounded text-xs">Shift</kbd>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400">Look Around</span>
-          <kbd className="px-2 py-0.5 bg-gray-700 rounded text-xs">Mouse</kbd>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400">Exit Mouse Look</span>
-          <kbd className="px-2 py-0.5 bg-gray-700 rounded text-xs">ESC</kbd>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ==================== POSITION HUD DATA TRACKER ====================
-
-// This component runs inside Canvas and tracks camera data
-function PositionHUDTracker({ onUpdate }: { onUpdate: (data: any) => void }) {
+function PositionHUDTracker({ onUpdate }: PositionHUDTrackerProps) {
   const { camera } = useThree()
 
   useFrame(() => {
-    // Get position
-    const position = {
-      x: camera.position.x,
-      y: camera.position.y,
-      z: camera.position.z,
-    }
-
-    // Calculate pitch and yaw from camera rotation
-    const direction = new THREE.Vector3()
-    camera.getWorldDirection(direction)
-    
-    const pitch = Math.asin(-direction.y) * (180 / Math.PI)
-    const yaw = Math.atan2(direction.x, direction.z) * (180 / Math.PI)
-
-    onUpdate({ position, rotation: { pitch, yaw } })
+    onUpdate(camera.position, camera.rotation)
   })
 
   return null
 }
 
-// ==================== POSITION HUD DISPLAY ====================
+// ==================== MAIN SCENE CONTENT ====================
 
-// This component displays the HUD (outside Canvas)
-function PositionHUD({ position, rotation }: { 
-  position: { x: number; y: number; z: number }
-  rotation: { pitch: number; yaw: number }
-}) {
+interface SceneContentProps {
+  plyUrl: string
+  speed: number
+  controlsEnabled: boolean
+  onGeometryLoad: (geometry: THREE.BufferGeometry) => void
+  onPointCount: (count: number) => void
+  onPositionUpdate: (position: THREE.Vector3, rotation: THREE.Euler) => void
+  octree: Octree | null
+}
+
+function SceneContent({ 
+  plyUrl, 
+  speed, 
+  controlsEnabled, 
+  onGeometryLoad, 
+  onPointCount,
+  onPositionUpdate,
+  octree
+}: SceneContentProps) {
+  const controlsRef = useRef<any>()
+
   return (
-    <div className="absolute bottom-4 left-4 bg-app-elevated/95 backdrop-blur-sm border border-app-secondary px-4 py-2 rounded-lg font-mono text-xs text-white z-30">
-      <div className="flex items-center gap-3">
+    <>
+      {/* Lights */}
+      <ambientLight intensity={0.8} />
+      <directionalLight position={[10, 10, 10]} intensity={0.5} />
+
+      {/* Point Cloud */}
+      <PointCloud 
+        url={plyUrl} 
+        onLoad={onGeometryLoad}
+        onPointCount={onPointCount}
+      />
+
+      {/* Grid Helper */}
+      <gridHelper args={[100, 100, '#3E93C9', '#1a1a1a']} />
+
+      {/* First Person Controller with Collision Detection */}
+      <FirstPersonController 
+        speed={speed} 
+        enabled={controlsEnabled}
+        octree={octree}
+        collisionRadius={0.3}
+        acceleration={8}
+        deceleration={10}
+      />
+
+      {/* Pointer Lock Controls for Mouse Look */}
+      <PointerLockControls ref={controlsRef} />
+
+      {/* Position Tracker */}
+      <PositionHUDTracker onUpdate={onPositionUpdate} />
+    </>
+  )
+}
+
+// ==================== UI COMPONENTS ====================
+
+interface PositionHUDProps {
+  position: THREE.Vector3
+  rotation: THREE.Euler
+  visible: boolean
+}
+
+function PositionHUD({ position, rotation, visible }: PositionHUDProps) {
+  if (!visible) return null
+
+  const pitch = THREE.MathUtils.radToDeg(rotation.x)
+  const yaw = THREE.MathUtils.radToDeg(rotation.y)
+
+  return (
+    <div className="absolute bottom-4 left-4 bg-surface-elevated/90 backdrop-blur-sm border border-app-primary rounded-lg px-4 py-3 font-mono text-xs space-y-1.5 shadow-lg">
+      <div className="text-primary-400 font-semibold mb-2 flex items-center gap-2">
+        <Eye className="w-3.5 h-3.5" />
+        Camera Position
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        <span className="text-gray-400">X:</span>
+        <span className="text-white tabular-nums">{position.x.toFixed(2)}</span>
+        <span className="text-gray-400">Y:</span>
+        <span className="text-white tabular-nums">{position.y.toFixed(2)}</span>
+        <span className="text-gray-400">Z:</span>
+        <span className="text-white tabular-nums">{position.z.toFixed(2)}</span>
+        <span className="text-gray-400">Pitch:</span>
+        <span className="text-white tabular-nums">{pitch.toFixed(1)}°</span>
+        <span className="text-gray-400">Yaw:</span>
+        <span className="text-white tabular-nums">{yaw.toFixed(1)}°</span>
+      </div>
+    </div>
+  )
+}
+
+interface ControlsHelpProps {
+  visible: boolean
+  onClose: () => void
+}
+
+function ControlsHelp({ visible, onClose }: ControlsHelpProps) {
+  if (!visible) return null
+
+  return (
+    <div className="absolute top-4 right-4 bg-surface-elevated/95 backdrop-blur-sm border border-app-primary rounded-lg p-4 shadow-xl max-w-sm">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-primary-400 font-semibold flex items-center gap-2">
+          <Info className="w-4 h-4" />
+          First Person Controls
+        </h3>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-white transition-colors p-1"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      
+      <div className="space-y-3 text-sm">
         <div>
-          <span className="text-gray-400">Pos:</span>{' '}
-          <span className="text-green-400">
-            {position.x.toFixed(2)}, {position.y.toFixed(2)}, {position.z.toFixed(2)}
-          </span>
+          <div className="text-white font-medium mb-1.5">Movement</div>
+          <div className="space-y-1 text-gray-300">
+            <div className="flex items-center gap-2">
+              <kbd className="px-2 py-0.5 bg-surface-tertiary border border-app-primary rounded text-xs">W A S D</kbd>
+              <span>Move forward/left/back/right</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <kbd className="px-2 py-0.5 bg-surface-tertiary border border-app-primary rounded text-xs">Space</kbd>
+              <span>Move up</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <kbd className="px-2 py-0.5 bg-surface-tertiary border border-app-primary rounded text-xs">Ctrl</kbd>
+              <span>Move down</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <kbd className="px-2 py-0.5 bg-surface-tertiary border border-app-primary rounded text-xs">Shift</kbd>
+              <span>Sprint (2× speed)</span>
+            </div>
+          </div>
         </div>
-        <div className="text-gray-600">|</div>
+        
         <div>
-          <span className="text-gray-400">Pitch:</span>{' '}
-          <span className="text-blue-400">{rotation.pitch.toFixed(1)}°</span>
+          <div className="text-white font-medium mb-1.5">Camera</div>
+          <div className="space-y-1 text-gray-300">
+            <div className="flex items-center gap-2">
+              <MousePointer2 className="w-3.5 h-3.5" />
+              <span>Move mouse to look around</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">
+                (Click canvas to lock pointer)
+              </span>
+            </div>
+          </div>
         </div>
-        <div>
-          <span className="text-gray-400">Yaw:</span>{' '}
-          <span className="text-purple-400">{rotation.yaw.toFixed(1)}°</span>
+
+        <div className="pt-2 border-t border-app-secondary">
+          <div className="text-xs text-gray-400">
+            ✨ <span className="text-primary-400">Collision detection enabled</span> - you won't walk through walls!
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-// ==================== SPEED CONTROL ====================
-
-function SpeedControl({
-  speed,
-  onSpeedChange,
-}: {
-  speed: number
-  onSpeedChange: (speed: number) => void
-}) {
-  return (
-    <div className="absolute bottom-4 right-4 bg-app-elevated/95 backdrop-blur-sm border border-app-secondary p-3 rounded-lg z-30">
-      <label className="flex items-center gap-3 text-white text-sm">
-        <span className="text-gray-400">Speed:</span>
-        <input
-          type="range"
-          min="1"
-          max="20"
-          step="0.5"
-          value={speed}
-          onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
-          className="w-32 accent-blue-500"
-        />
-        <span className="w-12 text-right font-mono text-green-400">{speed.toFixed(1)}</span>
-        <span className="text-gray-500 text-xs">m/s</span>
-      </label>
-    </div>
-  )
-}
-
-
 // ==================== MAIN COMPONENT ====================
 
-export function FirstPersonViewer({
+export default function FirstPersonViewer({
   plyUrl,
   scanId,
-  initialSpeed = 5.0,
+  initialSpeed = 3,
   initialPosition = [0, 1.6, 5],
+  onPositionChange,
+  onRotationChange,
   className = "",
   showStats = false,
 }: FirstPersonViewerProps) {
   const [speed, setSpeed] = useState(initialSpeed)
-  const [isLocked, setIsLocked] = useState(false)
+  const [controlsEnabled, setControlsEnabled] = useState(true)
   const [showHelp, setShowHelp] = useState(true)
-  const [cameraData, setCameraData] = useState({
-    position: { x: 0, y: 1.6, z: 5 },
-    rotation: { pitch: 0, yaw: 0 }
-  })
+  const [showHUD, setShowHUD] = useState(true)
+  const [currentPosition, setCurrentPosition] = useState(new THREE.Vector3(...initialPosition))
+  const [currentRotation, setCurrentRotation] = useState(new THREE.Euler())
+  const [pointCount, setPointCount] = useState(0)
+  const [octree, setOctree] = useState<Octree | null>(null)
+  const [octreeStats, setOctreeStats] = useState<{ nodes: number; points: number; maxDepth: number } | null>(null)
+
+  const handlePositionUpdate = useCallback((position: THREE.Vector3, rotation: THREE.Euler) => {
+    setCurrentPosition(position.clone())
+    setCurrentRotation(rotation.clone())
+    onPositionChange?.(position)
+    onRotationChange?.({
+      pitch: THREE.MathUtils.radToDeg(rotation.x),
+      yaw: THREE.MathUtils.radToDeg(rotation.y),
+    })
+  }, [onPositionChange, onRotationChange])
+
+  const handleGeometryLoad = useCallback((geometry: THREE.BufferGeometry) => {
+    console.log('🌳 Building octree for collision detection...')
+    const start = performance.now()
+    
+    try {
+      const tree = Octree.fromGeometry(geometry)
+      const stats = tree.getStats()
+      const elapsed = performance.now() - start
+      
+      console.log(`✅ Octree built in ${elapsed.toFixed(0)}ms`)
+      console.log(`   - Nodes: ${stats.nodes.toLocaleString()}`)
+      console.log(`   - Points: ${stats.points.toLocaleString()}`)
+      console.log(`   - Max Depth: ${stats.maxDepth}`)
+      
+      setOctree(tree)
+      setOctreeStats(stats)
+    } catch (error) {
+      console.error('❌ Failed to build octree:', error)
+    }
+  }, [])
+
+  const handleReset = () => {
+    setCurrentPosition(new THREE.Vector3(...initialPosition))
+    setSpeed(initialSpeed)
+  }
 
   return (
-    <div className={`relative bg-app-card rounded-lg overflow-hidden ${className}`}>
+    <div className={`relative w-full h-full bg-app-primary ${className}`}>
       {/* 3D Canvas */}
       <Canvas
         camera={{
           position: initialPosition,
           fov: 75,
+          near: 0.1,
+          far: 1000,
         }}
-        className="bg-app-card"
-        gl={{
-          antialias: true,
-          powerPreference: "high-performance",
-          preserveDrawingBuffer: true,
-        }}
-        dpr={[1, 2]}
+        className="w-full h-full"
       >
-        {/* Lighting */}
-        <ambientLight intensity={0.6} />
-        <pointLight position={[10, 10, 10]} intensity={0.5} />
-        <directionalLight position={[-10, -10, -10]} intensity={0.3} />
-
-        {/* Grid helper */}
-        <gridHelper args={[50, 50, '#444444', '#222222']} />
-
-        {/* First-Person Controls */}
-        <PointerLockControls
-          makeDefault
-          onLock={() => setIsLocked(true)}
-          onUnlock={() => setIsLocked(false)}
-        />
-        <FirstPersonController speed={speed} enabled={true} />
-
-        {/* Point Cloud */}
-        <OptimizedPointCloud url={plyUrl} />
-
-        {/* Position HUD data tracker (inside Canvas) */}
-        <PositionHUDTracker onUpdate={setCameraData} />
-
-        {/* Stats (FPS counter) */}
+        <Suspense fallback={null}>
+          <SceneContent
+            plyUrl={plyUrl}
+            speed={speed}
+            controlsEnabled={controlsEnabled}
+            onGeometryLoad={handleGeometryLoad}
+            onPointCount={setPointCount}
+            onPositionUpdate={handlePositionUpdate}
+            octree={octree}
+          />
+        </Suspense>
         {showStats && <Stats />}
       </Canvas>
 
-      {/* UI Overlays */}
-      <Crosshair visible={isLocked} />
-      <PointerLockPrompt visible={!isLocked} />
-      
-      {showHelp && (
-        <ControlsHelp onClose={() => setShowHelp(false)} />
-      )}
+      {/* Crosshair */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="relative w-6 h-6">
+          <div className="absolute left-1/2 top-1/2 w-0.5 h-3 bg-primary-400 -translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute left-1/2 top-1/2 w-3 h-0.5 bg-primary-400 -translate-x-1/2 -translate-y-1/2" />
+        </div>
+      </div>
 
-      <PositionHUD position={cameraData.position} rotation={cameraData.rotation} />
-      <SpeedControl speed={speed} onSpeedChange={setSpeed} />
+      {/* Position HUD */}
+      <PositionHUD
+        position={currentPosition}
+        rotation={currentRotation}
+        visible={showHUD}
+      />
 
-      {/* Help button to re-show controls */}
-      {!showHelp && (
+      {/* Controls Help */}
+      <ControlsHelp visible={showHelp} onClose={() => setShowHelp(false)} />
+
+      {/* Top Bar UI */}
+      <div className="absolute top-4 left-4 flex items-center gap-3">
         <button
-          onClick={() => setShowHelp(true)}
-          className="absolute top-20 left-4 bg-app-elevated/95 backdrop-blur-sm border border-app-secondary hover:border-blue-500 p-2 rounded-lg text-white transition-all z-30"
-          title="Show controls"
+          onClick={() => setShowHelp(!showHelp)}
+          className="bg-surface-elevated/90 backdrop-blur-sm hover:bg-surface-elevated border border-app-primary text-white p-2.5 rounded-lg transition-all shadow-lg hover:border-primary-400"
+          title="Toggle Help"
         >
           <Info className="w-4 h-4" />
         </button>
-      )}
 
-      {/* Status indicator */}
-      <div className="absolute top-20 right-4 z-30">
-        <div className="bg-app-elevated/95 backdrop-blur-sm border border-app-secondary px-3 py-1.5 rounded-lg flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isLocked ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
-          <span className="text-white text-xs font-medium">
-            {isLocked ? 'Mouse Locked' : 'Click to Lock'}
-          </span>
+        <button
+          onClick={() => setShowHUD(!showHUD)}
+          className="bg-surface-elevated/90 backdrop-blur-sm hover:bg-surface-elevated border border-app-primary text-white p-2.5 rounded-lg transition-all shadow-lg hover:border-primary-400"
+          title="Toggle HUD"
+        >
+          {showHUD ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+        </button>
+
+        <button
+          onClick={handleReset}
+          className="bg-surface-elevated/90 backdrop-blur-sm hover:bg-surface-elevated border border-app-primary text-white p-2.5 rounded-lg transition-all shadow-lg hover:border-primary-400"
+          title="Reset Position"
+        >
+          <RotateCcw className="w-4 h-4" />
+        </button>
+
+        {/* Point Count Badge */}
+        {pointCount > 0 && (
+          <div className="bg-surface-elevated/90 backdrop-blur-sm border border-app-primary px-3 py-2 rounded-lg text-xs font-mono shadow-lg">
+            <span className="text-gray-400">Points:</span>{' '}
+            <span className="text-primary-400 font-semibold">
+              {(pointCount / 1_000_000).toFixed(1)}M
+            </span>
+          </div>
+        )}
+
+        {/* Octree Stats Badge */}
+        {octreeStats && (
+          <div className="bg-surface-elevated/90 backdrop-blur-sm border border-app-primary px-3 py-2 rounded-lg text-xs font-mono shadow-lg">
+            <span className="text-gray-400">Octree:</span>{' '}
+            <span className="text-green-400 font-semibold">
+              {octreeStats.nodes.toLocaleString()} nodes
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Controls */}
+      <div className="absolute bottom-4 right-4 bg-surface-elevated/90 backdrop-blur-sm border border-app-primary rounded-lg p-4 shadow-xl">
+        <div className="flex items-center gap-3">
+          <Gauge className="w-4 h-4 text-primary-400" />
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-xs text-gray-400">Speed</span>
+              <span className="text-xs font-mono text-white tabular-nums">{speed.toFixed(1)}</span>
+            </div>
+            <input
+              type="range"
+              min="0.5"
+              max="10"
+              step="0.5"
+              value={speed}
+              onChange={(e) => setSpeed(parseFloat(e.target.value))}
+              className="w-32 accent-primary-400"
+            />
+          </div>
         </div>
       </div>
     </div>
   )
 }
-
-
