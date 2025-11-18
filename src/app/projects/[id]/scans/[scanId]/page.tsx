@@ -178,8 +178,8 @@ function Enhanced3DViewer({
                   </>
                 ) : (
                   <>
-                    <Camera className="w-4 h-4" />
-                    <span>🎮 First Person</span>
+                    <Eye className="w-4 h-4" />
+                    <span>First Person</span>
                   </>
                 )}
               </button>
