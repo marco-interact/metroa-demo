@@ -1,113 +1,174 @@
-# Metroa Documentation Index
+# 📚 Metroa Documentation Index
 
-All project documentation has been organized into logical categories for easy navigation.
+## 🚀 Quick Start
 
-## 📁 Directory Structure
+**New to Metroa?** Start here:
 
-### 📦 [deployment/](deployment/)
-Deployment guides, commands, and platform-specific instructions
-- RunPod deployment commands and setup
-- Vercel deployment configuration
-- Build and deploy scripts
-- Optimization configurations
-
-**Key Files:**
-- `DEPLOY_NOW.md` - Quick deployment guide
-- `RUNPOD_COMMANDS.md` - RunPod-specific commands
-- `VERCEL_DEPLOY.md` - Vercel deployment guide
-
-### 🔧 [troubleshooting/](troubleshooting/)
-Debug guides, error fixes, and problem resolution
-- Backend startup issues
-- Port conflicts and process management
-- Dependency and configuration fixes
-- Connection problems
-
-**Key Files:**
-- `DEBUG_BACKEND_NOT_RUNNING.md` - Backend startup debugging
-- `FIX_PORT_IN_USE.md` - Port conflict resolution
-- `FIND_BACKEND_PROCESS.md` - Process management
-
-### 📚 [guides/](guides/)
-Feature guides, integration docs, and implementation references
-- Feature implementation summaries
-- Integration guides (FFMPEG, OpenCV, etc.)
-- Optimization guides
-- Architecture documentation
-
-**Key Files:**
-- `QUICKSTART.md` - Quick start guide
-- `STACK_AND_ARCHITECTURE.md` - System architecture
-- `PROCESSING_WORKFLOW.md` - Processing pipeline overview
-
-### 🔨 [scripts/](scripts/)
-Shell scripts for building, setup, and automation
-- Build scripts for COLMAP and other tools
-- Pod setup scripts
-- Update and maintenance scripts
-
-**Key Files:**
-- `build-colmap-gpu-fixed.sh` - COLMAP GPU build script
-- `setup-metroa-pod.sh` - Pod setup automation
-
-### ⚙️ [setup/](setup/)
-Backend setup, configuration, and startup guides
-- Backend startup scripts and guides
-- Persistent backend configuration
-- Quick setup commands
-
-**Key Files:**
-- `START_BACKEND.sh` - Main backend startup script
-- `QUICK_BACKEND_START.md` - Quick backend setup
-- `PERSISTENT_BACKEND.md` - Persistent backend configuration
-
-### 📅 [2025-11-14/](2025-11-14/)
-Historical documentation from previous organization
-- Legacy setup guides
-- Old deployment instructions
-- Archived troubleshooting docs
+1. **[Main README](../README.md)** - Project overview and quick start
+2. **[RunPod Docker Guide](../RUNPOD_DOCKER_GUIDE.md)** - Deploy backend (COMPLETE GUIDE)
+3. **[Docker Quickstart](../DOCKER_QUICKSTART.md)** - Quick reference for Docker
+4. **[Vercel Deploy](deployment/VERCEL_DEPLOY.md)** - Deploy frontend
 
 ---
 
-## 🚀 Quick Links
+## 📦 Backend Deployment
 
-### Getting Started
-1. Read [`guides/QUICKSTART.md`](guides/QUICKSTART.md)
-2. Follow [`setup/QUICK_BACKEND_START.md`](setup/QUICK_BACKEND_START.md)
-3. Check [`deployment/DEPLOY_NOW.md`](deployment/DEPLOY_NOW.md)
+### **Recommended Workflow:**
 
-### Common Tasks
-- **Deploy to Production**: [`deployment/DEPLOY_NOW.md`](deployment/DEPLOY_NOW.md)
-- **Start Backend**: [`setup/START_BACKEND.sh`](setup/START_BACKEND.sh)
-- **Fix Backend Issues**: [`troubleshooting/DEBUG_BACKEND_NOT_RUNNING.md`](troubleshooting/DEBUG_BACKEND_NOT_RUNNING.md)
-- **RunPod Setup**: [`deployment/RUNPOD_COMMANDS.md`](deployment/RUNPOD_COMMANDS.md)
+```bash
+# 1. Build Docker image locally (on your Mac)
+bash docker-build-local.sh
 
-### Architecture & Implementation
-- **System Architecture**: [`guides/STACK_AND_ARCHITECTURE.md`](guides/STACK_AND_ARCHITECTURE.md)
-- **Processing Workflow**: [`guides/PROCESSING_WORKFLOW.md`](guides/PROCESSING_WORKFLOW.md)
-- **Implementation Status**: [`guides/MVP_IMPLEMENTATION_STATUS.md`](guides/MVP_IMPLEMENTATION_STATUS.md)
+# 2. Push to Docker Hub
+docker login
+docker tag metroa-backend:fast YOUR_USERNAME/metroa-backend:latest
+docker push YOUR_USERNAME/metroa-backend:latest
 
----
+# 3. Deploy on RunPod
+# Use YOUR_USERNAME/metroa-backend:latest in RunPod template
+# GPU: RTX 4090, Port: 8888
+```
 
-## 📊 Documentation Stats
-
-- **Total Files**: 61 organized documentation files
-- **Deployment Docs**: 14 files
-- **Troubleshooting Guides**: 16 files
-- **Feature Guides**: 25 files
-- **Scripts**: 5 files
-- **Setup Guides**: 6 files
+**Full guide:** [RUNPOD_DOCKER_GUIDE.md](../RUNPOD_DOCKER_GUIDE.md)
 
 ---
 
-## 🔍 Finding Documentation
+## 🎨 Frontend Deployment
 
-Use your IDE's search (Cmd/Ctrl + P) to quickly find documentation:
-- Type filename to open specific doc
-- Search within files for specific topics
-- Browse directories by category
+```bash
+# Deploy to Vercel
+vercel --prod
+```
+
+**Full guide:** [deployment/VERCEL_DEPLOY.md](deployment/VERCEL_DEPLOY.md)
 
 ---
 
-*Last Updated: November 18, 2024*
+## 📖 Technical Guides
 
+### Architecture & Processing
+- **[Stack and Architecture](guides/STACK_AND_ARCHITECTURE.md)** - System overview
+- **[Processing Workflow](guides/PROCESSING_WORKFLOW.md)** - How 3D reconstruction works
+- **[Reconstruction Optimization](guides/RECONSTRUCTION_OPTIMIZATION_GUIDE.md)** - COLMAP tuning
+
+### Features
+- **[Mesh Generation](guides/MESH_GENERATION_GUIDE.md)** - Creating 3D meshes
+- **[Ultra Dense Optimization](guides/ULTRA_DENSE_OPTIMIZATION.md)** - High-quality point clouds
+- **[Mobile Optimization](guides/MOBILE_OPTIMIZATION.md)** - Mobile performance
+
+### Viewers & UI
+- **[First Person Viewer](guides/FIRST_PERSON_VIEWER_GUIDE.md)** - FPS navigation
+- **[FPS Viewer Advanced](guides/FPS_VIEWER_ADVANCED.md)** - Advanced features
+- **[FPS Viewer Summary](guides/FPS_VIEWER_SUMMARY.md)** - Overview
+
+### Integrations
+- **[FFmpeg Integration](guides/FFMPEG_INTEGRATION.md)** - Video processing
+- **[OpenCV FFmpeg](guides/OPENCV_FFMPEG_INTEGRATION.md)** - OpenCV + FFmpeg
+- **[OpenCV SFM](guides/OPENCV_SFM_INTEGRATION.md)** - Structure from Motion
+- **[Point Cloud Distance](guides/POINTCLOUD_DISTANCE_USAGE.md)** - Measurements
+- **[Open3D Analysis](guides/OPEN3D_ANALYSIS.md)** - 3D processing library
+
+### Measurements
+- **[Measurement Implementation](guides/MEASUREMENT_IMPLEMENTATION_SUMMARY.md)** - How measurements work
+- **[Measurement System Analysis](guides/MEASUREMENT_SYSTEM_ANALYSIS.md)** - Technical details
+
+---
+
+## 🗂️ Directory Structure
+
+```
+metroa-demo/
+├── README.md                     # Main documentation
+├── RUNPOD_DOCKER_GUIDE.md        # ⭐ Main deployment guide
+├── DOCKER_QUICKSTART.md          # Quick Docker reference
+├── docker-build-local.sh         # ⭐ Build script
+├── Dockerfile                    # Production build (30-45 min)
+├── Dockerfile.fast               # ⭐ Fast build (5-10 min)
+├── requirements.txt              # Python dependencies
+│
+├── src/                          # Frontend (Next.js)
+│   ├── app/                      # App routes
+│   ├── components/               # React components
+│   └── lib/                      # Utilities
+│
+├── *.py                          # Backend (FastAPI)
+│   ├── main.py                   # API server
+│   ├── colmap_processor.py       # COLMAP processing
+│   ├── mesh_generator.py         # Mesh generation
+│   └── database.py               # SQLite database
+│
+└── README/                       # Additional documentation
+    ├── deployment/               # Deployment guides
+    │   └── VERCEL_DEPLOY.md      # Frontend deployment
+    └── guides/                   # Technical guides
+```
+
+---
+
+## 🔑 Key Files
+
+### **Essential:**
+- `docker-build-local.sh` - Build Docker image locally
+- `RUNPOD_DOCKER_GUIDE.md` - Complete deployment guide
+- `Dockerfile.fast` - Fast Docker build (recommended)
+- `requirements.txt` - Python dependencies
+- `main.py` - FastAPI backend server
+
+### **Configuration:**
+- `.env` - Environment variables (create from `.env.example`)
+- `vercel.json` - Vercel deployment config
+- `next.config.js` - Next.js configuration
+
+---
+
+## 🎯 Common Tasks
+
+### Build Docker Image:
+```bash
+bash docker-build-local.sh
+# Select option 1 (Fast Build)
+```
+
+### Push to Docker Hub:
+```bash
+docker login
+docker tag metroa-backend:fast YOUR_USERNAME/metroa-backend:latest
+docker push YOUR_USERNAME/metroa-backend:latest
+```
+
+### Deploy Backend:
+- See [RUNPOD_DOCKER_GUIDE.md](../RUNPOD_DOCKER_GUIDE.md)
+
+### Deploy Frontend:
+```bash
+vercel --prod
+```
+
+### Test Backend Locally:
+```bash
+docker run -d -p 8888:8888 metroa-backend:fast
+curl http://localhost:8888/health
+```
+
+---
+
+## 💡 Tips
+
+1. **Always use `Dockerfile.fast`** - Much faster, same features
+2. **Build locally, not on RunPod** - More reliable, easier debugging
+3. **Use Docker Hub** - Central registry for images
+4. **No persistent storage needed** - Everything is in the Docker image
+5. **Update workflow:** Rebuild → Push → Restart RunPod pod
+
+---
+
+## 🆘 Need Help?
+
+1. **Start with:** [RUNPOD_DOCKER_GUIDE.md](../RUNPOD_DOCKER_GUIDE.md)
+2. **Quick reference:** [DOCKER_QUICKSTART.md](../DOCKER_QUICKSTART.md)
+3. **Frontend deployment:** [deployment/VERCEL_DEPLOY.md](deployment/VERCEL_DEPLOY.md)
+
+---
+
+**Last Updated:** November 18, 2024
+**Documentation Version:** 2.0 (Simplified for BYOC workflow)
