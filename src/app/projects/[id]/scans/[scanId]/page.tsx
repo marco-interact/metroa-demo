@@ -74,7 +74,9 @@ function Enhanced3DViewer({
   isSelectingPoints = false,
   selectedPointPositions = [],
   onPointClick,
-  processingProgress
+  processingProgress,
+  viewerMode,
+  setViewerMode
 }: { 
   className?: string
   scan: Scan | null
@@ -82,6 +84,8 @@ function Enhanced3DViewer({
   selectedPointPositions?: Array<[number, number, number]>
   onPointClick?: (pointIndex: number, position: [number, number, number]) => void
   processingProgress?: { progress: number; stage: string }
+  viewerMode: 'orbit' | 'fps'
+  setViewerMode: (mode: 'orbit' | 'fps') => void
 }) {
   const [viewMode, setViewMode] = useState<'pointcloud' | 'mesh'>('pointcloud')
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -697,6 +701,8 @@ export default function ScanDetailPage() {
               isSelectingPoints={isSelectingPoints}
               selectedPointPositions={selectedPointPositions}
               onPointClick={handlePointClick}
+              viewerMode={viewerMode}
+              setViewerMode={setViewerMode}
               processingProgress={processingProgress}
             />
           </div>
