@@ -199,6 +199,7 @@ function Enhanced3DViewer({
             {/* Conditional viewer based on mode */}
             {viewerMode === 'fps' ? (
               <FirstPersonViewer
+                key="fps-viewer"
                 plyUrl={getModelUrl() || ''}
                 scanId={scan.id}
                 initialSpeed={5.0}
@@ -208,6 +209,7 @@ function Enhanced3DViewer({
               />
             ) : (
               <SimpleViewer 
+                key="orbit-viewer"
                 modelUrl={getModelUrl() || undefined}
                 className="w-full h-full"
                 enablePointSelection={isSelectingPoints}

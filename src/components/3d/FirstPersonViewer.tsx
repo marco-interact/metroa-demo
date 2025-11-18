@@ -282,10 +282,17 @@ function PointCloud({ url, onLoad, onPointCount }: PointCloudProps) {
   const pointsRef = useRef<THREE.Points>(null)
 
   useEffect(() => {
+    let mounted = true
     const loader = new PLYLoader()
+    
     loader.load(
       url,
       (loadedGeometry) => {
+        if (!mounted) {
+          loadedGeometry.dispose()
+          return
+        }
+
         loadedGeometry.computeBoundingBox()
         loadedGeometry.computeBoundingSphere()
 
@@ -328,12 +335,24 @@ function PointCloud({ url, onLoad, onPointCount }: PointCloudProps) {
           optimizedGeometry.computeBoundingBox()
           optimizedGeometry.computeBoundingSphere()
           
+          // Dispose original geometry to free memory
+          loadedGeometry.dispose()
+          
           console.log(`✅ Downsampled to ${(newPositions.length / 3 / 1_000_000).toFixed(1)}M points`)
-          setGeometry(optimizedGeometry)
-          onLoad?.(optimizedGeometry)
+          
+          if (mounted) {
+            setGeometry(optimizedGeometry)
+            onLoad?.(optimizedGeometry)
+          } else {
+            optimizedGeometry.dispose()
+          }
         } else {
-          setGeometry(loadedGeometry)
-          onLoad?.(loadedGeometry)
+          if (mounted) {
+            setGeometry(loadedGeometry)
+            onLoad?.(loadedGeometry)
+          } else {
+            loadedGeometry.dispose()
+          }
         }
       },
       (progress) => {
@@ -346,7 +365,15 @@ function PointCloud({ url, onLoad, onPointCount }: PointCloudProps) {
         console.error('Error loading PLY:', error)
       }
     )
-  }, [url, onLoad, onPointCount])
+
+    return () => {
+      mounted = false
+      // Cleanup geometry on unmount
+      if (geometry) {
+        geometry.dispose()
+      }
+    }
+  }, [url])
 
   if (!geometry) return null
 
@@ -581,27 +608,56 @@ export default function FirstPersonViewer({
     console.log('🌳 Building octree for collision detection...')
     const start = performance.now()
     
-    try {
-      const tree = Octree.fromGeometry(geometry)
-      const stats = tree.getStats()
-      const elapsed = performance.now() - start
-      
-      console.log(`✅ Octree built in ${elapsed.toFixed(0)}ms`)
-      console.log(`   - Nodes: ${stats.nodes.toLocaleString()}`)
-      console.log(`   - Points: ${stats.points.toLocaleString()}`)
-      console.log(`   - Max Depth: ${stats.maxDepth}`)
-      
-      setOctree(tree)
-      setOctreeStats(stats)
-    } catch (error) {
-      console.error('❌ Failed to build octree:', error)
-    }
+    // Build octree asynchronously to avoid blocking
+    setTimeout(() => {
+      try {
+        const tree = Octree.fromGeometry(geometry)
+        const stats = tree.getStats()
+        const elapsed = performance.now() - start
+        
+        console.log(`✅ Octree built in ${elapsed.toFixed(0)}ms`)
+        console.log(`   - Nodes: ${stats.nodes.toLocaleString()}`)
+        console.log(`   - Points: ${stats.points.toLocaleString()}`)
+        console.log(`   - Max Depth: ${stats.maxDepth}`)
+        
+        setOctree(tree)
+        setOctreeStats(stats)
+      } catch (error) {
+        console.error('❌ Failed to build octree:', error)
+        console.log('⚠️ Collision detection disabled')
+      }
+    }, 100)
   }, [])
 
   const handleReset = () => {
     setCurrentPosition(new THREE.Vector3(...initialPosition))
     setSpeed(initialSpeed)
   }
+
+  // WebGL context lost/restored handlers
+  useEffect(() => {
+    const handleContextLost = (event: Event) => {
+      event.preventDefault()
+      console.error('⚠️ WebGL context lost! Attempting to restore...')
+    }
+
+    const handleContextRestored = () => {
+      console.log('✅ WebGL context restored')
+      // Force reload of geometry
+      window.location.reload()
+    }
+
+    const canvas = document.querySelector('canvas')
+    if (canvas) {
+      canvas.addEventListener('webglcontextlost', handleContextLost)
+      canvas.addEventListener('webglcontextrestored', handleContextRestored)
+
+      return () => {
+        canvas.removeEventListener('webglcontextlost', handleContextLost)
+        canvas.removeEventListener('webglcontextrestored', handleContextRestored)
+      }
+    }
+  }, [])
 
   return (
     <div className={`relative w-full h-full bg-app-primary ${className}`}>
@@ -614,6 +670,11 @@ export default function FirstPersonViewer({
           far: 1000,
         }}
         className="w-full h-full"
+        gl={{
+          antialias: false, // Disable AA to save memory
+          powerPreference: 'high-performance',
+          preserveDrawingBuffer: false,
+        }}
       >
         <Suspense fallback={null}>
           <SceneContent
