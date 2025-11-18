@@ -1,0 +1,121 @@
+# ============================================================================
+# Metroa Backend - FAST BUILD (5-10 minutes)
+# ============================================================================
+# 
+# This is a lightweight alternative Dockerfile that:
+# - Uses pre-compiled COLMAP from Ubuntu repos (instead of building from source)
+# - Skips OpenMVS (can be added later if needed)
+# - Installs everything via apt/pip (no compilation)
+# - Builds in 5-10 minutes (vs 30-45 minutes for full build)
+#
+# Trade-offs:
+# - COLMAP may not be latest version (but still GPU-enabled)
+# - No OpenMVS ultra-densification
+# - Faster startup, smaller image size
+#
+# Use this for:
+# - Quick testing and development
+# - When you don't need absolute latest COLMAP
+# - Faster iteration cycles
+#
+# Use Dockerfile (full build) for:
+# - Production deployments
+# - Maximum performance
+# - Ultra-dense reconstructions with OpenMVS
+#
+# Build: docker build -f Dockerfile.fast -t metroa-backend:fast .
+# ============================================================================
+
+FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04
+
+# Metadata
+LABEL maintainer="Metroa Labs Team"
+LABEL description="Metroa Backend - Fast Build (Pre-compiled COLMAP)"
+LABEL version="1.0.0-fast"
+
+# Environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    CUDA_HOME=/usr/local/cuda \
+    PATH=/usr/local/cuda/bin:/usr/local/bin:$PATH \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH \
+    QT_QPA_PLATFORM=offscreen \
+    DISPLAY=:99 \
+    MESA_GL_VERSION_OVERRIDE=3.3
+
+# Install system dependencies and COLMAP in one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # COLMAP (pre-compiled from Ubuntu repos)
+    colmap \
+    # Python
+    python3.12 \
+    python3.12-dev \
+    python3-pip \
+    # Video processing
+    ffmpeg \
+    # OpenGL/Graphics libraries
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    # Utilities
+    sqlite3 \
+    lsof \
+    curl \
+    # Cleanup
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Upgrade pip
+RUN python3.12 -m pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN python3.12 -m pip install --no-cache-dir -r requirements.txt && \
+    python3.12 -c "import open3d; print(f'✅ Open3D {open3d.__version__}')" && \
+    python3.12 -c "import fastapi; print(f'✅ FastAPI {fastapi.__version__}')"
+
+# Copy application code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p /workspace/data/{results,uploads,cache} /app/logs
+
+# Verify COLMAP installation
+RUN colmap --version && echo "✅ COLMAP installed"
+
+# Expose port
+EXPOSE 8888
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8888/health || exit 1
+
+# Start FastAPI backend
+CMD ["python3.12", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8888"]
+
+# ============================================================================
+# Build Summary:
+# ============================================================================
+# 
+# Build Time: 5-10 minutes (vs 30-45 for full build)
+# Image Size: 4-6 GB (vs 8-12 GB for full build)
+# 
+# Includes:
+# - COLMAP (pre-compiled, GPU-enabled)
+# - Python 3.12 + FastAPI
+# - Open3D 0.19.0
+# - FFmpeg for video processing
+# - All necessary libraries
+#
+# Missing vs full build:
+# - OpenMVS (can use COLMAP dense reconstruction instead)
+# - Latest COLMAP (Ubuntu package may be slightly older)
+#
+# ============================================================================
+

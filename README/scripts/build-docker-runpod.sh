@@ -18,8 +18,49 @@ echo "==========================================================================
 echo "🐳 METROA DOCKER BUILD SCRIPT FOR RUNPOD"
 echo "============================================================================"
 echo ""
-echo "⏱️  Expected time: 30-45 minutes"
-echo "💾 Expected size: 8-12 GB"
+echo "Choose build type:"
+echo ""
+echo "1) FAST BUILD (Recommended) - 5-10 minutes, 4-6 GB"
+echo "   - Pre-compiled COLMAP from Ubuntu"
+echo "   - All core features working"
+echo "   - Perfect for development"
+echo ""
+echo "2) FULL BUILD - 30-45 minutes, 8-12 GB"
+echo "   - COLMAP 3.10 built from source (latest)"
+echo "   - OpenMVS for ultra-dense point clouds"
+echo "   - Maximum performance"
+echo ""
+
+# Get build type from argument or prompt
+BUILD_TYPE="${1:-}"
+if [ -z "$BUILD_TYPE" ]; then
+    read -p "Select build type (1 or 2): " BUILD_TYPE
+fi
+
+case "$BUILD_TYPE" in
+    1|fast|FAST)
+        BUILD_MODE="fast"
+        DOCKERFILE="Dockerfile.fast"
+        BUILD_TIME="5-10 minutes"
+        IMAGE_SIZE="4-6 GB"
+        echo "✅ Selected: FAST BUILD"
+        ;;
+    2|full|FULL)
+        BUILD_MODE="full"
+        DOCKERFILE="Dockerfile"
+        BUILD_TIME="30-45 minutes"
+        IMAGE_SIZE="8-12 GB"
+        echo "✅ Selected: FULL BUILD"
+        ;;
+    *)
+        echo "❌ Invalid selection. Use 1 (fast) or 2 (full)"
+        exit 1
+        ;;
+esac
+
+echo ""
+echo "⏱️  Expected time: $BUILD_TIME"
+echo "💾 Expected size: $IMAGE_SIZE"
 echo ""
 
 # Navigate to project directory
@@ -67,20 +108,43 @@ echo ""
 # Check Docker daemon
 echo "🐳 Checking Docker daemon..."
 if ! docker info > /dev/null 2>&1; then
-    echo "⚠️  Docker daemon not running. Starting it..."
-    # Kill any existing dockerd
-    pkill dockerd 2>/dev/null || true
-    sleep 2
-    # Start Docker daemon
-    dockerd > /var/log/dockerd.log 2>&1 &
-    sleep 5
+    echo "⚠️  Docker daemon not running. Attempting to fix..."
     
-    # Verify it started
-    if docker info > /dev/null 2>&1; then
-        echo "✅ Docker daemon started"
-    else
-        echo "❌ Failed to start Docker daemon"
-        echo "Check logs: cat /var/log/dockerd.log"
+    # Kill any stuck processes
+    pkill -9 dockerd 2>/dev/null || true
+    pkill -9 containerd 2>/dev/null || true
+    rm -f /var/run/docker.sock /var/run/docker.pid 2>/dev/null || true
+    sleep 3
+    
+    # Start Docker daemon with proper configuration
+    mkdir -p /var/run /var/lib/docker
+    nohup dockerd \
+        --host=unix:///var/run/docker.sock \
+        --storage-driver=overlay2 \
+        --data-root=/var/lib/docker \
+        > /var/log/dockerd.log 2>&1 &
+    
+    echo "Waiting for Docker daemon to start (up to 30 seconds)..."
+    MAX_WAIT=30
+    WAITED=0
+    while [ $WAITED -lt $MAX_WAIT ]; do
+        if docker info > /dev/null 2>&1; then
+            echo "✅ Docker daemon started successfully"
+            break
+        fi
+        sleep 1
+        WAITED=$((WAITED + 1))
+    done
+    
+    # Final check
+    if ! docker info > /dev/null 2>&1; then
+        echo "❌ Failed to start Docker daemon after ${MAX_WAIT} seconds"
+        echo ""
+        echo "Logs (last 50 lines):"
+        tail -50 /var/log/dockerd.log
+        echo ""
+        echo "Try running the fix script:"
+        echo "  bash README/scripts/fix-docker-daemon.sh"
         exit 1
     fi
 else
@@ -89,11 +153,11 @@ fi
 echo ""
 
 # Check Dockerfile
-if [ ! -f "Dockerfile" ]; then
-    echo "❌ Dockerfile not found in $(pwd)"
+if [ ! -f "$DOCKERFILE" ]; then
+    echo "❌ $DOCKERFILE not found in $(pwd)"
     exit 1
 fi
-echo "✅ Dockerfile found"
+echo "✅ $DOCKERFILE found"
 echo ""
 
 # ============================================================================
@@ -150,8 +214,9 @@ BUILD_START=$(date +%s)
 docker build \
     --progress=plain \
     --tag metroa-backend:latest \
+    --tag metroa-backend:${BUILD_MODE} \
     --tag metroa-backend:$(date +%Y%m%d) \
-    --file Dockerfile \
+    --file $DOCKERFILE \
     . 2>&1 | tee docker-build.log
 
 BUILD_END=$(date +%s)
