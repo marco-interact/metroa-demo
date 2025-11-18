@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { PointerLockControls, Stats } from "@react-three/drei"
 import * as THREE from "three"
 import { PLYLoader } from "three-stdlib"
-import { RotateCcw, Maximize2, Minimize2, Eye, EyeOff, Info, X } from "lucide-react"
+import { RotateCcw, Maximize2, Minimize2, Eye, EyeOff, Info, X, Gauge } from "lucide-react"
 import { Octree } from "@/utils/octree"
 import { getDeviceType, getOptimalPointCloudSize, getCanvasConfig, shouldEnableCollision, getPointSize } from "@/utils/mobile"
 
