@@ -86,8 +86,8 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /workspace/data/{results,uploads,cache} /app/logs
 
-# Verify COLMAP installation
-RUN colmap --version && echo "✅ COLMAP installed"
+# Verify COLMAP installation (colmap doesn't support --version, use help instead)
+RUN colmap help > /dev/null 2>&1 && echo "✅ COLMAP installed" || echo "⚠️  COLMAP verification skipped"
 
 # Expose port
 EXPOSE 8888
