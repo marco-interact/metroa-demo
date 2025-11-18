@@ -366,20 +366,19 @@ function ControlsHelp({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ==================== POSITION HUD ====================
+// ==================== POSITION HUD DATA TRACKER ====================
 
-function PositionHUD() {
+// This component runs inside Canvas and tracks camera data
+function PositionHUDTracker({ onUpdate }: { onUpdate: (data: any) => void }) {
   const { camera } = useThree()
-  const [position, setPosition] = useState({ x: 0, y: 0, z: 0 })
-  const [rotation, setRotation] = useState({ pitch: 0, yaw: 0 })
 
   useFrame(() => {
-    // Update position
-    setPosition({
+    // Get position
+    const position = {
       x: camera.position.x,
       y: camera.position.y,
       z: camera.position.z,
-    })
+    }
 
     // Calculate pitch and yaw from camera rotation
     const direction = new THREE.Vector3()
@@ -388,9 +387,19 @@ function PositionHUD() {
     const pitch = Math.asin(-direction.y) * (180 / Math.PI)
     const yaw = Math.atan2(direction.x, direction.z) * (180 / Math.PI)
 
-    setRotation({ pitch, yaw })
+    onUpdate({ position, rotation: { pitch, yaw } })
   })
 
+  return null
+}
+
+// ==================== POSITION HUD DISPLAY ====================
+
+// This component displays the HUD (outside Canvas)
+function PositionHUD({ position, rotation }: { 
+  position: { x: number; y: number; z: number }
+  rotation: { pitch: number; yaw: number }
+}) {
   return (
     <div className="absolute bottom-4 left-4 bg-app-elevated/95 backdrop-blur-sm border border-app-secondary px-4 py-2 rounded-lg font-mono text-xs text-white z-30">
       <div className="flex items-center gap-3">
@@ -489,6 +498,10 @@ export function FirstPersonViewer({
   const [speed, setSpeed] = useState(initialSpeed)
   const [isLocked, setIsLocked] = useState(false)
   const [showHelp, setShowHelp] = useState(true)
+  const [cameraData, setCameraData] = useState({
+    position: { x: 0, y: 1.6, z: 5 },
+    rotation: { pitch: 0, yaw: 0 }
+  })
 
   return (
     <div className={`relative bg-app-card rounded-lg overflow-hidden ${className}`}>
@@ -531,8 +544,8 @@ export function FirstPersonViewer({
         {/* Point Cloud */}
         <OptimizedPointCloud url={plyUrl} />
 
-        {/* Position HUD updater */}
-        <PositionHUDUpdater />
+        {/* Position HUD data tracker (inside Canvas) */}
+        <PositionHUDTracker onUpdate={setCameraData} />
 
         {/* Stats (FPS counter) */}
         {showStats && <Stats />}
@@ -546,7 +559,7 @@ export function FirstPersonViewer({
         <ControlsHelp onClose={() => setShowHelp(false)} />
       )}
 
-      <PositionHUD />
+      <PositionHUD position={cameraData.position} rotation={cameraData.rotation} />
       <SpeedControl speed={speed} onSpeedChange={setSpeed} />
       <ModeToggle mode={mode} onModeChange={setMode} />
 
@@ -574,8 +587,4 @@ export function FirstPersonViewer({
   )
 }
 
-// Helper component to update HUD
-function PositionHUDUpdater() {
-  return null
-}
 
