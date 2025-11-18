@@ -1,29 +1,22 @@
 # ============================================================================
-# Metroa Labs Backend - Production GPU Base Image
+# Metroa Backend - Production Docker Image
 # ============================================================================
 # 
-# This Dockerfile creates a production-ready GPU-enabled base image containing:
-# - COLMAP 3.10 (CUDA-enabled, optimized for RTX 4090)
-# - OpenMVS (latest stable, for ultra-densification)
-# - Open3D 0.19.0 (Python bindings for point cloud processing)
-# - Python 3.12 + FastAPI runtime environment
+# PRODUCTION BUILD - Compiles COLMAP from source for maximum performance
+# Build time: 30-45 minutes | Image size: 8-12 GB
 #
-# Base Image Strategy:
-# - Uses NVIDIA CUDA 12.8.1 development image (Ubuntu 24.04)
-# - Compatible with RunPod's GPU runtime
-# - Includes CUDA toolkit + development headers for building COLMAP/OpenMVS
+# Features:
+# - COLMAP 3.10 (CUDA-enabled, built from source, RTX 4090 optimized)
+# - OpenMVS v2.2.0 (ultra-dense point clouds)
+# - Open3D 0.19.0 (point cloud processing)
+# - Python 3.12 + FastAPI
 #
-# Build Command:
-#   docker build -t metroa-backend:latest -f Dockerfile .
+# For FAST BUILD (5-10 min), use: Dockerfile.fast
 #
-# Run Command (with GPU):
-#   docker run --gpus all -p 8888:8888 metroa-backend:latest
-#
+# Build: docker build -t metroa-backend:latest .
+# Run: docker run --gpus all -p 8888:8888 -v $(pwd)/data:/workspace/data metroa-backend:latest
 # ============================================================================
 
-# ----------------------------------------------------------------------------
-# Stage 1: Base Image with CUDA + System Dependencies
-# ----------------------------------------------------------------------------
 FROM nvidia/cuda:12.8.1-devel-ubuntu24.04 AS base
 
 # Metadata
