@@ -41,7 +41,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH \
     QT_QPA_PLATFORM=offscreen \
     DISPLAY=:99 \
-    MESA_GL_VERSION_OVERRIDE=3.3
+    MESA_GL_VERSION_OVERRIDE=3.3 \
+    LIBGL_ALWAYS_SOFTWARE=1
 
 # Install system dependencies and COLMAP in one layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -55,6 +56,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     # OpenGL/Graphics libraries (Ubuntu 24.04)
     libgl1 \
+    libgl1-mesa-dri \
+    mesa-utils \
     libglib2.0-0 \
     libsm6 \
     libxext6 \

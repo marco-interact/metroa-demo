@@ -68,11 +68,22 @@ echo ""
 echo "=== Starting Virtual Display ==="
 if ! pgrep Xvfb > /dev/null; then
     echo "Starting Xvfb for headless OpenGL..."
-    Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+    Xvfb :99 -screen 0 1024x768x24 +extension GLX +render -noreset > /dev/null 2>&1 &
     XVFB_PID=$!
     export DISPLAY=:99
-    sleep 2
-    echo "✅ Xvfb started on DISPLAY :99 (PID: $XVFB_PID)"
+    sleep 3
+    
+    # Verify Xvfb is actually running
+    if kill -0 $XVFB_PID 2>/dev/null; then
+        echo "✅ Xvfb started on DISPLAY :99 (PID: $XVFB_PID)"
+        # Test if X server is responding
+        if command -v xdpyinfo &> /dev/null; then
+            xdpyinfo -display :99 > /dev/null 2>&1 && echo "✅ X server :99 is responsive" || echo "⚠️  X server not responding yet"
+        fi
+    else
+        echo "❌ Xvfb failed to start!"
+        exit 1
+    fi
 else
     export DISPLAY=:99
     echo "✅ Xvfb already running on DISPLAY :99"
