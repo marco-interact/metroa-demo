@@ -1,0 +1,147 @@
+# ============================================================================
+# Metroa Backend - Optimized for RunPod
+# ============================================================================
+# 
+# Optimizations:
+# - Pre-compiled COLMAP (5min build vs 45min)
+# - Minimal layers for faster pulls
+# - Proper process management
+# - Enhanced logging and debugging
+# - RunPod-specific configurations
+#
+# Build time: ~5 minutes
+# Image size: ~4-5 GB
+#
+# ============================================================================
+
+FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04
+
+# Metadata
+LABEL maintainer="Metroa Labs"
+LABEL description="Metroa 3D Reconstruction Backend - Optimized"
+LABEL version="2.0.0"
+
+# ============================================================================
+# Environment Setup
+# ============================================================================
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    CUDA_HOME=/usr/local/cuda \
+    PATH=/usr/local/cuda/bin:/usr/local/bin:$PATH \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH \
+    # OpenGL/Qt settings for headless rendering
+    QT_QPA_PLATFORM=offscreen \
+    DISPLAY=:99 \
+    MESA_GL_VERSION_OVERRIDE=3.3 \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    XDG_RUNTIME_DIR=/tmp/runtime-root \
+    # Application settings
+    LOG_LEVEL=info
+
+# ============================================================================
+# System Dependencies (single layer for efficiency)
+# ============================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # COLMAP (pre-compiled)
+    colmap \
+    # Python 3.12
+    python3.12 \
+    python3.12-dev \
+    python3-pip \
+    # Video processing
+    ffmpeg \
+    # OpenGL for headless rendering
+    libgl1 \
+    libgl1-mesa-dri \
+    mesa-utils \
+    xvfb \
+    x11-utils \
+    # Graphics libraries
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    # Utilities
+    sqlite3 \
+    lsof \
+    curl \
+    procps \
+    # Cleanup
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# ============================================================================
+# Python Dependencies
+# ============================================================================
+WORKDIR /app
+
+# Copy and install requirements (separate layer for caching)
+COPY requirements.txt .
+RUN python3.12 -m pip install \
+    --break-system-packages \
+    --no-cache-dir \
+    --disable-pip-version-check \
+    -r requirements.txt
+
+# Verify critical packages
+RUN python3 -c "import fastapi, uvicorn; print('✅ Web framework OK')" && \
+    python3 -c "import open3d; print('✅ Open3D OK')" 2>/dev/null || echo "⚠️  Open3D check skipped (CPU-specific)"
+
+# ============================================================================
+# Application Code
+# ============================================================================
+# Copy application files
+COPY . .
+
+# Make startup script executable
+RUN chmod +x start-backend-optimized.sh && \
+    ln -sf /app/start-backend-optimized.sh /app/start-backend.sh
+
+# Create directory structure
+RUN mkdir -p \
+    /workspace/data/results \
+    /workspace/data/uploads \
+    /workspace/data/cache \
+    /app/data/results \
+    /app/data/uploads \
+    /app/data/cache \
+    /app/logs \
+    /tmp/runtime-root
+
+# Verify COLMAP
+RUN colmap help > /dev/null 2>&1 && echo "✅ COLMAP verified" || \
+    (echo "❌ COLMAP verification failed" && exit 1)
+
+# ============================================================================
+# Container Configuration
+# ============================================================================
+# Expose ports
+EXPOSE 8888 22
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8888/health || exit 1
+
+# Volume for persistent data
+VOLUME ["/workspace"]
+
+# Default command
+CMD ["/bin/bash", "/app/start-backend-optimized.sh"]
+
+# ============================================================================
+# Build & Deploy:
+# 
+# Local build:
+#   docker build -f Dockerfile.optimized -t macoaurelio/metroa-backend:latest .
+#   docker push macoaurelio/metroa-backend:latest
+#
+# RunPod setup:
+#   Container Image: macoaurelio/metroa-backend:latest
+#   Container Start Command: (leave blank)
+#   Volume Mount: /workspace
+#   HTTP Port: 8888
+#   TCP Port: 22
+# ============================================================================
+

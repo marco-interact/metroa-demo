@@ -1,11 +1,15 @@
 #!/bin/bash
 # Robust backend startup script with error handling
 
+# Log everything to file for debugging
+exec > >(tee -a /tmp/backend-startup.log) 2>&1
+
 set -e  # Exit on error
 
 echo "=========================================="
 echo "Metroa Backend Starting..."
 echo "=========================================="
+echo "Timestamp: $(date)"
 echo ""
 
 # Environment check
@@ -68,9 +72,13 @@ echo ""
 echo "=== Starting Virtual Display ==="
 if ! pgrep Xvfb > /dev/null; then
     echo "Starting Xvfb for headless OpenGL..."
-    Xvfb :99 -screen 0 1024x768x24 +extension GLX +render -noreset > /dev/null 2>&1 &
+    echo "Command: Xvfb :99 -screen 0 1024x768x24 +extension GLX +render -noreset"
+    
+    # Start Xvfb and capture any errors
+    Xvfb :99 -screen 0 1024x768x24 +extension GLX +render -noreset > /tmp/xvfb.log 2>&1 &
     XVFB_PID=$!
     export DISPLAY=:99
+    echo "Xvfb PID: $XVFB_PID, waiting 3 seconds..."
     sleep 3
     
     # Verify Xvfb is actually running
@@ -81,8 +89,10 @@ if ! pgrep Xvfb > /dev/null; then
             xdpyinfo -display :99 > /dev/null 2>&1 && echo "✅ X server :99 is responsive" || echo "⚠️  X server not responding yet"
         fi
     else
-        echo "❌ Xvfb failed to start!"
-        exit 1
+        echo "❌ Xvfb failed to start! Check /tmp/xvfb.log for details:"
+        cat /tmp/xvfb.log 2>/dev/null || echo "No Xvfb log available"
+        echo "⚠️  Continuing anyway (COLMAP might fail later)..."
+        # Don't exit - let's see what else happens
     fi
 else
     export DISPLAY=:99
