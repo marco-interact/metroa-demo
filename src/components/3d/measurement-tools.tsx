@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Ruler, Download, Trash2, Check, X, Angle, Layers, Circle, Info } from "lucide-react"
+import { Ruler, Download, Trash2, Check, X, Triangle, Layers, Circle, Info } from "lucide-react"
 
 export type MeasurementType = "distance" | "angle" | "thickness" | "radius" | "info"
 
@@ -77,9 +77,9 @@ const MEASUREMENT_TYPE_INFO: Record<MeasurementType, {
     pointsRequired: 2,
     description: "Measure distance between two points"
   },
-  angle: {
+  angle:   {
     name: "Angle",
-    icon: Angle,
+    icon: Triangle,
     pointsRequired: 3,
     description: "Measure angle between three points (vertex in middle)"
   },
