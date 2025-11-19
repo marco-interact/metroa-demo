@@ -106,7 +106,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8888/health || exit 1
 
 # Start FastAPI backend using robust startup script
-CMD ["./start-backend.sh"]
+# Use bash to ensure proper shell environment
+CMD ["/bin/bash", "-c", "/app/start-backend.sh"]
 
 # ============================================================================
 # Build Summary:
