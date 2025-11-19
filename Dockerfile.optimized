@@ -108,7 +108,8 @@ RUN mkdir -p \
     /app/data/uploads \
     /app/data/cache \
     /app/logs \
-    /tmp/runtime-root
+    /tmp/runtime-root && \
+    chmod 0700 /tmp/runtime-root
 
 # Verify COLMAP
 RUN colmap help > /dev/null 2>&1 && echo "✅ COLMAP verified" || \

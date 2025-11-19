@@ -68,8 +68,14 @@ echo ""
 echo "=== 5/7 Directory Setup ==="
 mkdir -p /workspace/data/{results,uploads,cache} 2>/dev/null || true
 mkdir -p /app/data/{results,uploads,cache} /app/logs 2>/dev/null || true
+
+# Ensure XDG_RUNTIME_DIR has correct permissions (Qt/COLMAP requirement)
+mkdir -p /tmp/runtime-root 2>/dev/null || true
+chmod 0700 /tmp/runtime-root 2>/dev/null || true
+
 echo "✅ Directories created"
 ls -ld /workspace/data/* /app/data/* 2>/dev/null | head -10 || true
+echo "XDG_RUNTIME_DIR permissions: $(stat -c '%a' /tmp/runtime-root 2>/dev/null || echo 'N/A')"
 echo ""
 
 # ============================================================================
