@@ -201,6 +201,9 @@ RUN python3.12 -m pip install --break-system-packages --no-cache-dir -r requirem
 # Copy application code
 COPY . .
 
+# Make startup script executable
+RUN chmod +x start-backend.sh
+
 # Create necessary directories
 RUN mkdir -p /workspace/data/{results,uploads,cache} && \
     mkdir -p /app/logs
@@ -212,9 +215,8 @@ EXPOSE 8888
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8888/health || exit 1
 
-# Default command: Start FastAPI backend
-# RunPod will override this if needed, but this provides a default
-CMD ["python3.12", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8888"]
+# Default command: Use robust startup script with detailed error checking
+CMD ["./start-backend.sh"]
 
 # ============================================================================
 # Build Summary:

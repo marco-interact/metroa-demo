@@ -56,8 +56,21 @@ docs/
 
 # Scripts (not needed in container)
 scripts/
-*.sh
-!build-colmap-gpu-fixed.sh  # Keep for reference if needed
+# Exclude shell scripts EXCEPT start-backend.sh
+README/
+DEPLOY.sh
+docker-build.sh
+setup-metroa-pod.sh
+setup-pod-*.sh
+update-frontend-pod-*.sh
+START_BACKEND.sh
+START_BACKEND_CLEAN.sh
+START_BACKEND_PERSISTENT.sh
+START_BACKEND_SCREEN.sh
+build-colmap-gpu-fixed.sh
+build-on-runpod.sh
+docker-build-local.sh
+# start-backend.sh is INCLUDED (not excluded)
 
 # Config files (use environment variables)
 .env
