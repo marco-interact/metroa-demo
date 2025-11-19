@@ -64,6 +64,21 @@ if [ ! -f "metroa.db" ]; then
 fi
 echo ""
 
+# Start virtual display for headless OpenGL (COLMAP requirement)
+echo "=== Starting Virtual Display ==="
+if ! pgrep Xvfb > /dev/null; then
+    echo "Starting Xvfb for headless OpenGL..."
+    Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+    XVFB_PID=$!
+    export DISPLAY=:99
+    sleep 2
+    echo "✅ Xvfb started on DISPLAY :99 (PID: $XVFB_PID)"
+else
+    export DISPLAY=:99
+    echo "✅ Xvfb already running on DISPLAY :99"
+fi
+echo ""
+
 # Start the backend
 echo "=========================================="
 echo "🚀 Starting FastAPI Backend on port 8888"

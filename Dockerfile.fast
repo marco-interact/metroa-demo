@@ -64,6 +64,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
     lsof \
     curl \
+    # Virtual display for headless OpenGL (COLMAP requirement)
+    xvfb \
+    x11-utils \
     # Cleanup
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
