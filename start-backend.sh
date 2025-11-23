@@ -1,124 +1,148 @@
 #!/bin/bash
-# Robust backend startup script with error handling
+# Optimized backend startup script for RunPod
+# Simplified, robust, with proper error handling
 
-# Log everything to file for debugging
-exec > >(tee -a /tmp/backend-startup.log) 2>&1
-
-set -e  # Exit on error
+# Simple logging (no complex process substitution)
+LOG_FILE="/tmp/backend-startup.log"
+exec >> "$LOG_FILE" 2>&1
 
 echo "=========================================="
 echo "Metroa Backend Starting..."
 echo "=========================================="
 echo "Timestamp: $(date)"
-echo ""
-
-# Environment check
-echo "=== Environment Check ==="
-echo "Python version: $(python3 --version)"
-echo "Working directory: $(pwd)"
-echo "User: $(whoami)"
 echo "Hostname: $(hostname)"
 echo ""
 
-# Verify COLMAP
-echo "=== COLMAP Check ==="
+# Don't exit on errors - we want to see what fails
+set +e
+
+# ============================================================================
+# 1. Environment Check
+# ============================================================================
+echo "=== 1/7 Environment Check ==="
+echo "Python: $(python3 --version 2>&1)"
+echo "Working directory: $(pwd)"
+echo "User: $(whoami)"
+echo "PATH: $PATH"
+echo ""
+
+# ============================================================================
+# 2. Verify COLMAP
+# ============================================================================
+echo "=== 2/7 COLMAP Verification ==="
 if command -v colmap &> /dev/null; then
     echo "✅ COLMAP found: $(which colmap)"
-    colmap help | head -3
+    colmap help 2>&1 | head -3 || true
 else
-    echo "❌ COLMAP not found in PATH"
-    exit 1
+    echo "❌ FATAL: COLMAP not found"
+    echo "Container cannot function without COLMAP"
+    sleep infinity  # Keep container alive for debugging
 fi
 echo ""
 
-# Verify Python packages
-echo "=== Python Package Check ==="
-python3 -c "import fastapi; print('✅ FastAPI:', fastapi.__version__)" || { echo "❌ FastAPI missing"; exit 1; }
-python3 -c "import uvicorn; print('✅ Uvicorn:', uvicorn.__version__)" || { echo "❌ Uvicorn missing"; exit 1; }
-python3 -c "import sqlite3; print('✅ SQLite3: OK')" || { echo "❌ SQLite3 missing"; exit 1; }
-
-# Check Open3D (optional)
-python3 -c "import open3d; print('✅ Open3D:', open3d.__version__)" 2>/dev/null || echo "⚠️  Open3D not available (optional)"
+# ============================================================================
+# 3. Verify Python Dependencies
+# ============================================================================
+echo "=== 3/7 Python Package Check ==="
+python3 -c "import fastapi; print('✅ FastAPI:', fastapi.__version__)" 2>&1 || echo "❌ FastAPI MISSING"
+python3 -c "import uvicorn; print('✅ Uvicorn:', uvicorn.__version__)" 2>&1 || echo "❌ Uvicorn MISSING"
+python3 -c "import open3d; print('✅ Open3D:', open3d.__version__)" 2>&1 || echo "⚠️  Open3D unavailable"
 echo ""
 
-# Verify main.py exists
-echo "=== Application Check ==="
+# ============================================================================
+# 4. Verify Application Code
+# ============================================================================
+echo "=== 4/7 Application Check ==="
 if [ -f "main.py" ]; then
-    echo "✅ main.py found"
-    echo "Size: $(du -h main.py | cut -f1)"
+    echo "✅ main.py found ($(du -h main.py | cut -f1))"
 else
-    echo "❌ main.py not found"
-    exit 1
+    echo "❌ FATAL: main.py not found"
+    ls -la /app/ | head -20
+    sleep infinity
 fi
 echo ""
 
-# Create data directories
-echo "=== Setting up directories ==="
-mkdir -p /workspace/data/results /workspace/data/uploads /workspace/data/cache
-mkdir -p /app/data/results /app/data/uploads /app/data/cache
-mkdir -p /app/logs
+# ============================================================================
+# 5. Create Directories
+# ============================================================================
+echo "=== 5/7 Directory Setup ==="
+
+# Ensure /workspace exists (it might not if no volume is attached)
+mkdir -p /workspace
+
+# Set broad permissions on workspace data to ensure writability
+mkdir -p /workspace/data/{results,uploads,cache} 2>/dev/null || true
+chmod -R 777 /workspace/data 2>/dev/null || true
+
+mkdir -p /app/data/{results,uploads,cache} /app/logs 2>/dev/null || true
+
+# Ensure XDG_RUNTIME_DIR has correct permissions (Qt/COLMAP requirement)
+mkdir -p /tmp/runtime-root 2>/dev/null || true
+chmod 0700 /tmp/runtime-root 2>/dev/null || true
+
 echo "✅ Directories created"
+ls -ld /workspace/data/* /app/data/* 2>/dev/null | head -10 || true
+echo "XDG_RUNTIME_DIR permissions: $(stat -c '%a' /tmp/runtime-root 2>/dev/null || echo 'N/A')"
 echo ""
 
-# Initialize database
-echo "=== Database Check ==="
-if [ ! -f "metroa.db" ]; then
-    echo "Creating database..."
-    python3 -c "import database; database.init_db()" || echo "⚠️  Database init failed (will auto-create on first request)"
-fi
-echo ""
-
-# Start virtual display for headless OpenGL (COLMAP requirement)
-echo "=== Starting Virtual Display ==="
-if ! pgrep Xvfb > /dev/null; then
-    echo "Starting Xvfb for headless OpenGL..."
-    echo "Command: Xvfb :99 -screen 0 1024x768x24 +extension GLX +render -noreset"
-    
-    # Start Xvfb and capture any errors
-    Xvfb :99 -screen 0 1024x768x24 +extension GLX +render -noreset > /tmp/xvfb.log 2>&1 &
-    XVFB_PID=$!
-    export DISPLAY=:99
-    echo "Xvfb PID: $XVFB_PID, waiting 3 seconds..."
-    sleep 3
-    
-    # Verify Xvfb is actually running
-    if kill -0 $XVFB_PID 2>/dev/null; then
-        echo "✅ Xvfb started on DISPLAY :99 (PID: $XVFB_PID)"
-        # Test if X server is responding
-        if command -v xdpyinfo &> /dev/null; then
-            xdpyinfo -display :99 > /dev/null 2>&1 && echo "✅ X server :99 is responsive" || echo "⚠️  X server not responding yet"
-        fi
-    else
-        echo "❌ Xvfb failed to start! Check /tmp/xvfb.log for details:"
-        cat /tmp/xvfb.log 2>/dev/null || echo "No Xvfb log available"
-        echo "⚠️  Continuing anyway (COLMAP might fail later)..."
-        # Don't exit - let's see what else happens
-    fi
+# ============================================================================
+# 6. Start Xvfb (Virtual Display for OpenGL)
+# ============================================================================
+echo "=== 6/7 Starting Xvfb ==="
+if pgrep -x Xvfb > /dev/null; then
+    echo "✅ Xvfb already running"
 else
-    export DISPLAY=:99
-    echo "✅ Xvfb already running on DISPLAY :99"
+    echo "Starting Xvfb on DISPLAY :99..."
+    # Start Xvfb with proper error capture
+    Xvfb :99 -screen 0 1024x768x24 +extension GLX +render -noreset >> /tmp/xvfb.log 2>&1 &
+    XVFB_PID=$!
+    
+    # Wait and verify
+    sleep 2
+    if kill -0 $XVFB_PID 2>/dev/null; then
+        echo "✅ Xvfb started (PID: $XVFB_PID)"
+    else
+        echo "⚠️  Xvfb failed to start (non-fatal)"
+        cat /tmp/xvfb.log 2>/dev/null | head -10 || true
+    fi
 fi
+
+# Export DISPLAY for all child processes
+export DISPLAY=:99
+echo "DISPLAY=$DISPLAY"
 echo ""
 
-# Start the backend
+# ============================================================================
+# 7. Start FastAPI Backend
+# ============================================================================
+echo "=== 7/7 Starting Backend ==="
 echo "=========================================="
-echo "🚀 Starting FastAPI Backend on port 8888"
+echo "🚀 FastAPI Backend on port 8888"
 echo "=========================================="
 echo ""
 
-# Run uvicorn WITHOUT exec so we can see errors
+# Start backend and capture logs
 python3 -m uvicorn main:app \
     --host 0.0.0.0 \
     --port 8888 \
     --log-level info \
-    --no-access-log 2>&1 || {
-    echo ""
-    echo "=========================================="
-    echo "❌ BACKEND CRASHED!"
-    echo "=========================================="
-    echo "Exit code: $?"
-    echo ""
-    echo "Keeping container alive for debugging..."
-    tail -f /dev/null
-}
+    --no-access-log
+
+# If we get here, backend crashed
+EXITCODE=$?
+echo ""
+echo "=========================================="
+echo "❌ BACKEND EXITED (code: $EXITCODE)"
+echo "=========================================="
+echo "Timestamp: $(date)"
+echo ""
+echo "Last 50 lines of log:"
+tail -50 "$LOG_FILE"
+echo ""
+echo "Keeping container alive for debugging..."
+echo "SSH in and check /tmp/backend-startup.log"
+echo ""
+
+# Keep container alive forever
+sleep infinity
 

@@ -1529,7 +1529,7 @@ async def upload_video_for_reconstruction(
     background_tasks: BackgroundTasks,
     project_id: str = Form(...),
     scan_name: str = Form(...),
-    quality: str = Form("high"),  # Default to "high" for best quality (recommended)
+    quality: str = Form("ultra"),  # Default to "ultra" for best quality (super high definition)
     user_email: str = Form("demo@metroa.app"),
     video: UploadFile = File(...)
 ):
