@@ -85,8 +85,8 @@ def postprocess_pointcloud(
         outlier_removal = True
         statistical_nb_neighbors = 20
         statistical_std_ratio = 2.0
-        downsample_threshold = 5000000
-        voxel_size = 0.005
+        downsample_threshold = 10000000
+        voxel_size = 0.002
         
         # Override with quality preset if provided
         if quality_preset:

@@ -134,7 +134,9 @@ class COLMAPProcessor:
             target_frames = {
                 "low": 60,      # Increased for better overlap (was 40)
                 "medium": 100,  # Increased for >80% overlap (was 70)
-                "high": 150     # Increased for maximum overlap (was 120)
+                "high": 150     # Increased for maximum overlap (was 120),
+                "ultra": 300,
+                "ultra_openmvs": 300
             }
             
             target_frame_count = target_frames.get(quality, 100)
@@ -144,7 +146,8 @@ class COLMAPProcessor:
             if duration > 0:
                 optimal_fps = target_frame_count / duration
                 # Increased FPS range for better overlap (was 3-15, now 5-20)
-                optimal_fps = max(5, min(optimal_fps, 20))  # Between 5-20 fps for better overlap
+                max_fps = 30 if "ultra" in quality else 20
+                optimal_fps = max(5, min(optimal_fps, max_fps))  # Between 5-20 fps for better overlap
                 # Don't exceed native FPS
                 optimal_fps = min(optimal_fps, native_fps)
             else:
@@ -242,7 +245,9 @@ class COLMAPProcessor:
         scale_map = {
             "low": "1280:-2",
             "medium": "1920:-2", 
-            "high": "3840:-2"
+            "high": "3840:-2",
+            "ultra": "3840:-2",
+            "ultra_openmvs": "3840:-2"
         }
         scale = scale_map.get(quality, "1920:-2")
         
@@ -637,23 +642,23 @@ class COLMAPProcessor:
                 "cache_size": "64"
             },
             "high": {
-                "window_radius": "11",      # Maximum detail capture
+                "window_radius": "15",      # Maximum detail capture
                 "window_step": "1",         # Finest sampling
-                "num_samples": "50",        # 2x increase - maximum quality
-                "num_iterations": "10",     # Maximum refinement
-                "geom_consistency_max_cost": "0.4",  # Strictest filtering
-                "filter_min_ncc": "0.3",    # Strict quality threshold
+                "num_samples": "64",        # High sample count
+                "num_iterations": "12",     # Good refinement
+                "geom_consistency_max_cost": "1.0",  # LOOSE filtering for MORE points
+                "filter_min_ncc": "0.05",   # LOOSE threshold for MORE points
                 "cache_size": "64"          # Use all available VRAM
             },
             "ultra": {
-                "window_radius": "13",      # Even larger for ultra detail
+                "window_radius": "15",      # Maximum detail
                 "window_step": "1",         # Finest sampling
-                "num_samples": "75",        # 50% more than high - maximum quality
-                "num_iterations": "12",     # More refinement iterations
-                "geom_consistency_max_cost": "0.3",  # Ultra-strict filtering
-                "filter_min_ncc": "0.35",   # Very strict quality threshold
+                "num_samples": "128",       # Extreme sampling
+                "num_iterations": "15",     # Maximum refinement
+                "geom_consistency_max_cost": "1.5",  # VERY LOOSE filtering for MAX density
+                "filter_min_ncc": "0.02",   # ALMOST NO filtering - keep everything
                 "cache_size": "64",         # Use all available VRAM
-                "geom_consistency_regularizer": "0.3"  # Enhanced geometric consistency
+                "geom_consistency_regularizer": "0.1"  # Lower regularization
             }
         }
         stereo_params = quality_params.get(quality, quality_params["medium"])
@@ -719,18 +724,18 @@ class COLMAPProcessor:
                 "min_num_pixels": "3"            # Lower = more points
             },
             "high": {
-                "max_reproj_error": "1.2",      # Strictest for maximum precision
-                "max_depth_error": "0.01",       # Very precise depth matching
-                "max_normal_error": "8",         # Strict normal consistency
-                "min_num_pixels": "2"            # Even lower for more points
+                "max_reproj_error": "4.0",      # Relaxed for more points
+                "max_depth_error": "0.05",       # Relaxed
+                "max_normal_error": "20",         # Relaxed
+                "min_num_pixels": "1"            # Minimum pixels
             },
             "ultra": {
-                "max_reproj_error": "1.0",       # Ultra-strict reprojection error
-                "max_depth_error": "0.008",      # Ultra-precise depth matching
-                "max_normal_error": "6",         # Very strict normal consistency
-                "min_num_pixels": "2",           # Minimum pixels for fusion
+                "max_reproj_error": "6.0",       # Extremely relaxed
+                "max_depth_error": "0.1",      # Extremely relaxed
+                "max_normal_error": "30",         # Extremely relaxed
+                "min_num_pixels": "1",           # Minimum pixels
                 "max_num_pixels": "10000",       # Maximum pixels per point
-                "max_traversal_depth": "100"     # Deep traversal for coverage
+                "max_traversal_depth": "150"     # Deep traversal for coverage
             }
         }
         fusion_quality_params = fusion_params.get(quality, fusion_params["medium"])
