@@ -642,7 +642,7 @@ class COLMAPProcessor:
                 "cache_size": "64"
             },
             "high": {
-                "window_radius": "15",      # Maximum detail capture
+                "window_radius": "11",      # Maximum detail capture
                 "window_step": "1",         # Finest sampling
                 "num_samples": "64",        # High sample count
                 "num_iterations": "12",     # Good refinement
