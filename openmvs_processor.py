@@ -392,5 +392,5 @@ class OpenMVSProcessor:
 
         except Exception as e:
             logger.error(f"❌ Mesh reconstruction failed: {e}")
-            return None
+        return None
 
