@@ -323,11 +323,12 @@ class COLMAPProcessor:
                 "peak_threshold": "0.0066",
             },
             "ultra": {
-                "max_num_features": "65536",    # Maximum features
-                "max_image_size": "8192",       # Very high resolution (8K) - max_image_size=0 may not be supported
-                "first_octave": "-1",           # Extract at higher resolution
-                "num_octaves": "4",
-                "peak_threshold": "0.0066",     # Lower threshold for more features
+                "max_num_features": "131072",   # Extreme feature count
+                "max_image_size": "8192",       # 8K resolution support
+                "first_octave": "-1",           # Always use original resolution
+                "num_octaves": "5",             # More scales
+                "peak_threshold": "0.001",      # Extremely sensitive (finds everything)
+                "edge_threshold": "15",         # Allow slightly more edge-like features
             }
         }
         
@@ -467,20 +468,22 @@ class COLMAPProcessor:
                 "use_exhaustive": False  # Use sequential with high overlap for reliability
             },
             "ultra": {
-                "overlap": "100",  # Match all frames
-                "use_exhaustive": True  # Exhaustive matching for maximum quality
+                "overlap": "50",         # High overlap for sequential
+                "use_exhaustive": True,  # FORCE exhaustive matching for Ultra
+                "guided_matching": "1"   # Use geometric verification to guide matching
             }
         }
         overlap_config = overlap_params.get(quality, overlap_params["medium"])
         
         # Enhanced matching parameters for robust feature matching
         matching_base_params = [
-            "--SiftMatching.max_ratio", "0.8",      # Lower = more selective matches
-            "--SiftMatching.max_distance", "0.7",   # Maximum feature distance
-            "--SiftMatching.cross_check", "1",      # Enable cross-checking for robustness
+            "--SiftMatching.max_ratio", "0.9",      # Loose ratio for more matches (RANSAC will clean up)
+            "--SiftMatching.max_distance", "0.9",   # Allow distant matches
+            "--SiftMatching.cross_check", "1",      # Keep cross-check for reliability
             "--SiftMatching.use_gpu", "1" if actual_use_gpu else "0",
             "--SiftMatching.gpu_index", "0",
             "--SiftMatching.max_num_matches", match_params["max_num_matches"],
+            *(["--SiftMatching.guided_matching", "1"] if overlap_config.get("guided_matching") == "1" else [])
         ]
         
         # Matching strategy selection

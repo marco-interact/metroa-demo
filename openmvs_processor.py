@@ -208,10 +208,11 @@ class OpenMVSProcessor:
                 "num-threads": "16",
             },
             "ultra_openmvs": {
-                "resolution-level": "0",       # Full resolution
-                "min-resolution": "1920",
-                "max-resolution": "4096",
+                "resolution-level": "0",       # CRITICAL: Full resolution (no downscaling)
+                "min-resolution": "2560",      # Ensure high detail
+                "max-resolution": "8192",      # Support 8K
                 "num-threads": "16",
+                "number-views": "0",           # 0 = optimal for dense
             }
         }
         
@@ -226,9 +227,12 @@ class OpenMVSProcessor:
             "--min-resolution", params["min-resolution"],
             "--max-resolution", params["max-resolution"],
             "--num-threads", params["num-threads"],
-            "--estimate-colors", "1",          # Estimate colors from images
-            "--estimate-normals", "1",         # Estimate normals
-            "--check-densify", "1",            # Check consistency
+            *(["--number-views", params["number-views"]] if "number-views" in params else []),
+            "--estimate-colors", "1",
+            "--estimate-normals", "1",
+            "--check-densify", "1",
+            # GPU Optimization for DensifyPointCloud (if CUDA available)
+            "--cuda-device", "-1" # -1 = auto
         ]
         
         try:
@@ -368,6 +372,10 @@ class OpenMVSProcessor:
                 "--input-file", str(output_mesh),
                 "--output-file", str(texture_out),
                 "--export-type", "obj", # Export OBJ/MTL for web viewer
+                # High quality texturing options
+                "--cost-smoothness-ratio", "1", # Balance geometric vs color smoothness
+                "--outlier-threshold", "0.05", # Remove outliers
+                "--patch-packing-heuristic", "3", # Best packing
             ]
             logger.info("🎨 Running OpenMVS TextureMesh...")
             subprocess.run(texture_cmd, check=True, capture_output=True, text=True, env=self.env, timeout=1200)

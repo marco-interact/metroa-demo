@@ -170,6 +170,12 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         conn.close()
         
         # Step 1: Extract frames from video with AUTO FPS DETECTION
+        # For ULTRA mode, we need MORE FRAMES for better overlap and density
+        # Override FPS detection if quality is high/ultra
+        target_fps_override = None
+        if quality_mode == "ultra_openmvs":
+             target_fps_override = 15 # Force at least 15 FPS for ultra quality (more overlap)
+        
         stage_msg = "Converting 360° video to perspective frames..." if is_360_video else "Extracting frames from video..."
         update_scan_status(scan_id, "processing", progress=2, stage=stage_msg)
         logger.info(f"📹 Extracting frames from {video_path} {'(360° video)' if is_360_video else ''}")
@@ -183,7 +189,7 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         
         frame_count = processor.extract_frames(
             video_path=str(video_path),
-            target_fps=None,  # Enable auto FPS detection
+            target_fps=target_fps_override,  # Pass override
             quality=quality,
             progress_callback=frame_progress_callback,
             is_360=is_360_video
@@ -450,8 +456,17 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                 
                 try:
                     import trimesh
+                    import numpy as np
+                    
                     # Load OBJ
                     mesh = trimesh.load(str(openmvs_mesh_obj), force='mesh')
+                    
+                    # CENTER THE MESH (Critical for correct positioning)
+                    # We use the centroid of the mesh vertices
+                    center = mesh.centroid
+                    mesh.apply_translation(-center)
+                    logger.info(f"✅ Centered mesh (translated by {-center})")
+                    
                     # Export GLB
                     mesh.export(str(mesh_output_path), file_type='glb')
                     
@@ -486,8 +501,8 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                     mesh_depth = 9
                     decimation_target = 500000  # 500K triangles
                 else:  # ultra_openmvs
-                    mesh_depth = 10
-                    decimation_target = 1000000  # 1M triangles
+                    mesh_depth = 11  # Increased from 10
+                    decimation_target = 2000000  # Increased from 1M triangles
                 
                 mesh_output_path = results_dir / "mesh.glb"
                 
@@ -499,6 +514,18 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                     decimation_target=decimation_target,
                     quality_mode=quality_mode
                 )
+                
+                # Center the generated mesh if successful
+                if mesh_result.get("status") == "success" and mesh_output_path.exists():
+                     try:
+                        import trimesh
+                        mesh = trimesh.load(str(mesh_output_path), force='mesh')
+                        center = mesh.centroid
+                        mesh.apply_translation(-center)
+                        mesh.export(str(mesh_output_path), file_type='glb')
+                        logger.info(f"✅ Centered generated mesh")
+                     except Exception as e:
+                        logger.warning(f"Failed to center generated mesh: {e}")
                 
                 if mesh_result.get("status") == "success":
                     mesh_path = mesh_output_path
