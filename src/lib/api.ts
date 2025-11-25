@@ -495,10 +495,15 @@ class APIClient {
     }
 
     try {
-      // baseUrl is /api/backend, endpoint is /status
-      // Results in: /api/backend/status which rewrites to backend /api/status
-      const response = await this.request<any>('/status')
-      return { status: response.backend || 'healthy' }
+      // Explicitly check /health endpoint (which maps to backend root /health)
+      // Note: We bypass request() to avoid appending to baseUrl if we want to use a different path strategy
+      // But since we added a specific rewrite for /api/backend/health -> /health, we can use fetch directly
+      
+      const response = await fetch(`${this.baseUrl}/health`)
+      if (!response.ok) throw new Error('Health check failed')
+      
+      const data = await response.json()
+      return { status: data.status || 'healthy' }
     } catch (error) {
       console.error('Health check failed:', error)
       // If health check fails, we're now in demo mode
