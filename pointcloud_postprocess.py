@@ -129,9 +129,18 @@ def postprocess_pointcloud(
                 progress_callback(3, 5, "Point count within threshold, skipping downsampling")
             stats["processing_steps"].append("Downsampling skipped (within threshold)")
         
-        # Step 4: Compute bounding box
+        # Step 4: Center point cloud (Fix anchoring/grid alignment)
         if progress_callback:
-            progress_callback(4, 5, "Computing bounding box...")
+            progress_callback(3, 6, "Centering point cloud to origin...")
+        
+        center = pcd.get_center()
+        pcd.translate(-center)
+        stats["processing_steps"].append(f"Centered model (translated by {-center})")
+        logger.info(f"✅ Centered point cloud (was at {center})")
+
+        # Step 5: Compute bounding box
+        if progress_callback:
+            progress_callback(4, 6, "Computing bounding box...")
         
         bbox = pcd.get_axis_aligned_bounding_box()
         bbox_min = bbox.min_bound
@@ -145,9 +154,9 @@ def postprocess_pointcloud(
             "volume": float(bbox_extent[0] * bbox_extent[1] * bbox_extent[2])
         }
         
-        # Step 5: Save cleaned point cloud
+        # Step 6: Save cleaned point cloud
         if progress_callback:
-            progress_callback(5, 5, "Saving cleaned point cloud...")
+            progress_callback(5, 6, "Saving cleaned point cloud...")
         
         output_path.parent.mkdir(parents=True, exist_ok=True)
         success = o3d.io.write_point_cloud(str(output_path), pcd)

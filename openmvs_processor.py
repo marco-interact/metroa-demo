@@ -297,18 +297,100 @@ class OpenMVSProcessor:
     def reconstruct_mesh(
         self,
         input_mvs: str,
+        quality: str = "high",
         progress_callback=None
     ) -> Optional[Dict[str, any]]:
         """
-        Optionally run OpenMVS ReconstructMesh
+        Run OpenMVS ReconstructMesh to generate a mesh from the dense point cloud.
         
-        This is optional and can be enabled later if mesh generation is needed.
-        For now, we focus on dense point clouds.
+        Args:
+            input_mvs: Path to input .mvs file (dense)
+            quality: Quality preset
+            progress_callback: Optional callback
         
         Returns:
-            Dictionary with mesh file path, or None if skipped
+            Dictionary with mesh file paths
         """
-        # Skip mesh reconstruction for now - focus on point clouds
-        logger.info("ℹ️  Mesh reconstruction skipped (focusing on point clouds)")
-        return None
+        if not Path(input_mvs).exists():
+            raise FileNotFoundError(f"Input MVS file not found: {input_mvs}")
+            
+        if not self.check_openmvs_available():
+            logger.warning("OpenMVS tools not available, skipping mesh reconstruction")
+            return None
+
+        output_mesh = self.openmvs_path / "scene_dense_mesh.mvs"
+        output_ply = self.openmvs_path / "scene_dense_mesh.ply"
+        
+        if progress_callback:
+            progress_callback("Reconstructing mesh...", 0)
+
+        # ReconstructMesh parameters
+        cmd = [
+            self._find_openmvs_tool("ReconstructMesh"),
+            "--working-folder", str(self.openmvs_path),
+            "--input-file", str(input_mvs),
+            "--output-file", str(output_mesh),
+            # ConstantSpace=1 gives better uniform detail for "hyper realistic" look
+            "--constant-space", "1", 
+            "--min-point-distance", "2.5",
+            "--free-space-support", "1",
+            "--thickness-factor", "1.0",
+        ]
+        
+        try:
+            logger.info("🕸️ Running OpenMVS ReconstructMesh...")
+            subprocess.run(cmd, check=True, capture_output=True, text=True, env=self.env, timeout=1200)
+            
+            if progress_callback:
+                progress_callback("Refining mesh...", 33)
+            
+            # RefineMesh (optional but recommended for high quality)
+            refine_cmd = [
+                self._find_openmvs_tool("RefineMesh"),
+                "--working-folder", str(self.openmvs_path),
+                "--input-file", str(output_mesh),
+                "--output-file", str(output_mesh), # Overwrite
+                "--resolution-level", "0", # Full resolution
+                "--min-resolution", "640",
+                "--scales", "2", # Multi-scale refinement
+            ]
+            logger.info("✨ Running OpenMVS RefineMesh...")
+            subprocess.run(refine_cmd, check=True, capture_output=True, text=True, env=self.env, timeout=1200)
+            
+            if progress_callback:
+                progress_callback("Texturing mesh...", 66)
+
+            # TextureMesh (CRITICAL for hyper-realistic look)
+            texture_out = self.openmvs_path / "scene_dense_mesh_textured.mvs"
+            texture_cmd = [
+                self._find_openmvs_tool("TextureMesh"),
+                "--working-folder", str(self.openmvs_path),
+                "--input-file", str(output_mesh),
+                "--output-file", str(texture_out),
+                "--export-type", "obj", # Export OBJ/MTL for web viewer
+            ]
+            logger.info("🎨 Running OpenMVS TextureMesh...")
+            subprocess.run(texture_cmd, check=True, capture_output=True, text=True, env=self.env, timeout=1200)
+
+            # Convert MVS mesh to PLY for consistency/viewer if needed
+            # But TextureMesh usually outputs .obj or .ply depending on config
+            # Let's ensure we have a usable PLY
+            if (self.openmvs_path / "scene_dense_mesh_textured.ply").exists():
+                output_ply = self.openmvs_path / "scene_dense_mesh_textured.ply"
+            elif (self.openmvs_path / "scene_dense_mesh_textured.obj").exists():
+                 # If OBJ was created, we might want to stick with that or convert
+                 pass
+
+            logger.info(f"✅ Mesh reconstruction complete: {texture_out}")
+            
+            return {
+                "status": "success",
+                "mesh_mvs": str(texture_out),
+                "mesh_obj": str(self.openmvs_path / "scene_dense_mesh_textured.obj"),
+                "type": "mesh"
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Mesh reconstruction failed: {e}")
+            return None
 

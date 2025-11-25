@@ -301,6 +301,21 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                     raw_ply_path = Path(dense_result["dense_ply"])
                     logger.info(f"✅ OpenMVS densification complete: {raw_ply_path}")
                     update_scan_status(scan_id, "processing", progress=85, stage="OpenMVS densification complete!")
+                    
+                    # OpenMVS Mesh Reconstruction (Hyper Realistic Mode)
+                    mesh_result = openmvs_processor.reconstruct_mesh(
+                        input_mvs=dense_result["dense_mvs"],
+                        quality="ultra_openmvs",
+                        progress_callback=lambda msg, pct: openmvs_progress_callback(msg, 85 + pct * 0.15)
+                    )
+                    
+                    if mesh_result and mesh_result.get("status") == "success":
+                        # If mesh reconstruction succeeded, update paths
+                        logger.info(f"✅ OpenMVS Mesh Reconstruction Complete")
+                        # We can use the mesh OBJ/PLY as the primary result or convert it
+                        # For now, we just store it in the result dict to be picked up later
+                        dense_result["mesh_obj"] = mesh_result.get("mesh_obj")
+                        dense_result["mesh_mvs"] = mesh_result.get("mesh_mvs")
                 else:
                     raise RuntimeError("OpenMVS densification failed")
                     
@@ -420,11 +435,40 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         except Exception as e:
             logger.warning(f"Could not save reconstruction metrics: {e}")
         
-        # Step 10: Generate Mesh from Point Cloud
+        # Step 10: Generate Mesh from Point Cloud OR Use OpenMVS Mesh
         mesh_path = None
         mesh_stats = None
         
-        if final_ply_path and final_ply_path.exists() and dense_points > 10000:
+        # Check if we have an OpenMVS mesh from the dense reconstruction step
+        if 'dense_result' in locals() and dense_result and dense_result.get("mesh_obj"):
+            openmvs_mesh_obj = Path(dense_result["mesh_obj"])
+            if openmvs_mesh_obj.exists():
+                update_scan_status(scan_id, "processing", progress=98, stage="Converting OpenMVS mesh to GLB...")
+                logger.info(f"🎨 Converting OpenMVS mesh to GLB: {openmvs_mesh_obj}")
+                
+                mesh_output_path = results_dir / "mesh.glb"
+                
+                try:
+                    import trimesh
+                    # Load OBJ
+                    mesh = trimesh.load(str(openmvs_mesh_obj), force='mesh')
+                    # Export GLB
+                    mesh.export(str(mesh_output_path), file_type='glb')
+                    
+                    mesh_path = mesh_output_path
+                    mesh_stats = {
+                        "vertices": len(mesh.vertices),
+                        "triangles": len(mesh.faces),
+                        "method": "openmvs_texture",
+                        "is_watertight": mesh.is_watertight
+                    }
+                    logger.info(f"✅ Converted OpenMVS mesh: {len(mesh.vertices):,} vertices")
+                except Exception as e:
+                    logger.error(f"❌ Failed to convert OpenMVS mesh: {e}")
+                    # Fallback to point cloud meshing below
+        
+        # Fallback: Generate mesh from point cloud if no OpenMVS mesh
+        if not mesh_path and final_ply_path and final_ply_path.exists() and dense_points > 10000:
             try:
                 from mesh_generator import generate_mesh_from_pointcloud
                 

@@ -66,11 +66,6 @@ echo ""
 # 5. Create Directories
 # ============================================================================
 echo "=== 5/7 Directory Setup ==="
-
-# Ensure /workspace exists (it might not if no volume is attached)
-mkdir -p /workspace
-
-# Set broad permissions on workspace data to ensure writability
 mkdir -p /workspace/data/{results,uploads,cache} 2>/dev/null || true
 chmod -R 777 /workspace/data 2>/dev/null || true
 
