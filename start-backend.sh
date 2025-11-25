@@ -66,6 +66,10 @@ echo ""
 # 5. Create Directories
 # ============================================================================
 echo "=== 5/7 Directory Setup ==="
+# Ensure workspace is writable (crucial for Network Volumes)
+# Fix permissions on the mount point itself so we can create database.db
+chmod 777 /workspace 2>/dev/null || true
+
 mkdir -p /workspace/data/{results,uploads,cache} 2>/dev/null || true
 chmod -R 777 /workspace/data 2>/dev/null || true
 
