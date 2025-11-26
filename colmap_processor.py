@@ -134,7 +134,7 @@ class COLMAPProcessor:
             target_frames = {
                 "low": 60,      # Increased for better overlap (was 40)
                 "medium": 100,  # Increased for >80% overlap (was 70)
-                "high": 150     # Increased for maximum overlap (was 120),
+                "high": 150,    # Increased for maximum overlap (was 120)
                 "ultra": 300,
                 "ultra_openmvs": 300
             }
