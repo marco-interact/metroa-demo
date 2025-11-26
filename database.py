@@ -119,6 +119,11 @@ class Database:
                 logger.info("✅ Added postprocessing_stats column")
             except:
                 pass
+            try:
+                conn.execute("ALTER TABLE scans ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+                logger.info("✅ Added updated_at column")
+            except:
+                pass
             
             # Technical details table (stores COLMAP processing results)
             conn.execute('''
