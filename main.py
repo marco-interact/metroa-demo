@@ -1193,6 +1193,12 @@ async def calibrate_scale(
         result = measurement_system.calibrate_scale(point1_id, point2_id, known_distance)
         
         logger.info(f"✅ Calibration successful: scale_factor={result['scale_factor']:.6f}")
+        # Save scaled reconstruction back to disk
+        try:
+            measurement_system.save_scaled_reconstruction(str(sparse_path))
+            logger.info(f"✅ Saved scaled reconstruction to {sparse_path}")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to save scaled reconstruction: {e}")
         
         # Save scale factor to scan metadata
         conn = get_db_connection()

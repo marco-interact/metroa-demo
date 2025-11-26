@@ -564,4 +564,29 @@ class MeasurementSystem:
                 "z": float(xyz_array[:, 2].mean()),
             }
         }
+    def save_scaled_reconstruction(self, output_path: str = None):
+        """
+        Save scaled reconstruction back to disk
+        
+        Args:
+            output_path: Optional output directory (defaults to self.sparse_path)
+        """
+        from pathlib import Path
+        
+        if output_path is None:
+            output_path = str(self.sparse_path)
+        else:
+            output_path = str(Path(output_path))
+            Path(output_path).mkdir(parents=True, exist_ok=True)
+        
+        # Save scale factor to a metadata file
+        scale_file = Path(output_path) / "scale_factor.txt"
+        with open(scale_file, 'w') as f:
+            f.write(f"{self.scale_factor}\n")
+        
+        logger.info(f"✅ Saved scale factor {self.scale_factor:.6f} to {scale_file}")
+        logger.info(f"ℹ️  Scaled reconstruction is in memory. Scale factor: {self.scale_factor:.6f}")
+        
+        return output_path
+
 
