@@ -66,3 +66,9 @@ backend.pid
 # OS
 .DS_Store
 Thumbs.db
+.cursor/
+*.bak
+*.bak2
+*.bak3
+apply_density_fixes.sh
+fix_window_radius.py
