@@ -328,12 +328,12 @@ class COLMAPProcessor:
                 "peak_threshold": "0.0066",
             },
             "ultra": {
-                "max_num_features": "131072",   # Extreme feature count
-                "max_image_size": "8192",       # 8K resolution support
+                "max_num_features": "81920",   # Extreme feature count
+                "max_image_size": "4096",       # 8K resolution support
                 "first_octave": "-1",           # Always use original resolution
-                "num_octaves": "5",             # More scales
-                "peak_threshold": "0.001",      # Extremely sensitive (finds everything)
-                "edge_threshold": "15",         # Allow slightly more edge-like features
+                "num_octaves": "4",             # More scales
+                "peak_threshold": "0.004",      # Extremely sensitive (finds everything)
+                "edge_threshold": "10",         # Allow slightly more edge-like features
             }
         }
         
@@ -465,7 +465,7 @@ class COLMAPProcessor:
                 "use_exhaustive": False
             },
             "medium": {
-                "overlap": "50",  # Match 50 adjacent frames (~50-70% overlap)
+                "overlap": "100",  # Match 50 adjacent frames (~50-70% overlap)
                 "use_exhaustive": False
             },
             "high": {
@@ -473,8 +473,8 @@ class COLMAPProcessor:
                 "use_exhaustive": False  # Use sequential with high overlap for reliability
             },
             "ultra": {
-                "overlap": "50",         # High overlap for sequential
-                "use_exhaustive": True,  # FORCE exhaustive matching for Ultra
+                "overlap": "100",         # High overlap for sequential
+                "use_exhaustive": False,  # FORCE exhaustive matching for Ultra
                 "guided_matching": "1"   # Use geometric verification to guide matching
             }
         }
@@ -651,14 +651,14 @@ class COLMAPProcessor:
                 "cache_size": "64"          # Use all available VRAM
             },
             "ultra": {
-                "window_radius": "15",      # Maximum detail
+                "window_radius": "11",      # Maximum detail
                 "window_step": "1",         # Finest sampling
-                "num_samples": "128",       # Extreme sampling
-                "num_iterations": "15",     # Maximum refinement
-                "geom_consistency_max_cost": "1.5",  # VERY LOOSE filtering for MAX density
-                "filter_min_ncc": "0.02",   # ALMOST NO filtering - keep everything
+                "num_samples": "80",       # Extreme sampling
+                "num_iterations": "10",     # Maximum refinement
+                "geom_consistency_max_cost": "1.2",  # VERY LOOSE filtering for MAX density
+                "filter_min_ncc": "0.08",   # ALMOST NO filtering - keep everything
                 "cache_size": "64",         # Use all available VRAM
-                "geom_consistency_regularizer": "0.1"  # Lower regularization
+                "geom_consistency_regularizer": "0.3"  # Lower regularization
             }
         }
         stereo_params = quality_params.get(quality, quality_params["medium"])
@@ -727,15 +727,15 @@ class COLMAPProcessor:
                 "max_reproj_error": "4.0",      # Relaxed for more points
                 "max_depth_error": "0.05",       # Relaxed
                 "max_normal_error": "20",         # Relaxed
-                "min_num_pixels": "1"            # Minimum pixels
+                "min_num_pixels": "2"            # Minimum pixels
             },
             "ultra": {
-                "max_reproj_error": "6.0",       # Extremely relaxed
-                "max_depth_error": "0.1",      # Extremely relaxed
-                "max_normal_error": "30",         # Extremely relaxed
-                "min_num_pixels": "1",           # Minimum pixels
-                "max_num_pixels": "10000",       # Maximum pixels per point
-                "max_traversal_depth": "150"     # Deep traversal for coverage
+                "max_reproj_error": "3.0",       # Extremely relaxed
+                "max_depth_error": "0.04",      # Extremely relaxed
+                "max_normal_error": "18",         # Extremely relaxed
+                "min_num_pixels": "2",           # Minimum pixels
+                "max_num_pixels": "5000",       # Maximum pixels per point
+                "max_traversal_depth": "100"     # Deep traversal for coverage
             }
         }
         fusion_quality_params = fusion_params.get(quality, fusion_params["medium"])
