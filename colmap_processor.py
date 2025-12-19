@@ -198,12 +198,48 @@ class COLMAPProcessor:
         
         logger.info(f"📹 Extracting frames from {video_path} (quality={quality})")
         
-        # Detect video's NATIVE FPS (no artificial limits or overrides)
+        # Use target_fps if provided, otherwise auto-detect
         if target_fps is None:
-            actual_fps, duration, estimated_frames = self._detect_native_fps(video_path)
+            # Get video metadata first
+            try:
+                probe_cmd = [
+                    "ffprobe", "-v", "error",
+                    "-show_entries", "format=duration:stream=r_frame_rate",
+                    "-of", "default=noprint_wrappers=1",
+                    str(video_path)
+                ]
+                probe_result = subprocess.run(probe_cmd, check=True, capture_output=True, text=True)
+                output_lines = probe_result.stdout.strip().split('\n')
+                
+                duration = 30.0  # Default
+                native_fps = 24.0  # Default
+                
+                for line in output_lines:
+                    if 'r_frame_rate' in line or '/' in line:
+                        fps_str = line.split('=')[-1]
+                        if '/' in fps_str:
+                            num, den = fps_str.split('/')
+                            if float(den) > 0:
+                                native_fps = float(num) / float(den)
+                    elif 'duration' in line:
+                        duration = float(line.split('=')[-1])
+                
+                logger.info(f"📹 Video: {duration:.1f}s @ {native_fps:.0f} fps")
+                
+                # IMPORTANT: Use native FPS, let ffmpeg handle extraction
+                # This ensures we get frames even from short videos
+                actual_fps = min(native_fps, 30.0)  # Cap at 30 FPS for efficiency
+                estimated_frames = max(int(duration * actual_fps), 10)  # Guarantee at least 10 frames
+                
+                logger.info(f"🎯 Extracting at {actual_fps:.0f} fps → ~{estimated_frames} frames (min 10)")
+                
+            except Exception as e:
+                logger.warning(f"⚠️  FPS detection failed: {e}, using defaults")
+                actual_fps = 24.0
+                duration = 30.0
+                estimated_frames = 720
         else:
-            # Manual FPS override (not recommended - used for testing only)
-            logger.warning(f"⚠️  Manual FPS override: {target_fps} (not recommended)")
+            # Manual FPS override
             try:
                 probe_cmd = [
                     "ffprobe", "-v", "error",
@@ -214,13 +250,13 @@ class COLMAPProcessor:
                 probe_result = subprocess.run(probe_cmd, check=True, capture_output=True, text=True)
                 duration = float(probe_result.stdout.strip())
                 actual_fps = target_fps
-                estimated_frames = int(duration * actual_fps)
+                estimated_frames = max(int(duration * actual_fps), 10)
                 logger.info(f"📹 Manual FPS: {actual_fps} fps → ~{estimated_frames} frames")
             except Exception as e:
                 logger.warning(f"Could not detect video duration: {e}")
                 actual_fps = target_fps
                 duration = 30.0
-                estimated_frames = int(30 * target_fps)
+                estimated_frames = max(int(30 * target_fps), 10)
         
         # Quality-based scaling
         scale_map = {
@@ -255,21 +291,30 @@ class COLMAPProcessor:
             cmd.insert(-2, str(max_frames))
         
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
             
             # Count extracted frames
             frame_count = len(list(self.images_path.glob("*.jpg")))
+            
+            # CRITICAL: Ensure we have enough frames for COLMAP
+            if frame_count < 3:
+                logger.error(f"❌ Only {frame_count} frames extracted - COLMAP needs at least 3")
+                logger.error(f"ffmpeg command: {' '.join(cmd)}")
+                logger.error(f"ffmpeg stderr: {result.stderr}")
+                logger.error(f"Video: {video_path}, FPS: {actual_fps}, Duration: {duration:.1f}s")
+                raise RuntimeError(f"Frame extraction failed: only {frame_count} frames (need 3+)")
             
             # Call progress callback at completion
             if progress_callback:
                 progress_callback(frame_count, frame_count)
             
-            logger.info(f"Extracted {frame_count} frames to {self.images_path}")
+            logger.info(f"✅ Extracted {frame_count} frames to {self.images_path}")
             return frame_count
             
         except subprocess.CalledProcessError as e:
-            logger.error(f"Frame extraction failed: {e.stderr}")
-            raise
+            logger.error(f"❌ Frame extraction failed: {e.stderr}")
+            logger.error(f"ffmpeg command: {' '.join(cmd)}")
+            raise RuntimeError(f"FFmpeg failed: {e.stderr}")
     
     def extract_features(self, quality: str = "medium", use_gpu: bool = True, progress_callback=None) -> Dict:
         """
