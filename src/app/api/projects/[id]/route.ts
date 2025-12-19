@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // Backend URL - use environment variable or fallback
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// Use API_URL (server-side only) for security - not exposed to browser
+const BACKEND_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export async function GET(
   request: NextRequest,

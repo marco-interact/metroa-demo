@@ -3,9 +3,11 @@
 Quality Preset Configuration System for Metroa Labs Pipeline
 
 Defines three reconstruction modes:
-- fast: Quick processing with conservative settings
-- high_quality: Enhanced COLMAP with Open3D cleanup
-- ultra_openmvs: COLMAP + OpenMVS + Open3D for maximum quality
+- fast: Quick COLMAP dense reconstruction
+- high_quality: Enhanced COLMAP dense with high settings
+- ultra_openmvs: COLMAP sparse + OpenMVS densification (maximum quality)
+
+Note: Open3D post-processing has been removed to preserve maximum point cloud density
 """
 
 from typing import Dict, Any
@@ -55,85 +57,71 @@ class QualityPreset:
     
     # OpenMVS (ultra_openmvs only)
     use_openmvs: bool
-    
-    # Open3D post-processing
-    open3d_outlier_removal: bool
-    open3d_statistical_nb_neighbors: int
-    open3d_statistical_std_ratio: float
-    open3d_downsample_threshold: int  # Downsample if points > this
-    open3d_voxel_size: float  # Voxel size for downsampling
 
 
 # Quality Preset Definitions
 QUALITY_PRESETS: Dict[str, QualityPreset] = {
     "fast": QualityPreset(
         name="fast",
-        description="High-density reconstruction - Balanced speed & quality",
-        estimated_time="3-5 minutes",
-        target_points="5M-10M",
+        description="Fast reconstruction with COLMAP dense",
+        estimated_time="2-4 minutes",
+        target_points="5M-15M",
         
-        # Frame extraction: High frame rate for good coverage
-        fps_range=(8, 10),  # 320-400 frames for 40s video
-        max_resolution=3200,  # High resolution
+        # Frame extraction: FAST - minimal frames
+        fps_range=(6, 10),  # ULTRA OPTIMIZED: Very low FPS for speed
+        max_resolution=1920,  # 1080p - balanced quality/speed
         
-        # Feature extraction: High feature count
-        max_num_features=24576,  # 50% more features
+        # Feature extraction: Balanced features
+        max_num_features=16384,  # OPTIMIZED: Reduced from 24576
         estimate_affine_shape=True,
         domain_size_pooling=True,
         
-        # Feature matching: Sequential with high overlap
+        # Feature matching: Sequential with minimal overlap for SPEED
         matching_strategy="sequential",
-        overlap=100,  # High overlap for complete coverage
+        overlap=30,  # OPTIMIZED: Minimal overlap for fast processing
         
         # Sparse reconstruction: Lenient for more points
         min_num_matches=12,  # Very low threshold
         init_min_num_inliers=75,
         filter_max_reproj_error=4.0,  # Lenient
         
-        # Dense reconstruction: HIGH density settings
+        # Dense reconstruction: FAST settings
         enable_dense=True,
-        max_image_size=4096,  # Very high resolution
-        window_radius=13,  # Large window
-        num_samples=50,  # High sample count
-        num_iterations=15,  # High iteration count
+        max_image_size=1920,  # OPTIMIZED: Lower resolution for speed
+        window_radius=7,  # OPTIMIZED: Smaller window
+        num_samples=20,  # OPTIMIZED: Fewer samples
+        num_iterations=7,  # OPTIMIZED: Fewer iterations
         geom_consistency_max_cost=0.4,  # Lenient for more points
         filter_min_ncc=0.05,  # Low threshold for more points
         
-        # Fusion: RELAXED thresholds for high point density
-        fusion_max_reproj_error=4.0,  # Very relaxed
-        fusion_max_depth_error=0.03,  # Relaxed
-        fusion_max_normal_error=20,  # Relaxed
+        # Fusion: Balanced thresholds
+        fusion_max_reproj_error=3.0,  # OPTIMIZED: Reduced from 4.0
+        fusion_max_depth_error=0.02,  # OPTIMIZED: Reduced from 0.03
+        fusion_max_normal_error=15,  # OPTIMIZED: Reduced from 20
         fusion_min_num_pixels=1,  # Minimum threshold
         
         # OpenMVS: Not used
         use_openmvs=False,
-        
-        # Open3D: Minimal cleanup to preserve density
-        open3d_outlier_removal=True,
-        open3d_statistical_nb_neighbors=40,
-        open3d_statistical_std_ratio=4.0,  # Very lenient
-        open3d_downsample_threshold=20000000,  # Only downsample if >20M points
-        open3d_voxel_size=0.002,  # Fine voxel size (2mm)
     ),
     
     "high_quality": QualityPreset(
         name="high_quality",
-        description="ULTRA-DENSE reconstruction for complete room capture - Maximum quality",
-        estimated_time="5-8 minutes",
-        target_points="10M-30M",
+        description="High-quality COLMAP dense reconstruction",
+        estimated_time="4-7 minutes",
+        target_points="15M-40M",
         
-        # Frame extraction: ABSOLUTE MAXIMUM frames
-        fps_range=(10, 15),  # 400-600 frames for 40s video - complete coverage
-        max_resolution=3840,  # 4K resolution for maximum detail
+        # Frame extraction: Uses NATIVE video FPS
+        fps_range=(24, 30),  # Native FPS (24/30 fps common)
+        max_resolution=3840,  # 4K resolution
         
         # Feature extraction: MAXIMUM SIFT features
         max_num_features=32768,  # DOUBLED - maximum features per image
         estimate_affine_shape=True,
         domain_size_pooling=True,
         
-        # Feature matching: EXHAUSTIVE for complete coverage
-        matching_strategy="exhaustive",  # Exhaustive matching - ALL pairs
-        overlap=200,  # Super high overlap for dense matching
+        # Feature matching: Sequential with >80% overlap (UNIFIED)
+        matching_strategy="sequential",  # Changed from exhaustive for reliability
+        overlap=100,  # UNIFIED: 100 frames for >80% overlap
         
         # Sparse reconstruction: VERY lenient for maximum coverage
         min_num_matches=10,  # Ultra-low threshold for maximum matches
@@ -157,38 +145,31 @@ QUALITY_PRESETS: Dict[str, QualityPreset] = {
         
         # OpenMVS: Not used
         use_openmvs=False,
-        
-        # Open3D: MINIMAL cleanup - preserve EVERYTHING
-        open3d_outlier_removal=True,
-        open3d_statistical_nb_neighbors=50,
-        open3d_statistical_std_ratio=5.0,  # Extremely lenient - keep almost all points
-        open3d_downsample_threshold=50000000,  # Only downsample if >50M points
-        open3d_voxel_size=0.001,  # Ultra-fine voxel size (1mm)
     ),
     
     "ultra_openmvs": QualityPreset(
         name="ultra_openmvs",
-        description="Maximum quality with COLMAP + OpenMVS + Open3D",
-        estimated_time="4-8 minutes",
-        target_points="5M-20M",
+        description="Maximum density: COLMAP sparse + OpenMVS densification (OPTIMIZED)",
+        estimated_time="5-12 minutes",
+        target_points="50M-150M+",
         
-        # Frame extraction: High FPS, high resolution
-        fps_range=(6, 8),
-        max_resolution=3200,
+        # Frame extraction: Uses NATIVE video FPS (OpenMVS densifies)
+        fps_range=(24, 30),  # Native FPS - OpenMVS handles density
+        max_resolution=3840,  # 4K resolution
         
-        # Feature extraction: Maximum features
-        max_num_features=16384,  # Focus on robust poses, OpenMVS will densify
+        # Feature extraction: High features for robust camera poses
+        max_num_features=24576,  # INCREASED - more features for better camera tracking
         estimate_affine_shape=True,
         domain_size_pooling=True,
         
-        # Feature matching: Sequential (more reliable than exhaustive)
+        # Feature matching: Sequential with >80% overlap (UNIFIED)
         matching_strategy="sequential",
-        overlap=100,
+        overlap=100,  # UNIFIED: 100 frames for >80% overlap
         
-        # Sparse reconstruction: Robust settings for poses
-        min_num_matches=30,
-        init_min_num_inliers=200,
-        filter_max_reproj_error=2.0,
+        # Sparse reconstruction: Lenient for maximum coverage
+        min_num_matches=15,  # LOWERED from 30 - more lenient
+        init_min_num_inliers=100,  # LOWERED from 200 - more lenient
+        filter_max_reproj_error=3.0,  # INCREASED from 2.0 - more lenient
         
         # Dense reconstruction: Not used (OpenMVS handles this)
         enable_dense=False,  # OpenMVS will do densification
@@ -205,15 +186,8 @@ QUALITY_PRESETS: Dict[str, QualityPreset] = {
         fusion_max_normal_error=0.0,
         fusion_min_num_pixels=0,
         
-        # OpenMVS: Enabled
+        # OpenMVS: Enabled - this is where density comes from
         use_openmvs=True,
-        
-        # Open3D: Mandatory cleanup (OpenMVS can produce very dense clouds)
-        open3d_outlier_removal=True,
-        open3d_statistical_nb_neighbors=20,
-        open3d_statistical_std_ratio=2.0,
-        open3d_downsample_threshold=5000000,  # Downsample if >5M points
-        open3d_voxel_size=0.005,
     ),
 }
 

@@ -24,36 +24,29 @@ logger = logging.getLogger(__name__)
 from colmap_processor import COLMAPProcessor, process_video_to_pointcloud
 from colmap_binary_parser import MeasurementSystem, COLMAPBinaryParser
 from quality_presets import get_preset, map_legacy_quality, QUALITY_PRESETS
-from pointcloud_postprocess import postprocess_pointcloud, get_pointcloud_stats
 from openmvs_processor import OpenMVSProcessor
 
 # Import OpenCV SfM for complementary reconstruction
-try:
-    from opencv_sfm import OpenCVSfM, sfm_pipeline, CameraIntrinsics
-    from opencv_sfm_integration import (
-        run_opencv_preview,
-        run_opencv_fallback,
-        compare_reconstructions
-    )
-    HAS_OPENCV_SFM = True
-except ImportError:
-    HAS_OPENCV_SFM = False
-    logger.warning("OpenCV SfM not available")
+# OpenCV SfM has been removed - OpenMVS provides superior dense reconstruction
 
 # Import 360° video detection
 try:
-    from video_360_converter import detect_360_video
+    from video_processing import detect_360_video, convert_360_to_perspective_frames
     HAS_360_SUPPORT = True
 except ImportError:
     HAS_360_SUPPORT = False
     logger.warning("360° video support not available")
+    detect_360_video = None
+    convert_360_to_perspective_frames = None
 
 # Import GLTF converter
+# PLY to GLTF conversion (trimesh-based, no Open3D dependency)
 try:
-    from ply_to_gltf import ply_to_glb, ply_to_gltf_ascii
+    from ply_to_gltf import ply_to_gltf_trimesh
     HAS_GLTF_SUPPORT = True
 except ImportError:
     HAS_GLTF_SUPPORT = False
+    logger.warning("⚠️  PLY to GLTF conversion not available (requires trimesh)")
     logger.warning("GLTF export support not available")
 
 # Create FastAPI app
@@ -116,12 +109,12 @@ def update_scan_status(scan_id: str, status: str, error: str = None, progress: i
 
 def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
     """
-    Enhanced reconstruction pipeline with quality presets, OpenMVS, and Open3D post-processing
+    Optimized reconstruction pipeline with quality presets and OpenMVS densification
     
     Quality modes:
-    - fast: Quick processing with conservative settings
-    - high_quality: Enhanced COLMAP with Open3D cleanup
-    - ultra_openmvs: COLMAP + OpenMVS + Open3D for maximum quality
+    - fast: Quick COLMAP dense reconstruction
+    - high_quality: Enhanced COLMAP dense with high settings
+    - ultra_openmvs: COLMAP sparse + OpenMVS densification (maximum quality)
     
     Legacy quality modes are automatically mapped:
     - low/medium → fast
@@ -169,16 +162,13 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
             is_360_video = scan_dict.get('is_360', 0) == 1
         conn.close()
         
-        # Step 1: Extract frames from video with AUTO FPS DETECTION
-        # For ULTRA mode, we need MORE FRAMES for better overlap and density
-        # Override FPS detection if quality is high/ultra
-        target_fps_override = None
-        if quality_mode == "ultra_openmvs":
-             target_fps_override = 15 # Force at least 15 FPS for ultra quality (more overlap)
-        
+        # Step 1: Extract frames from video using NATIVE FPS (no overrides)
+        # OpenMVS will densify the COLMAP sparse reconstruction for maximum quality
+        # Strategy: Use native video FPS (24/30) with multi-view extraction for complete coverage
         stage_msg = "Converting 360° video to perspective frames..." if is_360_video else "Extracting frames from video..."
         update_scan_status(scan_id, "processing", progress=2, stage=stage_msg)
         logger.info(f"📹 Extracting frames from {video_path} {'(360° video)' if is_360_video else ''}")
+        logger.info(f"🎯 Using native FPS detection (no overrides) + OpenMVS densification for optimal quality")
         
         # Progress tracking for frame extraction (0-10%)
         def frame_progress_callback(current, total):
@@ -189,7 +179,7 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         
         frame_count = processor.extract_frames(
             video_path=str(video_path),
-            target_fps=target_fps_override,  # Pass override
+            target_fps=None,  # Auto-detect native FPS
             quality=quality,
             progress_callback=frame_progress_callback,
             is_360=is_360_video
@@ -200,28 +190,7 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         if frame_count < 3:
             raise Exception(f"Not enough frames extracted: {frame_count}. Need at least 3.")
         
-        # Optional: Run OpenCV SfM preview (quick reconstruction before COLMAP)
-        opencv_preview_path = None
-        if HAS_OPENCV_SFM and quality_mode == "fast":
-            try:
-                logger.info("🔍 Running OpenCV SfM preview (quick reconstruction)...")
-                update_scan_status(scan_id, "processing", progress=10, stage="OpenCV SfM preview...")
-                
-                opencv_preview_path = results_dir / "opencv_preview.ply"
-                result = run_opencv_preview(
-                    images_dir=processor.images_path,
-                    output_path=opencv_preview_path,
-                    max_images=20,  # Limit for speed
-                    feature_type="SIFT"
-                )
-                
-                if result:
-                    opencv_points, opencv_poses = result
-                    logger.info(f"✅ OpenCV SfM preview complete: {len(opencv_points)} points")
-                    logger.info(f"📁 Preview saved to: {opencv_preview_path}")
-            except Exception as e:
-                logger.warning(f"⚠️  OpenCV SfM preview failed (non-critical): {e}")
-                opencv_preview_path = None
+        # OpenCV SfM preview removed - OpenMVS provides superior reconstruction
         
         # Step 2: Extract SIFT features
         update_scan_status(scan_id, "processing", progress=10, stage="Extracting SIFT features...")
@@ -279,6 +248,7 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         if quality_mode == "ultra_openmvs":
             # Ultra mode: Use OpenMVS for densification
             logger.info(f"🔬 Running OpenMVS densification (ultra_openmvs mode)...")
+            logger.info(f"📋 OpenMVS Settings: resolution-level=0 (full resolution), min-resolution=2560, max-resolution=7680")
             
             try:
                 openmvs_processor = OpenMVSProcessor(str(results_dir))
@@ -291,12 +261,21 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                 
                 # Export COLMAP to OpenMVS format
                 update_scan_status(scan_id, "processing", progress=65, stage="OpenMVS: Exporting COLMAP format...")
+                logger.info("📤 Exporting COLMAP reconstruction to OpenMVS format...")
                 export_result = openmvs_processor.export_colmap_to_openmvs(
                     progress_callback=lambda msg, pct: openmvs_progress_callback(msg, pct * 0.5)
                 )
                 
+                if export_result.get("status") != "success":
+                    error_msg = f"OpenMVS export failed: {export_result.get('error', 'Unknown error')}"
+                    logger.error(f"❌ {error_msg}")
+                    raise RuntimeError(error_msg)
+                
+                logger.info(f"✅ Exported to OpenMVS format: {export_result.get('mvs_file')}")
+                
                 # Run DensifyPointCloud
                 update_scan_status(scan_id, "processing", progress=75, stage="OpenMVS: Densifying point cloud...")
+                logger.info("🔬 Starting OpenMVS DensifyPointCloud (this may take 10-30 minutes)...")
                 dense_result = openmvs_processor.densify_pointcloud(
                     input_mvs=export_result["mvs_file"],
                     quality="ultra_openmvs",
@@ -305,10 +284,19 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                 
                 if dense_result.get("status") == "success" and dense_result.get("dense_ply"):
                     raw_ply_path = Path(dense_result["dense_ply"])
+                    dense_point_count = dense_result.get("point_count", "unknown")
                     logger.info(f"✅ OpenMVS densification complete: {raw_ply_path}")
+                    logger.info(f"📊 Dense point count: {dense_point_count}")
+                    
+                    # Validate point count
+                    if isinstance(dense_point_count, int) and dense_point_count < 100000:
+                        logger.warning(f"⚠️ Dense point cloud seems sparse ({dense_point_count:,} points)")
+                        logger.warning(f"⚠️ Expected at least 100K points for quality reconstruction")
+                    
                     update_scan_status(scan_id, "processing", progress=85, stage="OpenMVS densification complete!")
                     
                     # OpenMVS Mesh Reconstruction (Hyper Realistic Mode)
+                    logger.info("🎨 Starting OpenMVS Mesh Reconstruction...")
                     mesh_result = openmvs_processor.reconstruct_mesh(
                         input_mvs=dense_result["dense_mvs"],
                         quality="ultra_openmvs",
@@ -318,16 +306,23 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                     if mesh_result and mesh_result.get("status") == "success":
                         # If mesh reconstruction succeeded, update paths
                         logger.info(f"✅ OpenMVS Mesh Reconstruction Complete")
+                        logger.info(f"📊 Mesh: {mesh_result.get('vertices', 0):,} vertices, {mesh_result.get('triangles', 0):,} triangles")
                         # We can use the mesh OBJ/PLY as the primary result or convert it
                         # For now, we just store it in the result dict to be picked up later
                         dense_result["mesh_obj"] = mesh_result.get("mesh_obj")
                         dense_result["mesh_mvs"] = mesh_result.get("mesh_mvs")
+                    else:
+                        logger.warning(f"⚠️ OpenMVS mesh reconstruction failed: {mesh_result.get('error') if mesh_result else 'No result'}")
                 else:
-                    raise RuntimeError("OpenMVS densification failed")
+                    error_msg = f"OpenMVS densification failed: {dense_result.get('error', 'Unknown error')}"
+                    logger.error(f"❌ {error_msg}")
+                    logger.error(f"❌ Check that DensifyPointCloud binary is working correctly")
+                    raise RuntimeError(error_msg)
                     
             except Exception as e:
-                logger.error(f"❌ OpenMVS processing failed: {e}")
+                logger.error(f"❌ OpenMVS processing failed: {e}", exc_info=True)
                 logger.warning("⚠️  Falling back to COLMAP dense reconstruction...")
+                logger.warning("⚠️  This will result in sparser point clouds (5M-10M vs 30M-100M points)")
                 # Fallback to COLMAP dense
                 quality_mode = "high_quality"
                 preset = get_preset(quality_mode)
@@ -360,64 +355,36 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
             raw_ply_path = Path(raw_ply_path_str) if raw_ply_path_str else None
             logger.info(f"✅ Exported sparse PLY: {raw_ply_path}")
         
-        # Step 7: Open3D Post-Processing (clean and optimize point cloud)
-        final_ply_path = None
-        postprocessing_stats = None
+        # Step 7: Finalize point cloud (no post-processing - preserve maximum density)
+        # OpenMVS and COLMAP already produce high-quality point clouds
+        # Post-processing would only reduce density which defeats the purpose
+        update_scan_status(scan_id, "processing", progress=95, stage="Finalizing point cloud...")
         
         # Ensure raw_ply_path is a Path object
         if raw_ply_path:
             if isinstance(raw_ply_path, str):
                 raw_ply_path = Path(raw_ply_path)
         
-        if raw_ply_path and raw_ply_path.exists():
-            update_scan_status(scan_id, "processing", progress=90, stage="Post-processing point cloud with Open3D...")
-            logger.info(f"🧹 Post-processing point cloud: {raw_ply_path}")
-            
-            # Get point count before post-processing
-            raw_stats = get_pointcloud_stats(str(raw_ply_path))
-            point_count_raw = raw_stats.get("point_count", 0)
-            
-            # Prepare Open3D post-processing parameters from preset
-            open3d_config = {
-                "open3d_outlier_removal": preset.open3d_outlier_removal,
-                "open3d_statistical_nb_neighbors": preset.open3d_statistical_nb_neighbors,
-                "open3d_statistical_std_ratio": preset.open3d_statistical_std_ratio,
-                "open3d_downsample_threshold": preset.open3d_downsample_threshold,
-                "open3d_voxel_size": preset.open3d_voxel_size,
-            }
-            
-            # Post-process point cloud
-            final_ply_path = results_dir / "pointcloud_final.ply"
-            
-            def postprocess_progress_callback(step, total, message):
-                progress_pct = 90 + int((step / total) * 8)  # 90-98%
-                update_scan_status(scan_id, "processing", progress=progress_pct,
-                                stage=f"Open3D: {message}")
-            
-            try:
-                postprocessing_stats = postprocess_pointcloud(
-                    input_ply_path=str(raw_ply_path),
-                    output_ply_path=str(final_ply_path),
-                    quality_preset=open3d_config,
-                    progress_callback=postprocess_progress_callback
-                )
-                
-                point_count_final = postprocessing_stats.get("point_count_after", point_count_raw)
-                logger.info(f"✅ Post-processing complete: {point_count_raw:,} → {point_count_final:,} points")
-                
-            except Exception as e:
-                logger.error(f"❌ Post-processing failed: {e}")
-                logger.warning("⚠️  Using raw point cloud without post-processing")
-                # Fallback: use raw PLY
-                final_ply_path = raw_ply_path
-                postprocessing_stats = {"error": str(e), "point_count_after": point_count_raw}
-        else:
-            logger.error(f"❌ No point cloud file found for post-processing")
+        if not raw_ply_path or not raw_ply_path.exists():
+            logger.error(f"❌ No point cloud file found")
             raise RuntimeError("No point cloud file generated")
+        
+        # Use the raw PLY as final (no downsampling/cleaning)
+        final_ply_path = raw_ply_path
+        logger.info(f"✅ Point cloud ready: {final_ply_path}")
+        
+        # Get point count from PLY file
+        try:
+            from plyfile import PlyData
+            ply_data = PlyData.read(str(raw_ply_path))
+            dense_points = len(ply_data['vertex'])
+            logger.info(f"📊 Final point count: {dense_points:,} points (no post-processing)")
+        except Exception as e:
+            logger.warning(f"Could not read point count: {e}")
+            dense_points = 0
         
         # Use final PLY path for statistics
         ply_path = final_ply_path
-        dense_points = postprocessing_stats.get("point_count_after", 0) if postprocessing_stats else 0
         
         # Step 8: Calculate processing time
         processing_time = time.time() - start_time
@@ -482,13 +449,25 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                     logger.error(f"❌ Failed to convert OpenMVS mesh: {e}")
                     # Fallback to point cloud meshing below
         
-        # Fallback: Generate mesh from point cloud if no OpenMVS mesh
-        if not mesh_path and final_ply_path and final_ply_path.exists() and dense_points > 10000:
+        # MANDATORY: Generate mesh from point cloud if no OpenMVS mesh
+        # Changed from optional to REQUIRED for proper measurements and visualization
+        if not mesh_path:
+            if not final_ply_path or not final_ply_path.exists():
+                logger.error(f"❌ Cannot generate mesh: Point cloud file not found")
+                update_scan_status(scan_id, "failed", error="Point cloud file missing for mesh generation")
+                raise RuntimeError("Point cloud file missing for mesh generation")
+            
+            if dense_points < 10000:
+                logger.warning(f"⚠️ Point cloud too sparse ({dense_points:,} points < 10,000 minimum)")
+                logger.warning(f"⚠️ This indicates OpenMVS densification may have failed")
+                # Continue anyway but with lower quality settings
+            
             try:
-                from mesh_generator import generate_mesh_from_pointcloud
-                
-                update_scan_status(scan_id, "processing", progress=98, stage="Generating 3D mesh...")
-                logger.info(f"🔨 Generating mesh from point cloud: {final_ply_path}")
+                # Mesh generation is now handled by OpenMVS ReconstructMesh in openmvs_processor.py
+                # This fallback is for non-OpenMVS modes only
+                update_scan_status(scan_id, "processing", progress=98, stage="Mesh generation (OpenMVS)...")
+                logger.info(f"📊 Point cloud has {dense_points:,} points")
+                logger.info(f"ℹ️  Mesh generation is handled by OpenMVS pipeline")
                 
                 # Determine mesh quality based on reconstruction quality
                 mesh_depth = 9  # Default
@@ -503,6 +482,11 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                 else:  # ultra_openmvs
                     mesh_depth = 11  # Increased from 10
                     decimation_target = 2000000  # Increased from 1M triangles
+                
+                # Lower quality if point cloud is very sparse
+                if dense_points < 50000:
+                    mesh_depth = max(mesh_depth - 2, 6)
+                    logger.warning(f"⚠️ Reducing mesh depth to {mesh_depth} due to sparse point cloud")
                 
                 mesh_output_path = results_dir / "mesh.glb"
                 
@@ -537,11 +521,15 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
                     }
                     logger.info(f"✅ Mesh generated: {mesh_result['vertices']:,} vertices, {mesh_result['triangles']:,} triangles")
                 else:
-                    logger.warning(f"⚠️ Mesh generation failed: {mesh_result.get('error')}")
+                    error_msg = f"Mesh generation failed: {mesh_result.get('error', 'Unknown error')}"
+                    logger.error(f"❌ {error_msg}")
+                    update_scan_status(scan_id, "failed", error=error_msg)
+                    raise RuntimeError(error_msg)
                     
             except Exception as e:
-                logger.error(f"❌ Mesh generation error: {e}")
-                # Don't fail the entire reconstruction if mesh generation fails
+                logger.error(f"❌ Mesh generation error: {e}", exc_info=True)
+                update_scan_status(scan_id, "failed", error=f"Mesh generation failed: {str(e)}")
+                raise  # Fail the entire reconstruction if mesh generation fails
         
         # Step 11: Update database with final PLY path, mesh, and statistics
         update_scan_status(scan_id, "processing", progress=99, stage="Finalizing reconstruction...")
@@ -600,35 +588,13 @@ def process_colmap_reconstruction(scan_id: str, video_path: str, quality: str):
         logger.info(f"✅ Reconstruction complete for scan {scan_id} ({processing_time:.1f}s)")
         logger.info(f"📊 Quality mode: {quality_mode}, Points: {dense_points:,}")
         
-        # Optional: Compare COLMAP result with OpenCV SfM preview if available
-        if HAS_OPENCV_SFM and opencv_preview_path and opencv_preview_path.exists():
-            try:
-                # Get final PLY path from database
-                conn = get_db_connection()
-                scan_row = conn.execute("SELECT pointcloud_final_path, ply_file FROM scans WHERE id = ?", (scan_id,)).fetchone()
-                conn.close()
-                
-                if scan_row:
-                    scan_dict = dict(scan_row)
-                    final_ply_path = scan_dict.get('pointcloud_final_path') or scan_dict.get('ply_file')
-                    
-                    if final_ply_path and Path(final_ply_path).exists():
-                        comparison = compare_reconstructions(
-                            opencv_preview_path,
-                            Path(final_ply_path)
-                        )
-                        if comparison:
-                            logger.info(f"📊 Comparison: Chamfer distance = {comparison['chamfer_distance']:.6f}")
-                            logger.info(f"   OpenCV points: {comparison['point_cloud_1']['point_count']:,}")
-                            logger.info(f"   COLMAP points: {comparison['point_cloud_2']['point_count']:,}")
-            except Exception as e:
-                logger.warning(f"⚠️  Point cloud comparison failed (non-critical): {e}")
+        # Point cloud comparison removed - OpenCV SfM no longer used
         
     except Exception as e:
         logger.error(f"❌ COLMAP reconstruction failed for scan {scan_id}: {e}")
         
-        # Fallback: Try OpenCV SfM if COLMAP fails
-        if HAS_OPENCV_SFM:
+        # OpenCV SfM fallback removed - focus on fixing COLMAP/OpenMVS pipeline
+        if False:  # Disabled
             try:
                 logger.warning("⚠️  Attempting OpenCV SfM fallback reconstruction...")
                 update_scan_status(scan_id, "processing", progress=50, stage="OpenCV SfM fallback...")
@@ -1158,9 +1124,11 @@ async def calibrate_scale(
                 
                 logger.info(f"📍 Finding nearest points to positions: {pos1}, {pos2}")
                 
-                # Find nearest points in sparse reconstruction
-                point1_id = measurement_system.find_nearest_point(pos1)
-                point2_id = measurement_system.find_nearest_point(pos2)
+                # Find nearest points in sparse reconstruction (with adaptive search radius)
+                # Note: Frontend sends positions from dense PLY, but we search in sparse reconstruction
+                # Using adaptive max_distance to handle scale differences
+                point1_id = measurement_system.find_nearest_point(pos1, max_distance=None)  # Adaptive
+                point2_id = measurement_system.find_nearest_point(pos2, max_distance=None)  # Adaptive
                 
                 logger.info(f"✅ Found nearest points: {point1_id}, {point2_id}")
             except Exception as e:
@@ -1271,8 +1239,8 @@ async def add_measurement(
             if point1_position and point2_position:
                 pos1 = np.array(json.loads(point1_position))
                 pos2 = np.array(json.loads(point2_position))
-                point1_id = measurement_system.find_nearest_point(pos1)
-                point2_id = measurement_system.find_nearest_point(pos2)
+                point1_id = measurement_system.find_nearest_point(pos1, max_distance=None)  # Adaptive
+                point2_id = measurement_system.find_nearest_point(pos2, max_distance=None)  # Adaptive
             elif point1_id and point2_id:
                 point1_id = int(point1_id)
                 point2_id = int(point2_id)
@@ -1300,9 +1268,9 @@ async def add_measurement(
                 pos1 = np.array(json.loads(point1_position))
                 pos2 = np.array(json.loads(point2_position))
                 pos3 = np.array(json.loads(point3_position))
-                point1_id = measurement_system.find_nearest_point(pos1)
-                point2_id = measurement_system.find_nearest_point(pos2)
-                point3_id = measurement_system.find_nearest_point(pos3)
+                point1_id = measurement_system.find_nearest_point(pos1, max_distance=None)  # Adaptive
+                point2_id = measurement_system.find_nearest_point(pos2, max_distance=None)  # Adaptive
+                point3_id = measurement_system.find_nearest_point(pos3, max_distance=None)  # Adaptive
             elif point1_id and point2_id and point3_id:
                 point1_id = int(point1_id)
                 point2_id = int(point2_id)
@@ -1332,7 +1300,7 @@ async def add_measurement(
                 point_ids = []
                 for pos in positions:
                     pos_array = np.array(pos)
-                    pid = measurement_system.find_nearest_point(pos_array)
+                    pid = measurement_system.find_nearest_point(pos_array, max_distance=None)  # Adaptive
                     point_ids.append(pid)
             else:
                 raise HTTPException(status_code=400, detail="Need points array for radius measurement")
@@ -1353,7 +1321,7 @@ async def add_measurement(
             # Info: 1 point
             if point_position:
                 pos = np.array(json.loads(point_position))
-                point_id = measurement_system.find_nearest_point(pos)
+                point_id = measurement_system.find_nearest_point(pos, max_distance=None)  # Adaptive
             elif point1_id:
                 point_id = int(point1_id)
             else:
@@ -1837,7 +1805,7 @@ async def export_scan_model(scan_id: str, format: str = "glb"):
         if format.lower() == "glb":
             success = ply_to_glb(str(ply_path), str(output_path))
         else:
-            success = ply_to_gltf_ascii(str(ply_path), str(output_path))
+            success = ply_to_gltf_trimesh(str(ply_path), str(output_path), format="gltf")
         
         if not success:
             raise HTTPException(status_code=500, detail="Failed to convert PLY to GLTF")
@@ -2034,76 +2002,28 @@ async def compare_point_clouds_api(
     """
     Compare two point clouds and return distance metrics
     
-    Either provide two scan_ids, or two ply_paths, or one of each.
-    
-    Returns:
-        Chamfer distance, Hausdorff distance, and detailed statistics
+    NOTE: This endpoint is currently disabled as Open3D has been removed from the project.
     """
-    try:
-        from open3d_utils import compare_point_clouds, compute_chamfer_distance, compute_hausdorff_distance
-        import open3d as o3d
-        
-        # Determine file paths
-        file1_path = None
-        file2_path = None
-        
-        if scan_id1:
-            conn = get_db_connection()
-            scan1 = conn.execute("SELECT pointcloud_final_path, ply_file FROM scans WHERE id = ?", (scan_id1,)).fetchone()
-            conn.close()
-            
-            if scan1:
-                scan1_dict = dict(scan1)
-                file1_path = scan1_dict.get('pointcloud_final_path') or scan1_dict.get('ply_file')
-        
-        if scan_id2:
-            conn = get_db_connection()
-            scan2 = conn.execute("SELECT pointcloud_final_path, ply_file FROM scans WHERE id = ?", (scan_id2,)).fetchone()
-            conn.close()
-            
-            if scan2:
-                scan2_dict = dict(scan2)
-                file2_path = scan2_dict.get('pointcloud_final_path') or scan2_dict.get('ply_file')
-        
-        # Use provided paths if available
-        if ply_path1:
-            file1_path = ply_path1
-        if ply_path2:
-            file2_path = ply_path2
-        
-        if not file1_path or not file2_path:
-            raise HTTPException(status_code=400, detail="Must provide either two scan_ids or two ply_paths")
-        
-        file1_path = Path(file1_path)
-        file2_path = Path(file2_path)
-        
-        if not file1_path.exists():
-            raise HTTPException(status_code=404, detail=f"Point cloud 1 not found: {file1_path}")
-        if not file2_path.exists():
-            raise HTTPException(status_code=404, detail=f"Point cloud 2 not found: {file2_path}")
-        
-        # Load and compare
-        pcd1 = o3d.io.read_point_cloud(str(file1_path))
-        pcd2 = o3d.io.read_point_cloud(str(file2_path))
-        
-        if not pcd1.has_points():
-            raise HTTPException(status_code=400, detail=f"Point cloud 1 is empty: {file1_path}")
-        if not pcd2.has_points():
-            raise HTTPException(status_code=400, detail=f"Point cloud 2 is empty: {file2_path}")
-        
-        # Compute metrics
-        comparison = compare_point_clouds(str(file1_path), str(file2_path), visualize=False)
-        
-        return {
-            "status": "success",
-            "comparison": comparison
+    return JSONResponse(
+        status_code=501,
+        content={
+            "error": "Point cloud comparison temporarily disabled",
+            "message": "Open3D has been removed to preserve maximum point cloud density",
+            "suggestion": "Use external tools like CloudCompare for point cloud comparison"
         }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error comparing point clouds: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    )
+
+
+@app.post("/api/compare-pointclouds-disabled")
+async def compare_pointclouds_disabled_old_code():
+    """
+    OLD CODE - Disabled (Open3D removed)
+    This endpoint has been disabled because Open3D was removed from the project.
+    """
+    return JSONResponse(
+        status_code=501,
+        content={"error": "This endpoint is disabled"}
+    )
 
 
 if __name__ == "__main__":

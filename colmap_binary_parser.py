@@ -273,13 +273,13 @@ class MeasurementSystem:
             self.sparse_path
         )
         
-    def find_nearest_point(self, target_position, max_distance=1.0):
+    def find_nearest_point(self, target_position, max_distance=None):
         """
         Find nearest point in sparse reconstruction to given 3D position
         
         Args:
             target_position: numpy array [x, y, z]
-            max_distance: Maximum distance to search (meters)
+            max_distance: Maximum distance to search (meters). If None, uses adaptive distance based on point cloud bounds.
         
         Returns:
             Point ID of nearest point, or raises ValueError if none found
@@ -289,6 +289,20 @@ class MeasurementSystem:
         if not self.points3D:
             raise ValueError("Reconstruction not loaded")
         
+        # Calculate adaptive max_distance based on point cloud bounds if not provided
+        if max_distance is None:
+            points_array = np.array([p['xyz'] for p in self.points3D.values()])
+            if len(points_array) == 0:
+                max_distance = 5.0  # Default fallback
+            else:
+                # Calculate bounding box diagonal as a measure of scale
+                min_bounds = points_array.min(axis=0)
+                max_bounds = points_array.max(axis=0)
+                bbox_size = np.linalg.norm(max_bounds - min_bounds)
+                # Use 5% of bounding box size, but at least 2m and at most 20m
+                max_distance = max(2.0, min(20.0, bbox_size * 0.05))
+                logger.info(f"Adaptive search radius: {max_distance:.2f}m (bbox size: {bbox_size:.2f}m)")
+        
         min_dist = float('inf')
         nearest_id = None
         
@@ -296,14 +310,24 @@ class MeasurementSystem:
             point_pos = np.array(point_data['xyz'])
             dist = np.linalg.norm(point_pos - target_position)
             
-            if dist < min_dist and dist < max_distance:
+            if dist < min_dist:
                 min_dist = dist
                 nearest_id = point_id
         
+        # Check if nearest point is within max_distance
         if nearest_id is None:
-            raise ValueError(f"No point found within {max_distance}m of {target_position}")
+            raise ValueError(f"No points found in reconstruction")
         
-        logger.info(f"Found nearest point {nearest_id} at distance {min_dist:.4f}m")
+        if min_dist > max_distance:
+            # Provide helpful error message with actual distance
+            raise ValueError(
+                f"No point found within {max_distance:.2f}m of {target_position}. "
+                f"Nearest point is {min_dist:.2f}m away. "
+                f"This usually means the clicked position is from the dense point cloud, "
+                f"but we're searching in the sparse reconstruction. Try clicking closer to visible sparse points."
+            )
+        
+        logger.info(f"Found nearest point {nearest_id} at distance {min_dist:.4f}m (within {max_distance:.2f}m limit)")
         return nearest_id
         
     def calibrate_scale(self, point1_id: int, point2_id: int, known_distance: float):

@@ -307,15 +307,57 @@ function PointCloud({ url, onLoad, onPointCount }: PointCloudProps) {
         loadedGeometry.computeBoundingBox()
         loadedGeometry.computeBoundingSphere()
 
-        // Align to Z=0 base
+        // Scale and center the point cloud for first-person navigation
         if (loadedGeometry.boundingBox) {
-          const minZ = loadedGeometry.boundingBox.min.z
-          const positions = loadedGeometry.getAttribute('position')
-          for (let i = 0; i < positions.count; i++) {
-            positions.setZ(i, positions.getZ(i) - minZ)
+          const bbox = loadedGeometry.boundingBox
+          const size = new THREE.Vector3()
+          bbox.getSize(size)
+          const center = new THREE.Vector3()
+          bbox.getCenter(center)
+          
+          // Check if reconstruction is too small (likely in cm instead of meters)
+          // If bounding box is less than 5 meters in any dimension, scale it up
+          const maxDimension = Math.max(size.x, size.y, size.z)
+          let scaleFactor = 1.0
+          
+          if (maxDimension < 5.0) {
+            // Reconstruction is likely in centimeters, scale to meters
+            scaleFactor = 100.0 / maxDimension // Scale so max dimension becomes ~100m
+            console.log(`📏 Small reconstruction detected (max dimension: ${maxDimension.toFixed(2)}m)`)
+            console.log(`🔧 Scaling by ${scaleFactor.toFixed(2)}x for walkable size`)
+          } else if (maxDimension < 20.0) {
+            // Medium size, scale to make it more walkable
+            scaleFactor = 20.0 / maxDimension
+            console.log(`📏 Medium reconstruction detected (max dimension: ${maxDimension.toFixed(2)}m)`)
+            console.log(`🔧 Scaling by ${scaleFactor.toFixed(2)}x for better navigation`)
           }
+          
+          const positions = loadedGeometry.getAttribute('position')
+          
+          // Scale and center the point cloud
+          for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i)
+            const y = positions.getY(i)
+            const z = positions.getZ(i)
+            
+            // Center and scale
+            const scaledX = (x - center.x) * scaleFactor
+            const scaledY = (y - center.y) * scaleFactor
+            const scaledZ = (z - center.z) * scaleFactor
+            
+            // Align to Z=0 base (floor level)
+            const finalZ = scaledZ - (bbox.min.z - center.z) * scaleFactor
+            
+            positions.setXYZ(i, scaledX, scaledY, finalZ)
+          }
+          
           positions.needsUpdate = true
           loadedGeometry.computeBoundingBox()
+          loadedGeometry.computeBoundingSphere()
+          
+          const newSize = new THREE.Vector3()
+          loadedGeometry.boundingBox!.getSize(newSize)
+          console.log(`✅ Scaled reconstruction: ${newSize.x.toFixed(2)}m × ${newSize.y.toFixed(2)}m × ${newSize.z.toFixed(2)}m`)
         }
 
         const count = loadedGeometry.getAttribute('position').count
@@ -468,7 +510,7 @@ function SceneContent({
         speed={speed} 
         enabled={controlsEnabled}
         octree={octree}
-        collisionRadius={0.3}
+        collisionRadius={0.8}
         acceleration={8}
         deceleration={10}
       />
@@ -594,8 +636,8 @@ function ControlsHelp({ visible, onClose }: ControlsHelpProps) {
 export default function FirstPersonViewer({
   plyUrl,
   scanId,
-  initialSpeed = 3,
-  initialPosition = [0, 1.6, 5],
+  initialSpeed = 5.0,
+  initialPosition = [0, 1.6, 10],
   onPositionChange,
   onRotationChange,
   className = "",

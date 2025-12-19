@@ -13,7 +13,6 @@ aiosqlite==0.20.0
 opencv-python==4.10.0.84
 numpy==1.26.4
 scipy==1.13.0  # Required for trimesh operations
-open3d==0.19.0  # Point cloud post-processing (cleaning, outlier removal, downsampling)
 trimesh==4.5.0  # Mesh processing and GLB conversion
 
 # Enhanced 3D Processing (Open3D sufficient for backend processing)

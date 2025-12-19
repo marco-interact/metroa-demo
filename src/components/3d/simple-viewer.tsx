@@ -142,9 +142,10 @@ function PLYModel({ url, onPointClick, enableSelection }: {
       // Use requestAnimationFrame to prevent blocking
       requestAnimationFrame(() => {
         try {
-          // Create raycaster with threshold for point clouds
+          // Create raycaster with INCREASED threshold for sparse point clouds
+          // Higher threshold = easier to click on points (especially for sparse clouds)
           const raycaster = new THREE.Raycaster()
-          raycaster.params.Points = { threshold: 0.15 }
+          raycaster.params.Points = { threshold: 0.5 }  // Increased from 0.15 to 0.5
           raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera)
           
           // Find intersected points

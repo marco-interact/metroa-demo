@@ -6,10 +6,12 @@
 # Build time: 30-45 minutes | Image size: 8-12 GB
 #
 # Features:
-# - COLMAP 3.10 (CUDA-enabled, built from source, RTX 4090 optimized)
-# - OpenMVS v2.2.0 (ultra-dense point clouds)
-# - Open3D 0.19.0 (point cloud processing)
-# - Python 3.12 + FastAPI
+# - COLMAP 3.10 (CUDA-enabled, built from source, multi-GPU support)
+# - OpenMVS v2.2.0 (ultra-dense point clouds, compiled from source)
+# - Open3D 0.18.0 (point cloud processing)
+# - Python 3.10 + FastAPI
+# - CUDA 11.8.0 base (compatible with RunPod host drivers)
+# - Ubuntu 22.04 (GLIBC compatibility ensured via container compilation)
 #
 # For FAST BUILD (5-10 min), use: Dockerfile.fast
 #
@@ -17,7 +19,9 @@
 # Run: docker run --gpus all -p 8888:8888 -v $(pwd)/data:/workspace/data metroa-backend:latest
 # ============================================================================
 
-FROM nvidia/cuda:12.8.1-devel-ubuntu24.04 AS base
+# Use CUDA 11.8.0 for maximum compatibility with RunPod host drivers
+# This ensures compatibility with older GPU drivers while still supporting modern GPUs
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 AS base
 
 # Metadata
 LABEL maintainer="Metroa Labs Team"
@@ -45,8 +49,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     pkg-config \
     # Python runtime
-    python3.12 \
-    python3.12-dev \
+    python3 \
+    python3-dev \
     python3-pip \
     # Math & optimization libraries (COLMAP + OpenMVS)
     libeigen3-dev \
@@ -86,7 +90,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ----------------------------------------------------------------------------
 FROM base AS colmap-builder
 
-# COLMAP Version: 3.10 (stable release with CUDA 12 support)
+# COLMAP Version: 3.10 (stable release with CUDA 11.8+ support)
 # Commit: Latest from 3.10 branch
 ENV COLMAP_VERSION=3.10 \
     COLMAP_SRC=/opt/colmap-src \
@@ -101,13 +105,17 @@ RUN git clone https://github.com/colmap/colmap.git ${COLMAP_SRC} && \
     git submodule update --init --recursive
 
 # Configure and build COLMAP
-# RTX 4090 compute capability: 8.9 (Ada Lovelace)
+# Support multiple GPU architectures for broader compatibility:
+# - 7.5: RTX 3090/3090 Ti (Ampere)
+# - 8.0: A100 (Ampere)
+# - 8.6: RTX 3080/3080 Ti, A6000 (Ampere)
+# - 8.9: RTX 4090 (Ada Lovelace)
 RUN mkdir -p ${COLMAP_BUILD} && \
     cd ${COLMAP_BUILD} && \
     cmake ${COLMAP_SRC} \
         -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_CUDA_ARCHITECTURES=89 \
+        -DCMAKE_CUDA_ARCHITECTURES="75;80;86;89" \
         -DCUDA_ENABLED=ON \
         -DGUI_ENABLED=OFF \
         -DOPENGL_ENABLED=OFF \
@@ -115,8 +123,6 @@ RUN mkdir -p ${COLMAP_BUILD} && \
         -DCMAKE_C_FLAGS="-O3 -ffast-math" \
         -DCMAKE_CXX_FLAGS="-O3 -ffast-math" \
         -DCMAKE_CUDA_FLAGS="-O3 --use_fast_math -Xptxas -O3" \
-        -DCUDA_ARCH_BIN="8.9" \
-        -DCUDA_ARCH_PTX="8.9" \
         -DBUILD_SHARED_LIBS=ON && \
     ninja -j$(($(nproc) * 3 / 4)) && \
     ninja install && \
@@ -132,7 +138,7 @@ RUN colmap --help | head -5 && \
 # Use colmap-builder so OpenMVS can find COLMAP (required for InterfaceCOLMAP)
 FROM colmap-builder AS openmvs-builder
 
-# OpenMVS Version: Use master for compatibility with CUDA 12.8+ and GCC 13+
+# OpenMVS Version: Use master for compatibility with CUDA 11.8+ and GCC 11+
 ENV OPENMVS_VERSION=master \
     OPENMVS_SRC=/opt/openmvs-src \
     OPENMVS_BUILD=/opt/openmvs-build
@@ -219,8 +225,8 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies (including Open3D)
-# Open3D Version: 0.19.0 (pinned in requirements.txt)
-RUN python3.12 -m pip install --break-system-packages --no-cache-dir -r requirements.txt
+# Open3D Version: 0.18.0 (pinned in requirements.txt)
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 # Note: Import tests removed - Open3D uses CPU-specific instructions that fail
 # during cross-platform builds (ARM Mac → x86_64 Linux). Works fine on actual RunPod hardware.
 

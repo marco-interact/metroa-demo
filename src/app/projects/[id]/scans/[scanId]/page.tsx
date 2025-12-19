@@ -166,7 +166,7 @@ function Enhanced3DViewer({
               </div>
             )}
             {/* Viewer Mode Toggle - Clean Segmented Control - Responsive */}
-            <div className="absolute top-4 right-4 z-50">
+            <div className="absolute top-4 right-4 z-50 flex gap-2">
               <div className="bg-app-elevated/95 backdrop-blur-sm border border-app-secondary rounded-lg p-1 shadow-xl">
                 <div className="flex gap-1">
                   <button
@@ -195,6 +195,19 @@ function Enhanced3DViewer({
                   </button>
                 </div>
               </div>
+              
+              {/* Screenshot Button */}
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new Event('capture-3d-viewer'))
+                  // Toast notification could be added here
+                  console.log('📸 Screenshot captured!')
+                }}
+                className="bg-app-elevated/95 backdrop-blur-sm border border-app-secondary hover:border-primary-500 rounded-lg px-3 md:px-4 py-2 shadow-xl transition-all active-scale text-gray-400 hover:text-white"
+                title="Capture Screenshot"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
             </div>
             
             {/* Conditional viewer based on mode */}

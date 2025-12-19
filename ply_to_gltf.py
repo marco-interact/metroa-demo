@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-PLY to GLTF/GLB Converter
+PLY to GLTF/GLB Converter (Trimesh-based, no Open3D)
 Converts PLY point clouds to GLTF/GLB format for web viewing
 """
 
-import open3d as o3d
 import numpy as np
 import logging
 from pathlib import Path
@@ -17,12 +16,12 @@ try:
     HAS_TRIMESH = True
 except ImportError:
     HAS_TRIMESH = False
-    logger.warning("trimesh not available, GLTF export will use Open3D only")
+    logger.warning("trimesh not available, GLTF export will not work")
 
 
-def ply_to_gltf(ply_path: str, output_path: str, format: str = "glb") -> bool:
+def ply_to_gltf_trimesh(ply_path: str, output_path: str, format: str = "glb") -> bool:
     """
-    Convert PLY point cloud to GLTF/GLB format
+    Convert PLY point cloud to GLTF/GLB format using trimesh
     
     Args:
         ply_path: Path to input PLY file
@@ -32,6 +31,10 @@ def ply_to_gltf(ply_path: str, output_path: str, format: str = "glb") -> bool:
     Returns:
         True if successful, False otherwise
     """
+    if not HAS_TRIMESH:
+        logger.error("trimesh is required for GLTF export. Install with: pip install trimesh")
+        return False
+    
     try:
         ply_path = Path(ply_path)
         output_path = Path(output_path)
@@ -40,82 +43,32 @@ def ply_to_gltf(ply_path: str, output_path: str, format: str = "glb") -> bool:
             logger.error(f"PLY file not found: {ply_path}")
             return False
         
-        # Load PLY file with Open3D
+        # Load PLY file with trimesh
         logger.info(f"Loading PLY file: {ply_path}")
-        pcd = o3d.io.read_point_cloud(str(ply_path))
-        
-        if not pcd.has_points():
-            logger.error("PLY file contains no points")
-            return False
-        
-        logger.info(f"Loaded {len(pcd.points):,} points")
-        
-        # Convert to numpy arrays
-        points = np.asarray(pcd.points)
-        colors = np.asarray(pcd.colors) if pcd.has_colors() else None
-        
-        # Use trimesh if available (better GLTF support)
-        if HAS_TRIMESH:
-            try:
-                # Create trimesh point cloud
-                if colors is not None:
-                    # Normalize colors to 0-255 range if needed
-                    if colors.max() <= 1.0:
-                        colors = (colors * 255).astype(np.uint8)
-                    else:
-                        colors = colors.astype(np.uint8)
-                    
-                    # Create point cloud with colors
-                    point_cloud = trimesh.PointCloud(vertices=points, colors=colors)
-                else:
-                    point_cloud = trimesh.PointCloud(vertices=points)
-                
-                # Export to GLTF/GLB
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                if format.lower() == "glb":
-                    point_cloud.export(str(output_path), file_type='glb')
-                else:
-                    point_cloud.export(str(output_path), file_type='gltf')
-                
-                logger.info(f"✅ Exported GLTF to {output_path}")
-                return True
-                
-            except Exception as e:
-                logger.warning(f"trimesh export failed: {e}, trying Open3D fallback")
-        
-        # Fallback: Use Open3D mesh conversion (requires mesh reconstruction)
-        # For point clouds, we'll create a simple mesh representation
-        logger.info("Using Open3D mesh conversion (point cloud will be converted to mesh)")
-        
-        # Estimate normals for mesh reconstruction
-        pcd.estimate_normals()
-        
-        # Reconstruct mesh using Poisson surface reconstruction
         try:
-            mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=9)
-            mesh.remove_degenerate_triangles()
-            mesh.remove_duplicated_triangles()
-            mesh.remove_duplicated_vertices()
-            mesh.remove_non_manifold_edges()
-            
-            logger.info(f"Created mesh with {len(mesh.vertices):,} vertices")
-            
-            # Export mesh to GLTF/GLB
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            if format.lower() == "glb":
-                o3d.io.write_triangle_mesh(str(output_path), mesh, write_ascii=False)
-            else:
-                # Open3D doesn't directly support GLTF, so we'll export as OBJ and convert
-                # For now, export as PLY (can be enhanced later)
-                logger.warning("Open3D GLTF export not directly supported, exporting as PLY")
-                return False
-                
+            mesh = trimesh.load(str(ply_path))
         except Exception as e:
-            logger.error(f"Mesh reconstruction failed: {e}")
+            logger.error(f"Failed to load PLY with trimesh: {e}")
             return False
         
+        # Check if it's a point cloud or mesh
+        if isinstance(mesh, trimesh.PointCloud):
+            logger.info(f"Loaded {len(mesh.vertices):,} points")
+        elif isinstance(mesh, trimesh.Trimesh):
+            logger.info(f"Loaded mesh with {len(mesh.vertices):,} vertices, {len(mesh.faces):,} faces")
+        else:
+            logger.error(f"Unsupported geometry type: {type(mesh)}")
+            return False
+        
+        # Export to GLTF/GLB
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        if format.lower() == "glb":
+            mesh.export(str(output_path), file_type='glb')
+        else:
+            mesh.export(str(output_path), file_type='gltf')
+        
+        logger.info(f"✅ Exported {format.upper()} to {output_path}")
         return True
         
     except Exception as e:
@@ -125,10 +78,28 @@ def ply_to_gltf(ply_path: str, output_path: str, format: str = "glb") -> bool:
 
 def ply_to_glb(ply_path: str, output_path: str) -> bool:
     """Convenience function for GLB export"""
-    return ply_to_gltf(ply_path, output_path, format="glb")
+    return ply_to_gltf_trimesh(ply_path, output_path, format="glb")
 
 
 def ply_to_gltf_ascii(ply_path: str, output_path: str) -> bool:
     """Convenience function for GLTF (ASCII) export"""
-    return ply_to_gltf(ply_path, output_path, format="gltf")
+    return ply_to_gltf_trimesh(ply_path, output_path, format="gltf")
 
+
+# Backward compatibility aliases
+ply_to_gltf = ply_to_gltf_trimesh
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 2:
+        ply_file = sys.argv[1]
+        output_file = sys.argv[2]
+        fmt = "glb" if output_file.endswith(".glb") else "gltf"
+        success = ply_to_gltf_trimesh(ply_file, output_file, format=fmt)
+        if success:
+            print(f"✅ Converted {ply_file} to {output_file}")
+        else:
+            print(f"❌ Failed to convert {ply_file}")
+    else:
+        print("Usage: python ply_to_gltf.py <input.ply> <output.glb|gltf>")

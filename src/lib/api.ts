@@ -435,7 +435,7 @@ class APIClient {
         project_type: projectType
       })
       
-      const response = await fetch(`${this.baseUrl}/api/projects`, {
+      const response = await fetch(`${this.baseUrl}/projects`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

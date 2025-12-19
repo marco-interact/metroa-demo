@@ -194,23 +194,26 @@ class OpenMVSProcessor:
         
         # Quality-based parameters for DensifyPointCloud
         # Reference: https://github.com/cdcseacave/openMVS/wiki/DensifyPointCloud
+        # UNIFIED: All presets now use resolution-level=0 (full resolution) for maximum density
         quality_params = {
             "fast": {
-                "resolution-level": "1",      # Lower resolution for speed
-                "min-resolution": "640",       # Minimum image resolution
-                "max-resolution": "1920",      # Maximum image resolution
-                "num-threads": "8",
+                "resolution-level": "0",       # UNIFIED: Full resolution (was 1)
+                "min-resolution": "1280",      # Increased from 640
+                "max-resolution": "3840",      # Increased from 1920 (4K)
+                "num-threads": "16",           # Increased from 8
+                "number-views": "0",           # 0 = optimal for dense
             },
             "high_quality": {
                 "resolution-level": "0",       # Full resolution
-                "min-resolution": "1280",
-                "max-resolution": "3200",
+                "min-resolution": "1920",      # Increased from 1280
+                "max-resolution": "7680",      # Increased from 3200 (8K)
                 "num-threads": "16",
+                "number-views": "0",           # 0 = optimal for dense
             },
             "ultra_openmvs": {
-                "resolution-level": "0",       # CRITICAL: Full resolution (no downscaling)
-                "min-resolution": "2560",      # Ensure high detail
-                "max-resolution": "8192",      # Support 8K
+                "resolution-level": "0",       # Full resolution (no downscaling)
+                "min-resolution": "2560",      # High detail
+                "max-resolution": "7680",      # 8K support
                 "num-threads": "16",
                 "number-views": "0",           # 0 = optimal for dense
             }

@@ -14,13 +14,13 @@ import shutil
 
 logger = logging.getLogger(__name__)
 
-# Import 360° video converter if available
+# Import 360° video processing if available
 try:
-    from video_360_converter import detect_360_video, convert_360_video_to_perspective_frames
+    from video_processing import detect_360_video, convert_360_to_perspective_frames
     HAS_360_SUPPORT = True
 except ImportError:
     HAS_360_SUPPORT = False
-    logger.warning("360° video support not available (video_360_converter.py not found)")
+    logger.warning("360° video support not available (video_processing.py not found)")
 
 
 class COLMAPProcessor:
@@ -86,24 +86,19 @@ class COLMAPProcessor:
             logger.warning(f"⚠️  GPU check failed: {e}, falling back to CPU")
             return False
     
-    def _auto_detect_optimal_fps(self, video_path: str, quality: str = "medium") -> Tuple[float, float, int]:
+    def _detect_native_fps(self, video_path: str) -> Tuple[float, float, int]:
         """
-        Auto-detect optimal FPS based on video duration and quality target
+        Detect video's NATIVE FPS for optimal frame extraction
         
-        Returns: (optimal_fps, video_duration, total_frames)
+        NEW STRATEGY (2025):
+        - Use video's native FPS (24, 30, 60, etc.) - no artificial limits
+        - Let OpenMVS handle densification instead of over-extracting frames
+        - More efficient: fewer frames to process, better quality from OpenMVS
         
-        Strategy:
-        - Short videos (<30s): Use higher FPS (more frames for stability)
-        - Medium videos (30s-2min): Use medium FPS (balanced)
-        - Long videos (>2min): Use lower FPS (avoid too many frames)
-        
-        Target frame count for good reconstruction:
-        - Low quality: 30-50 frames
-        - Medium quality: 50-100 frames  
-        - High quality: 100-200 frames
+        Returns: (native_fps, video_duration, estimated_frames)
         """
         try:
-            # Get video duration and native FPS
+            # Get video metadata
             probe_cmd = [
                 "ffprobe", "-v", "error",
                 "-show_entries", "format=duration:stream=r_frame_rate",
@@ -116,53 +111,33 @@ class COLMAPProcessor:
             
             # Parse output
             duration = 0.0
-            native_fps = 30.0  # default fallback
+            native_fps = 24.0  # Common default for most videos
             
             for line in output_lines:
                 if 'r_frame_rate' in line or '/' in line:
                     fps_str = line.split('=')[-1]
                     if '/' in fps_str:
                         num, den = fps_str.split('/')
-                        native_fps = float(num) / float(den)
+                        if float(den) > 0:
+                            native_fps = float(num) / float(den)
                 elif 'duration' in line:
                     duration = float(line.split('=')[-1])
             
-            logger.info(f"📹 Video analysis: duration={duration:.1f}s, native_fps={native_fps:.1f}")
+            # Round to common FPS values (24, 25, 30, 60)
+            common_fps = [24, 25, 30, 60]
+            native_fps = min(common_fps, key=lambda x: abs(x - native_fps))
             
-            # Define target frame counts based on quality
-            # Higher frame counts = better overlap potential
-            target_frames = {
-                "low": 60,      # Increased for better overlap (was 40)
-                "medium": 100,  # Increased for >80% overlap (was 70)
-                "high": 150,    # Increased for maximum overlap (was 120)
-                "ultra": 300,
-                "ultra_openmvs": 300
-            }
+            estimated_frames = int(duration * native_fps)
             
-            target_frame_count = target_frames.get(quality, 100)
+            logger.info(f"📹 Video metadata: duration={duration:.1f}s, native_fps={native_fps:.0f}")
+            logger.info(f"🎯 Using NATIVE FPS: {native_fps:.0f} fps → ~{estimated_frames} frames")
+            logger.info(f"✨ OpenMVS will densify the point cloud (no need for frame over-sampling)")
             
-            # Calculate optimal FPS to reach target frame count
-            # Extract more frames closer together for better physical overlap
-            if duration > 0:
-                optimal_fps = target_frame_count / duration
-                # Increased FPS range for better overlap (was 3-15, now 5-20)
-                max_fps = 30 if "ultra" in quality else 20
-                optimal_fps = max(5, min(optimal_fps, max_fps))  # Between 5-20 fps for better overlap
-                # Don't exceed native FPS
-                optimal_fps = min(optimal_fps, native_fps)
-            else:
-                # Fallback if duration detection fails
-                optimal_fps = 10
-            
-            estimated_frames = int(duration * optimal_fps)
-            
-            logger.info(f"🎯 Auto-detected optimal FPS: {optimal_fps:.1f} fps → ~{estimated_frames} frames (target: {target_frame_count})")
-            
-            return optimal_fps, duration, estimated_frames
+            return native_fps, duration, estimated_frames
             
         except Exception as e:
-            logger.warning(f"⚠️  Auto-detection failed: {e}, using defaults")
-            return 10.0, 20.0, 200  # Safe defaults
+            logger.warning(f"⚠️  FPS detection failed: {e}, using 24 FPS default")
+            return 24.0, 30.0, 720  # Safe defaults (24 FPS x 30s)
     
     def extract_frames(self, video_path: str, max_frames: int = 0, target_fps: int = None, quality: str = "medium", progress_callback=None, is_360: bool = False) -> int:
         """
@@ -194,35 +169,41 @@ class COLMAPProcessor:
                 logger.warning(f"Could not detect 360° format: {e}")
         
         # Handle 360° video conversion
-        if is_360 and HAS_360_SUPPORT:
-            logger.info(f"🌐 Converting 360° video to perspective frames (optimized: 1 fps extraction)...")
+        if is_360:
+            logger.info(f"🌐 Converting 360° video to perspective frames (1 FPS, 8 views)...")
+            if not HAS_360_SUPPORT:
+                logger.error("360° video support not available - video_processing module missing")
+                raise RuntimeError("360° video support not available")
+            
             try:
-                # OPTIMIZED: Extract only 1 frame per second, then generate multiple perspective views
-                # This is much more efficient than processing every frame
-                num_views = 8  # Extract 8 views per frame (45° apart)
-                extraction_fps = 1.0  # Extract 1 frame per second (optimized)
+                # OPTIMIZED STRATEGY for 360° videos:
+                # - Extract 1 frame per second (efficient)
+                # - Generate 8 perspective views per frame (45° apart)
+                # - Total coverage: 360° × all timestamps = complete reconstruction
+                num_views = 8  # 8 perspectives per frame (45° apart: 0°, 45°, 90°, 135°, 180°, 225°, 270°, 315°)
+                extraction_fps = 1.0  # 1 frame per second
                 
-                frame_count = convert_360_video_to_perspective_frames(
+                frame_count = convert_360_to_perspective_frames(
                     video_path,
-                    self.images_path,
-                    fov=90.0,
-                    num_views=num_views,
-                    extraction_fps=extraction_fps,  # 1 fps extraction
-                    progress_callback=progress_callback
+                    str(self.images_path),
+                    target_fps=int(extraction_fps),
+                    num_views=num_views
                 )
-                logger.info(f"✅ Extracted {frame_count} perspective frames from 360° video (1 fps extraction, {num_views} views per frame)")
+                logger.info(f"✅ Extracted {frame_count} perspective frames from 360° video")
+                logger.info(f"   Strategy: 1 FPS × {num_views} views = complete 360° coverage")
                 return frame_count
             except Exception as e:
-                logger.error(f"360° conversion failed, falling back to standard extraction: {e}")
-                # Fall through to standard extraction
+                logger.error(f"❌ 360° conversion failed: {e}")
+                raise RuntimeError(f"360° video conversion failed: {e}")
         
-        logger.info(f"Extracting frames from {video_path} (quality={quality}, auto_fps={'enabled' if target_fps is None else 'manual'})")
+        logger.info(f"📹 Extracting frames from {video_path} (quality={quality})")
         
-        # Auto-detect optimal FPS if not specified
+        # Detect video's NATIVE FPS (no artificial limits or overrides)
         if target_fps is None:
-            actual_fps, duration, estimated_frames = self._auto_detect_optimal_fps(video_path, quality)
+            actual_fps, duration, estimated_frames = self._detect_native_fps(video_path)
         else:
-            # Manual FPS specified - get video info for logging
+            # Manual FPS override (not recommended - used for testing only)
+            logger.warning(f"⚠️  Manual FPS override: {target_fps} (not recommended)")
             try:
                 probe_cmd = [
                     "ffprobe", "-v", "error",
@@ -238,8 +219,8 @@ class COLMAPProcessor:
             except Exception as e:
                 logger.warning(f"Could not detect video duration: {e}")
                 actual_fps = target_fps
-                duration = 20.0
-                estimated_frames = 200
+                duration = 30.0
+                estimated_frames = int(30 * target_fps)
         
         # Quality-based scaling
         scale_map = {
@@ -459,22 +440,23 @@ class COLMAPProcessor:
         
         # Quality-based overlap strategy for >80% image overlap
         # Higher overlap = better reconstruction quality
+        # UNIFIED: All presets now use overlap=100 for maximum coverage
         overlap_params = {
             "low": {
-                "overlap": "20",  # Match 20 adjacent frames (~20-30% overlap)
+                "overlap": "100",  # Match 100 adjacent frames for >80% overlap
                 "use_exhaustive": False
             },
             "medium": {
-                "overlap": "100",  # Match 50 adjacent frames (~50-70% overlap)
+                "overlap": "100",  # Match 100 adjacent frames for >80% overlap
                 "use_exhaustive": False
             },
             "high": {
-                "overlap": "100",  # Match all frames with sequential (more reliable than exhaustive)
-                "use_exhaustive": False  # Use sequential with high overlap for reliability
+                "overlap": "100",  # Match 100 adjacent frames for >80% overlap
+                "use_exhaustive": False
             },
             "ultra": {
-                "overlap": "100",         # High overlap for sequential
-                "use_exhaustive": False,  # FORCE exhaustive matching for Ultra
+                "overlap": "100",  # Match 100 adjacent frames for >80% overlap
+                "use_exhaustive": False,  # Sequential matching (more reliable than exhaustive)
                 "guided_matching": "1"   # Use geometric verification to guide matching
             }
         }

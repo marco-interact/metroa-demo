@@ -159,6 +159,25 @@ export function MeasurementTools({
       return
     }
 
+    // Validate point positions
+    const [p1, p2] = externalSelectedPositions
+    if (!p1 || !p2 || p1.length !== 3 || p2.length !== 3) {
+      console.error('❌ Invalid point positions:', { p1, p2 })
+      alert("❌ Invalid point positions. Please try selecting the points again.")
+      return
+    }
+
+    // Check if points are too close (likely an error)
+    const dx = p2[0] - p1[0]
+    const dy = p2[1] - p1[1]
+    const dz = p2[2] - p1[2]
+    const distance = Math.sqrt(dx*dx + dy*dy + dz*dz)
+    
+    if (distance < 0.01) {
+      alert("❌ Selected points are too close together (< 1cm). Please select two distinct points.")
+      return
+    }
+
     try {
       const formData = new FormData()
       formData.append('scan_id', scanId)
@@ -170,12 +189,14 @@ export function MeasurementTools({
         scan_id: scanId,
         point1_position: externalSelectedPositions[0],
         point2_position: externalSelectedPositions[1],
-        known_distance: knownDistance
+        known_distance: knownDistance,
+        measured_distance: distance.toFixed(3)
       })
 
       const response = await fetch('/api/backend/measurements/calibrate', {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: AbortSignal.timeout(30000) // 30 second timeout
       })
 
       if (response.ok) {
@@ -185,7 +206,7 @@ export function MeasurementTools({
         setIsCalibrating(false)
         onClearPoints?.()
         setKnownDistance("")
-        alert(`Scale calibrated! Factor: ${result.scale_factor.toFixed(6)}`)
+        alert(`✅ Scale calibrated successfully!\n\nScale factor: ${result.scale_factor.toFixed(6)}\nYou can now make measurements.`)
       } else {
         const errorText = await response.text()
         console.error('❌ Calibration failed:', response.status, errorText)
@@ -196,11 +217,25 @@ export function MeasurementTools({
         } catch {
           errorMessage = errorText || errorMessage
         }
-        alert(`Calibration failed: ${errorMessage}`)
+        
+        // Provide helpful error messages
+        if (errorMessage.includes('No point found within')) {
+          errorMessage += '\n\nTip: The backend uses sparse reconstruction. Try clicking on clearly visible features like corners or edges.'
+        } else if (errorMessage.includes('not found') || errorMessage.includes('404')) {
+          errorMessage = 'Reconstruction data not found. Please wait for processing to complete.'
+        } else if (errorMessage.includes('502') || errorMessage.includes('Bad Gateway')) {
+          errorMessage = 'Backend service unavailable. Please check if the RunPod pod is running.'
+        }
+        
+        alert(`❌ Calibration failed:\n\n${errorMessage}`)
       }
     } catch (error) {
       console.error('❌ Calibration error:', error)
-      alert(`Calibration failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      if (error instanceof Error && error.name === 'AbortError') {
+        alert(`❌ Calibration timed out after 30 seconds.\n\nThe backend may be overloaded. Please try again.`)
+      } else {
+        alert(`❌ Calibration failed:\n\n${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
     }
   }
 
@@ -209,6 +244,22 @@ export function MeasurementTools({
     if (!externalSelectedPositions || externalSelectedPositions.length < pointsRequired) {
       alert(`❌ Please select ${pointsRequired} point(s) to measure ${currentTypeInfo.name.toLowerCase()}.\n\nMake sure you're in Orbit mode and click directly on the model.\n\nCurrent points: ${externalSelectedPositions?.length || 0}/${pointsRequired}`)
       return
+    }
+
+    // Check if scale is calibrated
+    if (!isScaled) {
+      alert(`❌ Please calibrate the scale first before adding measurements.\n\nClick "Start Calibration" below and follow the instructions.`)
+      return
+    }
+
+    // Validate all point positions
+    for (let i = 0; i < pointsRequired; i++) {
+      const point = externalSelectedPositions[i]
+      if (!point || point.length !== 3) {
+        console.error(`❌ Invalid point ${i+1}:`, point)
+        alert(`❌ Invalid point position. Please try selecting the points again.`)
+        return
+      }
     }
 
     try {

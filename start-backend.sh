@@ -46,7 +46,8 @@ echo ""
 echo "=== 3/7 Python Package Check ==="
 python3 -c "import fastapi; print('✅ FastAPI:', fastapi.__version__)" 2>&1 || echo "❌ FastAPI MISSING"
 python3 -c "import uvicorn; print('✅ Uvicorn:', uvicorn.__version__)" 2>&1 || echo "❌ Uvicorn MISSING"
-python3 -c "import open3d; print('✅ Open3D:', open3d.__version__)" 2>&1 || echo "⚠️  Open3D unavailable"
+python3 -c "import numpy; print('✅ NumPy:', numpy.__version__)" 2>&1 || echo "❌ NumPy MISSING"
+python3 -c "import cv2; print('✅ OpenCV:', cv2.__version__)" 2>&1 || echo "❌ OpenCV MISSING"
 echo ""
 
 # ============================================================================
